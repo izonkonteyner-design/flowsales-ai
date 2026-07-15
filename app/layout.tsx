@@ -7,14 +7,28 @@ export const metadata: Metadata = {
     default: "FlowSales AI",
     template: "%s | FlowSales AI",
   },
-  description: "FlowSales AI is your AI sales employee for SMEs.",
+  description:
+    "FlowSales AI is a premium AI CRM for SMEs selling containers, prefabricated buildings, tiny houses, and related products.",
+  alternates: {
+    canonical: "https://flowsales.ai",
+  },
   openGraph: {
     title: "FlowSales AI",
-    description: "Your AI sales employee for SMEs.",
+    description:
+      "A premium AI CRM and sales workspace for SMEs selling industrial and modular products.",
     url: "https://flowsales.ai",
     siteName: "FlowSales AI",
     type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "FlowSales AI",
+    description:
+      "A premium AI CRM and sales workspace for SMEs selling modular and prefabricated products.",
+  },
+  icons: [
+    { rel: "icon", url: "/favicon.ico" },
+  ],
 };
 
 export default function RootLayout({

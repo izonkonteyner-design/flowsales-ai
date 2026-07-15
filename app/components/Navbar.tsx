@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 
 export default function Navbar() {
   return (
-    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-white px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6 lg:px-8">
       <div className="relative max-w-md flex-1">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
@@ -22,11 +22,11 @@ export default function Navbar() {
 
         <div className="flex items-center gap-3 border-l border-slate-200 pl-3 sm:pl-4">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
-            Ç
+            FS
           </div>
 
           <span className="hidden text-sm font-medium text-slate-700 sm:block">
-            Çağatay
+            FlowSales
           </span>
         </div>
       </div>

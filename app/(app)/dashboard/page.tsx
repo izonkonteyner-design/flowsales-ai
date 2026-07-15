@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Area,
   AreaChart,
   CartesianGrid,
   ResponsiveContainer,
@@ -10,13 +9,7 @@ import {
   YAxis,
   Area as RechartsArea,
 } from "recharts";
-
-import {
-  DollarSign,
-  FileText,
-  TrendingUp,
-  Users,
-} from "lucide-react";
+import { DollarSign, FileText, TrendingUp, Users } from "lucide-react";
 
 import StatCard from "@/app/components/StatCard";
 
@@ -33,19 +26,19 @@ export default function DashboardPage() {
   return (
     <>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-slate-900">
+        <h1 className="text-3xl font-bold tracking-tight text-slate-950">
           Dashboard
         </h1>
 
         <p className="mt-2 text-slate-500">
-          Welcome back, Çağatay 👋
+          Welcome back. Here is the latest activity across your workspace.
         </p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title="Revenue"
-          value="₺245.000"
+          value="₺245,000"
           change="+18% this month"
           icon={DollarSign}
         />
@@ -72,9 +65,9 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="mt-8 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-6">
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold text-slate-950">
             Sales Overview
           </h2>
 
@@ -94,9 +87,7 @@ export default function DashboardPage() {
               </defs>
 
               <CartesianGrid strokeDasharray="3 3" vertical={false} />
-
               <XAxis dataKey="month" axisLine={false} tickLine={false} />
-
               <YAxis
                 axisLine={false}
                 tickLine={false}
@@ -105,7 +96,7 @@ export default function DashboardPage() {
 
               <Tooltip
                 formatter={(value) => [
-                  `₺${Number(value).toLocaleString("tr-TR")}`,
+                  `₺${Number(value).toLocaleString("en-US")}`,
                   "Sales",
                 ]}
               />
@@ -123,51 +114,47 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">Recent Leads</h2>
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-950">Recent Leads</h2>
 
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between border-b pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <p className="font-medium">Ahmet Yılmaz</p>
-                <p className="text-sm text-slate-500">
-                  56m² Garden Container
-                </p>
+                <p className="font-medium text-slate-950">Ahmet Yilmaz</p>
+                <p className="text-sm text-slate-500">56m² Garden Container</p>
               </div>
 
-              <span className="rounded-full bg-green-100 px-3 py-1 text-xs text-green-700">
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs text-emerald-700">
                 New
               </span>
             </div>
 
-            <div className="flex items-center justify-between border-b pb-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <p className="font-medium">Mehmet Kaya</p>
-                <p className="text-sm text-slate-500">
-                  Tiny House
-                </p>
+                <p className="font-medium text-slate-950">Mehmet Kaya</p>
+                <p className="text-sm text-slate-500">Tiny House</p>
               </div>
 
-              <span className="rounded-full bg-yellow-100 px-3 py-1 text-xs text-yellow-700">
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-xs text-amber-700">
                 Quote Sent
               </span>
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-semibold">AI Suggestions</h2>
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-slate-950">AI Suggestions</h2>
 
           <div className="mt-6 space-y-4 text-sm">
-            <div className="rounded-xl bg-slate-100 p-4">
+            <div className="rounded-2xl bg-slate-100 p-4 text-slate-700">
               Contact Ahmet today.
             </div>
 
-            <div className="rounded-xl bg-slate-100 p-4">
+            <div className="rounded-2xl bg-slate-100 p-4 text-slate-700">
               Mehmet opened the quote twice.
             </div>
 
-            <div className="rounded-xl bg-slate-100 p-4">
+            <div className="rounded-2xl bg-slate-100 p-4 text-slate-700">
               Follow up with 3 inactive leads.
             </div>
           </div>

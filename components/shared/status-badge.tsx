@@ -4,6 +4,7 @@ type StatusBadgeProps = {
   tone?: "neutral" | "info" | "warning" | "success" | "danger";
   children: React.ReactNode;
   className?: string;
+  title?: string;
 };
 
 const toneClasses: Record<NonNullable<StatusBadgeProps["tone"]>, string> = {
@@ -21,6 +22,7 @@ export function StatusBadge({
   tone = "neutral",
   children,
   className,
+  title,
 }: StatusBadgeProps) {
   return (
     <span
@@ -29,6 +31,7 @@ export function StatusBadge({
         toneClasses[tone],
         className,
       )}
+      title={title}
     >
       {children}
     </span>

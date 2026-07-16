@@ -7,8 +7,10 @@ import {
   buildLeadDashboardMetrics,
   buildLeadStatusActivity,
   canManageLeads,
+  canMutateLeadRecord,
   isLeadInOrganization,
 } from "@/server/services/lead-domain";
+import { leadStatusChangeSchema } from "@/lib/validations/lead";
 
 const baseLead: Lead = {
   id: "lead_1",
@@ -76,6 +78,32 @@ test("lead permissions block viewer actions", () => {
   assert.equal(canManageLeads("admin"), true);
   assert.equal(canManageLeads("sales"), true);
   assert.equal(canManageLeads("viewer"), false);
+});
+
+test("demo leads cannot be mutated", () => {
+  assert.equal(canMutateLeadRecord("demo", "owner"), false);
+  assert.equal(canMutateLeadRecord("demo", "sales"), false);
+});
+
+test("live UUID leads can change status", () => {
+  assert.equal(canMutateLeadRecord("live", "sales"), true);
+
+  const parsed = leadStatusChangeSchema.parse({
+    lead_id: "550e8400-e29b-41d4-a716-446655440000",
+    status: "qualified",
+  });
+
+  assert.equal(parsed.lead_id, "550e8400-e29b-41d4-a716-446655440000");
+});
+
+test("invalid lead ids are rejected", () => {
+  assert.equal(
+    leadStatusChangeSchema.safeParse({
+      lead_id: "lead_004",
+      status: "qualified",
+    }).success,
+    false,
+  );
 });
 
 test("lead organization isolation is enforced by helper", () => {

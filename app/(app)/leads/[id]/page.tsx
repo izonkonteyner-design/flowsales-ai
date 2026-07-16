@@ -28,6 +28,9 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { getLeadDetailData } from "@/server/services/leads";
 import {
   formatLeadFollowUpState,
+  canMutateLeadRecord,
+  getLeadRecordBadge,
+  getLeadRecordRestrictionMessage,
   getLeadStatusLabel,
   getLeadStatusTone,
 } from "@/server/services/lead-domain";
@@ -64,7 +67,9 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
   const followUpState = formatLeadFollowUpState(lead.next_follow_up_at);
   const assignedMember = data.context.members.find((member) => member.user_id === lead.assigned_to);
   const leadDetailHref = `/leads/${lead.id}/edit?redirect_to=${encodeURIComponent(redirectTo)}`;
-  const canMutate = data.context.role === "owner" || data.context.role === "admin" || data.context.role === "sales";
+  const canMutate = canMutateLeadRecord(lead.recordMode, data.context.role);
+  const recordBadge = getLeadRecordBadge(lead.recordMode);
+  const restrictionMessage = getLeadRecordRestrictionMessage(lead.recordMode, data.context.role);
 
   return (
     <div className="space-y-6">
@@ -91,10 +96,21 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
                 <PencilLine className="h-4 w-4" />
                 Edit
               </Link>
-            ) : null}
-            {canMutate ? (
-              <LeadDeleteDialog leadId={lead.id} leadName={lead.full_name} redirectTo="/leads" />
-            ) : null}
+            ) : (
+              <span
+                title={restrictionMessage}
+                className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+              >
+                Read only
+              </span>
+            )}
+            <LeadDeleteDialog
+              leadId={lead.id}
+              leadName={lead.full_name}
+              redirectTo="/leads"
+              recordMode={lead.recordMode}
+              role={data.context.role}
+            />
           </>
         }
       />
@@ -106,6 +122,9 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
             <StatusBadge tone="neutral">{lead.source}</StatusBadge>
             <StatusBadge tone="neutral">{lead.assigned_to_label}</StatusBadge>
             <StatusBadge tone={followUpState.tone}>{followUpState.label}</StatusBadge>
+            <StatusBadge tone={recordBadge.tone} title={recordBadge.title}>
+              {recordBadge.label}
+            </StatusBadge>
           </div>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
@@ -138,7 +157,13 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
 
           <div className="mt-6 flex flex-wrap gap-3">
             {canMutate ? (
-              <LeadStatusMenu leadId={lead.id} currentStatus={lead.status} redirectTo={redirectTo} />
+              <LeadStatusMenu
+                leadId={lead.id}
+                currentStatus={lead.status}
+                redirectTo={redirectTo}
+                recordMode={lead.recordMode}
+                role={data.context.role}
+              />
             ) : null}
             {canMutate ? (
               <Link
@@ -231,12 +256,12 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
                 </button>
               </form>
             </div>
-          ) : (
-            <EmptyState
-              title="Read-only access"
-              description="Viewer permissions can inspect leads but cannot create notes, follow-ups, tasks, or edits."
-            />
-          )}
+            ) : (
+              <EmptyState
+                title="Read-only access"
+                description={restrictionMessage}
+              />
+            )}
         </SectionCard>
       </div>
 

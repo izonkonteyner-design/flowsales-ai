@@ -18,6 +18,7 @@ import {
   normalizeLeadSearchParams,
   paginateLeads,
   sortLeads,
+  type LeadRecordMode,
   type LeadDashboardMetrics,
   type LeadFilterState,
   type LeadMemberOption,
@@ -26,6 +27,7 @@ import {
 import type { Activity, Lead, Organization, Task } from "@/types/crm";
 
 export type LeadRow = Lead & {
+  recordMode: LeadRecordMode;
   assigned_to_label: string;
   created_by_label: string;
   overdue_follow_up: boolean;
@@ -86,13 +88,14 @@ function createDemoContext(): LeadWorkspaceContext {
   };
 }
 
-function mapLeadRow(lead: Lead, members: LeadMemberOption[]): LeadRow {
+function mapLeadRow(lead: Lead, members: LeadMemberOption[], recordMode: LeadRecordMode): LeadRow {
   const memberMap = new Map(members.map((member) => [member.user_id, member.full_name]));
   const assigned_to_label = lead.assigned_to ? memberMap.get(lead.assigned_to) ?? lead.assigned_to : "Unassigned";
   const created_by_label = lead.created_by ? memberMap.get(lead.created_by) ?? lead.created_by : "Team member";
 
   return {
     ...lead,
+    recordMode,
     assigned_to_label,
     created_by_label,
     overdue_follow_up: isLeadOverdue(lead.next_follow_up_at),
@@ -184,7 +187,7 @@ async function loadLiveLeads(context: LeadWorkspaceContext) {
     return null;
   }
 
-  return data.map((lead) => mapLeadRow(lead as Lead, context.members));
+  return data.map((lead) => mapLeadRow(lead as Lead, context.members, "live"));
 }
 
 function buildPageData(
@@ -217,13 +220,13 @@ export async function getLeadPageData(input: Partial<Record<string, string | str
   const filters = normalizeLeadSearchParams(input);
 
   if (context.mode === "demo") {
-    const leadRows = demoLeads.map((lead) => mapLeadRow(lead, context.members));
+    const leadRows = demoLeads.map((lead) => mapLeadRow(lead, context.members, "demo"));
     return buildPageData(context, filters, leadRows);
   }
 
   const liveLeads = await loadLiveLeads(context);
   if (!liveLeads) {
-    const leadRows = demoLeads.map((lead) => mapLeadRow(lead, context.members));
+    const leadRows = demoLeads.map((lead) => mapLeadRow(lead, context.members, "demo"));
     return buildPageData(context, filters, leadRows);
   }
 
@@ -239,7 +242,7 @@ export async function getLeadDetailData(id: string) {
     const activities = demoActivities.filter((activity) => activity.lead_id === id);
     return {
       context,
-      lead: lead ? mapLeadRow(lead, context.members) : null,
+      lead: lead ? mapLeadRow(lead, context.members, "demo") : null,
       tasks,
       activities,
     } satisfies LeadDetailData;
@@ -287,7 +290,7 @@ export async function getLeadDetailData(id: string) {
   ]);
 
   const memberMap = new Map(context.members.map((member) => [member.user_id, member.full_name]));
-  const leadRow = mapLeadRow(lead as Lead, context.members);
+  const leadRow = mapLeadRow(lead as Lead, context.members, "live");
 
   return {
     context,
@@ -699,7 +702,7 @@ export async function getLeadDashboardData(): Promise<LeadDashboardData> {
       .limit(20),
   ]);
 
-  const leads = (leadsResponse.data ?? []).map((lead) => mapLeadRow(lead as Lead, context.members));
+  const leads = (leadsResponse.data ?? []).map((lead) => mapLeadRow(lead as Lead, context.members, "live"));
   const tasks = (tasksResponse.data ?? []) as Task[];
   const activities = (activitiesResponse.data ?? []) as Activity[];
 

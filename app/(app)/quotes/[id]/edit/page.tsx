@@ -5,30 +5,31 @@ import { FlashToast } from "@/components/shared/flash-toast";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { QuoteForm } from "@/components/quotes/quote-form";
-import { createQuoteAction } from "@/app/(app)/quotes/actions";
+import { updateQuoteAction } from "@/app/(app)/quotes/actions";
 import { getQuoteFormData } from "@/server/services/quotes";
 
-type NewQuotePageProps = {
+type EditQuotePageProps = {
+  params: Promise<{ id: string }>;
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function NewQuotePage({ searchParams }: NewQuotePageProps) {
-  const rawSearchParams = await searchParams;
-  const data = await getQuoteFormData();
+export default async function EditQuotePage({ params, searchParams }: EditQuotePageProps) {
+  const [{ id }, rawSearchParams] = await Promise.all([params, searchParams]);
+  const data = await getQuoteFormData(id);
   const redirectTo = typeof rawSearchParams.redirect_to === "string" && rawSearchParams.redirect_to.startsWith("/")
     ? rawSearchParams.redirect_to
-    : "/quotes";
+    : `/quotes/${id}`;
   const toastMessage = typeof rawSearchParams.toast === "string" ? rawSearchParams.toast : "";
   const toastTone =
     rawSearchParams.tone === "danger" || rawSearchParams.tone === "warning" || rawSearchParams.tone === "info"
       ? rawSearchParams.tone
       : "success";
 
-  if (data.error) {
+  if (!data.quote) {
     return (
       <EmptyState
-        title="Unable to open quote form"
-        description={data.error}
+        title="Quote not found"
+        description={data.error ?? "The requested quote cannot be loaded for editing."}
         actionHref="/quotes"
         actionLabel="Back to quotes"
       />
@@ -41,23 +42,23 @@ export default async function NewQuotePage({ searchParams }: NewQuotePageProps) 
 
       <PageHeader
         eyebrow="Commercial"
-        title="New quote"
-        description="Create a secure commercial proposal with live pricing and manual line items."
+        title={`Edit ${data.quote.quote_number}`}
+        description="Update the stored snapshot while keeping organization-level permissions intact."
         actions={
           <Link
-            href="/quotes"
+            href={`/quotes/${id}`}
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to quotes
+            Back to quote
           </Link>
         }
       />
 
       <QuoteForm
-        mode="create"
-        action={createQuoteAction}
-        quote={null}
+        mode="edit"
+        action={updateQuoteAction}
+        quote={data.quote}
         leadOptions={data.leadOptions}
         customerOptions={data.customerOptions}
         productOptions={data.productOptions}

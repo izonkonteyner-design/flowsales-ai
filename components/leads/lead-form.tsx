@@ -30,22 +30,22 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Full name">
-          <Input name="full_name" defaultValue={lead?.full_name ?? ""} placeholder="Full name" required />
+          <Input name="full_name" defaultValue={lead?.full_name ?? ""} required />
         </Field>
         <Field label="Company">
-          <Input name="company" defaultValue={lead?.company ?? ""} placeholder="Company" />
+          <Input name="company" defaultValue={lead?.company ?? ""} />
         </Field>
         <Field label="Email">
-          <Input name="email" type="email" defaultValue={lead?.email ?? ""} placeholder="you@company.com" />
+          <Input name="email" type="email" defaultValue={lead?.email ?? ""} />
         </Field>
         <Field label="Phone">
-          <Input name="phone" defaultValue={lead?.phone ?? ""} placeholder="+90..." />
+          <Input name="phone" defaultValue={lead?.phone ?? ""} />
         </Field>
         <Field label="City">
-          <Input name="city" defaultValue={lead?.city ?? ""} placeholder="City" />
+          <Input name="city" defaultValue={lead?.city ?? ""} />
         </Field>
         <Field label="Estimated value">
-          <Input name="estimated_value" type="number" min="0" step="0.01" defaultValue={estimatedValue} placeholder="0" required />
+          <Input name="estimated_value" type="number" min="0" step="0.01" defaultValue={estimatedValue} required />
         </Field>
         <Field label="Source">
           <Select name="source" defaultValue={lead?.source ?? "Website"}>
@@ -90,11 +90,7 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
       </div>
 
       <Field label="Notes">
-        <Textarea
-          name="notes"
-          defaultValue={lead?.notes ?? ""}
-          placeholder="Call notes, context, objections, and next steps."
-        />
+        <Textarea name="notes" defaultValue={lead?.notes ?? ""} />
       </Field>
 
       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">

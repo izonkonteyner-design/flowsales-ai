@@ -159,7 +159,7 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
                 <input type="hidden" name="redirect_to" value={redirectTo} />
                 <label className="space-y-2">
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Add note</span>
-                  <Textarea name="note" placeholder="Capture the latest call, objection, or next step." rows={4} />
+                  <Textarea name="note" rows={4} />
                 </label>
                 <button
                   type="submit"
@@ -192,7 +192,7 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
                 <div className="grid gap-3">
                   <label className="space-y-2">
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Task title</span>
-                    <Input name="title" placeholder="Follow up with procurement" />
+                    <Input name="title" />
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className="space-y-2">

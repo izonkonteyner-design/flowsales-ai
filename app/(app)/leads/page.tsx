@@ -136,11 +136,7 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
 
           <label className="space-y-2">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Search</span>
-            <Input
-              name="query"
-              defaultValue={data.filters.query}
-              placeholder="Search leads, companies, city, or source"
-            />
+            <Input name="query" defaultValue={data.filters.query} />
           </label>
 
           <label className="space-y-2">

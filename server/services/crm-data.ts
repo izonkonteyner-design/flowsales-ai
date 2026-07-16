@@ -468,7 +468,7 @@ function buildDashboardMetrics(): DashboardMetrics {
     quotesSent: quotesSent.length,
     wonRevenue: demoQuotes
       .filter((quote) => quote.status === "accepted")
-      .reduce((sum, quote) => sum + quote.total, 0),
+      .reduce((sum, quote) => sum + (quote.total ?? quote.grand_total ?? 0), 0),
     conversionRate: Math.round((wonLeads.length / demoLeads.length) * 100),
     averageDealValue: Math.round(
       demoLeads.reduce((sum, lead) => sum + lead.estimated_value, 0) / demoLeads.length,

@@ -35,7 +35,8 @@ export type QuoteStatus =
   | "viewed"
   | "accepted"
   | "rejected"
-  | "expired";
+  | "expired"
+  | "cancelled";
 
 export type TaskPriority = "low" | "medium" | "high";
 
@@ -126,25 +127,38 @@ export type Task = {
 
 export type QuoteItem = {
   id: string;
-  product_id: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  discount: number;
-  tax_rate: number;
-  line_total: number;
+  quote_id?: string;
+  product_id?: string | null;
+  name?: string;
+  description?: string | null;
+  sku?: string | null;
+  quantity?: number;
+  unit?: string;
+  currency?: CurrencyCode;
+  unit_price?: number;
+  discount?: number;
   discount_type?: QuoteDiscountType;
   discount_value?: number;
-  currency?: CurrencyCode;
+  tax_rate?: number;
+  line_subtotal?: number;
+  line_discount?: number;
+  taxable_subtotal?: number;
+  line_tax?: number;
+  line_total?: number;
+  sort_order?: number;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Quote = {
   id: string;
   organization_id: string;
-  lead_id: string;
+  lead_id: string | null;
+  customer_id?: string | null;
   quote_number: string;
   issue_date: string;
-  expiry_date: string;
+  valid_until?: string | null;
+  expiry_date?: string | null;
   status: QuoteStatus;
   currency: string;
   notes: string;
@@ -152,10 +166,15 @@ export type Quote = {
   delivery_terms: string;
   shipping_total?: number;
   subtotal: number;
-  discount_total: number;
+  discount_total?: number;
+  line_discount_total?: number;
+  order_discount_type?: QuoteDiscountType | null;
+  order_discount_value?: number;
+  order_discount_total?: number;
   taxable_subtotal?: number;
   tax_total: number;
-  total: number;
+  grand_total?: number;
+  total?: number;
   items: QuoteItem[];
   created_by: string;
   created_at: string;
@@ -165,11 +184,20 @@ export type Quote = {
 export type QuoteMoneyLine = {
   quantity: number;
   unit_price: number;
+  product_id?: string | null;
+  name?: string;
+  description?: string;
+  sku?: string;
+  unit?: string;
   discount?: number;
   discount_type?: QuoteDiscountType;
   discount_value?: number;
   tax_rate?: number;
   currency?: CurrencyCode;
+  line_subtotal?: number;
+  line_discount?: number;
+  taxable_subtotal?: number;
+  line_tax?: number;
 };
 
 export type QuoteMoneyTotals = {

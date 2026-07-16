@@ -1,4 +1,4 @@
-import type { LeadStatus, QuoteStatus, TaskPriority } from "@/types/crm";
+import type { CurrencyCode, LeadStatus, QuoteDiscountType, QuoteStatus, TaskPriority } from "@/types/crm";
 
 export const BRAND = {
   name: "FlowSales AI",
@@ -36,6 +36,23 @@ export const QUOTE_STATUSES: Array<{
   { value: "accepted", label: "Accepted" },
   { value: "rejected", label: "Rejected" },
   { value: "expired", label: "Expired" },
+];
+
+export const CURRENCY_CODES: Array<{
+  value: CurrencyCode;
+  label: string;
+}> = [
+  { value: "TRY", label: "TRY" },
+  { value: "USD", label: "USD" },
+  { value: "EUR", label: "EUR" },
+];
+
+export const QUOTE_DISCOUNT_TYPES: Array<{
+  value: QuoteDiscountType;
+  label: string;
+}> = [
+  { value: "percentage", label: "Percentage" },
+  { value: "fixed", label: "Fixed amount" },
 ];
 
 export const TASK_PRIORITIES: Array<{

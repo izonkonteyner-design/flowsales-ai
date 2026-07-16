@@ -41,6 +41,10 @@ export type TaskPriority = "low" | "medium" | "high";
 
 export type TaskStatus = "open" | "completed";
 
+export type CurrencyCode = "TRY" | "USD" | "EUR";
+
+export type QuoteDiscountType = "percentage" | "fixed";
+
 export type ProductSpecification = {
   key: string;
   value: string;
@@ -129,6 +133,9 @@ export type QuoteItem = {
   discount: number;
   tax_rate: number;
   line_total: number;
+  discount_type?: QuoteDiscountType;
+  discount_value?: number;
+  currency?: CurrencyCode;
 };
 
 export type Quote = {
@@ -143,14 +150,36 @@ export type Quote = {
   notes: string;
   payment_terms: string;
   delivery_terms: string;
+  shipping_total?: number;
   subtotal: number;
   discount_total: number;
+  taxable_subtotal?: number;
   tax_total: number;
   total: number;
   items: QuoteItem[];
   created_by: string;
   created_at: string;
   updated_at: string;
+};
+
+export type QuoteMoneyLine = {
+  quantity: number;
+  unit_price: number;
+  discount?: number;
+  discount_type?: QuoteDiscountType;
+  discount_value?: number;
+  tax_rate?: number;
+  currency?: CurrencyCode;
+};
+
+export type QuoteMoneyTotals = {
+  currency: CurrencyCode;
+  subtotal: number;
+  discount_total: number;
+  taxable_subtotal: number;
+  shipping_total: number;
+  tax_total: number;
+  grand_total: number;
 };
 
 export type Activity = {

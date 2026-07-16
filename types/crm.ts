@@ -44,15 +44,20 @@ export type TaskStatus = "open" | "completed";
 export type Product = {
   id: string;
   organization_id: string;
+  sku?: string;
   name: string;
   category: string;
   description: string;
   base_price: number;
+  unit_price?: number;
   currency: string;
   tax_rate: number;
   unit: string;
   active: boolean;
   specifications: string[];
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Lead = {

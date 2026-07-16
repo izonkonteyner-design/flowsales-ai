@@ -58,22 +58,32 @@ const iconMap = {
 } as const;
 
 function useThemeMode() {
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") {
-      return "light";
-    }
-
-    const stored = window.localStorage.getItem("flowsales-theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    return stored === "light" || stored === "dark" ? stored : prefersDark ? "dark" : "light";
-  });
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    const stored = window.localStorage.getItem("flowsales-theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const nextTheme = stored === "light" || stored === "dark" ? stored : prefersDark ? "dark" : "light";
+
+    const frame = window.requestAnimationFrame(() => {
+      setTheme(nextTheme);
+      setMounted(true);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) {
+      return;
+    }
+
     document.documentElement.classList.toggle("dark", theme === "dark");
     window.localStorage.setItem("flowsales-theme", theme);
-  }, [theme]);
+  }, [mounted, theme]);
 
-  return { theme, setTheme };
+  return { theme, setTheme, mounted };
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -82,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
-  const { theme, setTheme } = useThemeMode();
+  const { theme, setTheme, mounted } = useThemeMode();
 
   const activeSection = useMemo(
     () => APP_NAVIGATION.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)),
@@ -285,11 +295,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                   aria-label="Toggle theme"
                 >
-                  {theme === "dark" ? (
-                    <SunMedium className="h-4 w-4" />
-                  ) : (
-                    <Moon className="h-4 w-4" />
-                  )}
+                  {mounted && theme === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 </button>
 
                 <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/5 lg:flex">

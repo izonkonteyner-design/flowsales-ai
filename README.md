@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FlowSales AI
 
-## Getting Started
+FlowSales AI is an AI-powered CRM and sales workspace for SMEs. It combines lead management, quotes, tasks, reporting, settings, and a secure auth boundary with a premium SaaS UI.
 
-First, run the development server:
+## Features
+
+- Marketing landing page
+- Auth routes: login, signup, forgot password, reset password
+- Protected app shell with light/dark mode and mobile navigation
+- Leads CRM with detail view
+- Products catalog
+- Quotes list, draft, and detail pages
+- Tasks and follow-up board
+- AI assistant workspace
+- Reports and workspace settings
+- Supabase SSR client/server boundary
+- Tenant-aware database migrations and RLS
+- Unit tests and CI
+
+## Architecture
+
+- `app/` contains route groups for marketing, auth, and the application shell
+- `components/` contains reusable layout and UI primitives
+- `lib/` contains constants, validation schemas, utility helpers, and Supabase helpers
+- `server/` contains demo data and calculation helpers
+- `supabase/migrations/` contains reproducible SQL
+- `tests/` contains unit tests for validation and quote math
+
+## Local setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create `.env.local` from [`.env.example`](./.env.example)
+
+3. Run the app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment variables
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Required for auth and live Supabase data:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 
-## Learn More
+Optional:
 
-To learn more about Next.js, take a look at the following resources:
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `OPENAI_API_KEY`
+- `STRIPE_SECRET_KEY`
+- `NEXT_PUBLIC_APP_URL`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Apply migrations in `supabase/migrations/` with the Supabase CLI or SQL editor. The demo seed is in `0002_seed.sql`.
 
-## Deploy on Vercel
+## Commands
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Deployment
+
+Deploy to Vercel with the environment variables above. See [docs/deployment.md](./docs/deployment.md) for the checklist.
+
+## Limitations
+
+- Live Supabase auth/data requires environment variables and a configured project.
+- AI and billing integrations are scaffolded but not connected to paid providers yet.
+- Demo data powers the product screens when live data is unavailable.

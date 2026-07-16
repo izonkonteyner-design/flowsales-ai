@@ -35,7 +35,8 @@ export type QuoteStatus =
   | "viewed"
   | "accepted"
   | "rejected"
-  | "expired";
+  | "expired"
+  | "cancelled";
 
 export type TaskPriority = "low" | "medium" | "high";
 
@@ -44,15 +45,20 @@ export type TaskStatus = "open" | "completed";
 export type Product = {
   id: string;
   organization_id: string;
+  sku?: string;
   name: string;
   category: string;
   description: string;
+  unit_price?: number;
   base_price: number;
   currency: string;
   tax_rate: number;
   unit: string;
   active: boolean;
   specifications: string[];
+  created_by?: string;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type Lead = {
@@ -90,24 +96,34 @@ export type Task = {
 
 export type QuoteItem = {
   id: string;
+  quote_id?: string;
   product_id: string;
   description: string;
   quantity: number;
   unit_price: number;
   discount: number;
+  discount_type?: "percentage" | "fixed";
+  discount_value?: number;
   tax_rate: number;
   line_total: number;
+  sort_order?: number;
+  name?: string;
+  unit?: string;
 };
 
 export type Quote = {
   id: string;
   organization_id: string;
-  lead_id: string;
+  lead_id: string | null;
   quote_number: string;
   issue_date: string;
   expiry_date: string;
   status: QuoteStatus;
   currency: string;
+  customer_name?: string;
+  customer_company?: string;
+  customer_email?: string;
+  customer_phone?: string;
   notes: string;
   payment_terms: string;
   delivery_terms: string;
@@ -115,6 +131,10 @@ export type Quote = {
   discount_total: number;
   tax_total: number;
   total: number;
+  grand_total?: number;
+  discount_type?: "percentage" | "fixed";
+  discount_value?: number;
+  shipping_total?: number;
   items: QuoteItem[];
   created_by: string;
   created_at: string;

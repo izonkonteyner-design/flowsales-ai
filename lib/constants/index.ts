@@ -36,6 +36,7 @@ export const QUOTE_STATUSES: Array<{
   { value: "accepted", label: "Accepted" },
   { value: "rejected", label: "Rejected" },
   { value: "expired", label: "Expired" },
+  { value: "cancelled", label: "Cancelled" },
 ];
 
 export const TASK_PRIORITIES: Array<{

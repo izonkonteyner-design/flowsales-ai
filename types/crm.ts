@@ -41,6 +41,11 @@ export type TaskPriority = "low" | "medium" | "high";
 
 export type TaskStatus = "open" | "completed";
 
+export type ProductSpecification = {
+  key: string;
+  value: string;
+};
+
 export type Product = {
   id: string;
   organization_id: string;
@@ -48,13 +53,35 @@ export type Product = {
   name: string;
   category: string;
   description: string;
+  short_description?: string;
+  brand?: string;
+  model?: string;
   base_price: number;
   unit_price?: number;
   currency: string;
   tax_rate: number;
   unit: string;
+  width?: number | null;
+  length?: number | null;
+  height?: number | null;
+  area_m2?: number | null;
+  weight_kg?: number | null;
+  material?: string;
+  color?: string;
+  stock_quantity?: number;
+  minimum_order_quantity?: number;
+  lead_time_days?: number;
+  warranty_months?: number;
+  internal_code?: string;
+  barcode?: string;
+  tags: string[];
+  features: string[];
+  specifications: ProductSpecification[];
+  image_url?: string | null;
+  gallery_urls: string[];
+  featured?: boolean;
+  notes?: string;
   active: boolean;
-  specifications: string[];
   created_by?: string;
   created_at?: string;
   updated_at?: string;

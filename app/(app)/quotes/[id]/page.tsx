@@ -61,6 +61,22 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
               <ArrowLeft className="h-4 w-4" />
               Back
             </Link>
+            <Link
+              href={`/quotes/${quote.id}/print`}
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+            >
+              <Send className="h-4 w-4" />
+              Print / Preview
+            </Link>
+            <a
+              href={`/api/quotes/${quote.id}/pdf`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+            >
+              <Copy className="h-4 w-4" />
+              Download PDF
+            </a>
             <form action={duplicateQuoteAction}>
               <input type="hidden" name="quote_id" value={quote.id} />
               <button

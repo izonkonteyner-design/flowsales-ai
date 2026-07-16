@@ -93,6 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { theme, setTheme, mounted } = useThemeMode();
+  const isPrintRoute = pathname.endsWith("/print");
 
   const activeSection = useMemo(
     () => APP_NAVIGATION.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)),
@@ -110,6 +111,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.push("/login");
     router.refresh();
     setIsSigningOut(false);
+  }
+
+  if (isPrintRoute) {
+    return <div className="min-h-screen bg-white text-slate-950">{children}</div>;
   }
 
   return (

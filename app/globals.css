@@ -130,3 +130,24 @@
     @apply font-sans;
   }
 }
+
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .print-page-toolbar {
+    display: none !important;
+  }
+
+  .print-page-shell {
+    padding: 0 !important;
+    background: #fff !important;
+  }
+}

@@ -18,11 +18,7 @@ export function getSupabaseBrowserClient() {
     return null;
   }
 
-  browserClient = createBrowserClient(env.url, env.anonKey, {
-    cookieOptions: {
-      name: "flowsales-auth",
-    },
-  });
+  browserClient = createBrowserClient(env.url, env.anonKey);
 
   return browserClient;
 }

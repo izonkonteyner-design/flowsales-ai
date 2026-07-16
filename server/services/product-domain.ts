@@ -18,6 +18,18 @@ export type ProductWorkspaceContext = {
   userId: string | null;
 };
 
+export type ProductSpecificationInput = {
+  key: string;
+  value: string;
+};
+
+export type ProductRecordInput = Omit<Partial<Product>, "specifications" | "tags" | "features" | "gallery_urls"> & {
+  specifications?: Array<ProductSpecificationInput | string>;
+  features?: string[];
+  tags?: string[];
+  gallery_urls?: string[];
+};
+
 const productRoleLabels: Record<WorkspaceRole, string> = {
   owner: "Owner",
   admin: "Admin",
@@ -75,18 +87,117 @@ export function getProductDisplayPrice(product: Pick<Product, "unit_price" | "ba
   return formatCurrency(product.unit_price ?? product.base_price, product.currency);
 }
 
+export function getProductDimensionSummary(product: Pick<Product, "width" | "length" | "height" | "area_m2" | "weight_kg">) {
+  const parts = [
+    product.width ? `W ${product.width}` : "",
+    product.length ? `L ${product.length}` : "",
+    product.height ? `H ${product.height}` : "",
+    product.area_m2 ? `Area ${product.area_m2}` : "",
+    product.weight_kg ? `Weight ${product.weight_kg}` : "",
+  ].filter(Boolean);
+
+  return parts.join(" | ");
+}
+
+export function normalizeProductTags(tags: string[]) {
+  return Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
+}
+
+export function normalizeProductFeatures(features: string[]) {
+  return Array.from(new Set(features.map((feature) => feature.trim()).filter(Boolean)));
+}
+
+export function normalizeProductGalleryUrls(galleryUrls: string[]) {
+  return Array.from(new Set(galleryUrls.map((value) => value.trim()).filter(Boolean)));
+}
+
+export function normalizeProductSpecifications(specifications: ProductSpecificationInput[]) {
+  const seen = new Set<string>();
+  return specifications
+    .map((specification) => ({
+      key: specification.key.trim(),
+      value: specification.value.trim(),
+    }))
+    .filter((specification) => {
+      if (!specification.key || !specification.value) {
+        return false;
+      }
+
+      const normalizedKey = specification.key.toLowerCase();
+      if (seen.has(normalizedKey)) {
+        return false;
+      }
+
+      seen.add(normalizedKey);
+      return true;
+    });
+}
+
+export function normalizeProductRecord(product: ProductRecordInput): Product {
+  const specifications = (product.specifications ?? []).map((entry) =>
+    typeof entry === "string" ? { key: entry, value: entry } : entry,
+  );
+
+  return {
+    id: product.id ?? "",
+    organization_id: product.organization_id ?? "",
+    sku: product.sku ?? "",
+    name: product.name ?? "",
+    category: product.category ?? "",
+    description: product.description ?? "",
+    short_description: product.short_description ?? "",
+    brand: product.brand ?? "",
+    model: product.model ?? "",
+    base_price: product.base_price ?? 0,
+    unit_price: product.unit_price ?? product.base_price ?? 0,
+    currency: product.currency ?? "TRY",
+    tax_rate: product.tax_rate ?? 0,
+    unit: product.unit ?? "unit",
+    width: product.width ?? 0,
+    length: product.length ?? 0,
+    height: product.height ?? 0,
+    area_m2: product.area_m2 ?? 0,
+    weight_kg: product.weight_kg ?? 0,
+    material: product.material ?? "",
+    color: product.color ?? "",
+    stock_quantity: product.stock_quantity ?? 0,
+    minimum_order_quantity: product.minimum_order_quantity ?? 1,
+    lead_time_days: product.lead_time_days ?? 0,
+    warranty_months: product.warranty_months ?? 0,
+    internal_code: product.internal_code ?? "",
+    barcode: product.barcode ?? "",
+    tags: normalizeProductTags(product.tags ?? []),
+    features: normalizeProductFeatures(product.features ?? []),
+    specifications: normalizeProductSpecifications(specifications),
+    image_url: product.image_url ?? "",
+    gallery_urls: normalizeProductGalleryUrls(product.gallery_urls ?? []),
+    featured: product.featured ?? false,
+    notes: product.notes ?? "",
+    active: product.active ?? true,
+    created_by: product.created_by ?? "",
+    created_at: product.created_at ?? "",
+    updated_at: product.updated_at ?? "",
+  };
+}
+
 export function filterProducts<T extends Product>(products: T[], filters: ProductFilterState) {
   const query = filters.query.toLowerCase();
   return products.filter((product) => {
     const matchesQuery =
       !query ||
-      [product.name, product.sku ?? "", product.category, product.description, product.unit]
+      [
+        product.name,
+        product.sku ?? "",
+        product.category,
+        product.brand ?? "",
+        product.model ?? "",
+        product.internal_code ?? "",
+        product.barcode ?? "",
+      ]
         .filter(Boolean)
         .some((value) => value.toLowerCase().includes(query));
 
-    const matchesActive =
-      filters.active === "all" ||
-      (filters.active === "active" ? product.active : !product.active);
+    const matchesActive = filters.active === "all" || (filters.active === "active" ? product.active : !product.active);
 
     return matchesQuery && matchesActive;
   });

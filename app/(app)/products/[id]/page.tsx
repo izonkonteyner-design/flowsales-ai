@@ -9,7 +9,11 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime } from "@/lib/utils";
 import { getProductDetailData } from "@/server/services/products";
-import { getProductRecordBadge, getProductRecordRestrictionMessage } from "@/server/services/product-domain";
+import {
+  getProductDimensionSummary,
+  getProductRecordBadge,
+  getProductRecordRestrictionMessage,
+} from "@/server/services/product-domain";
 
 type ProductDetailPageProps = {
   params: Promise<{ id: string }>;
@@ -52,14 +56,16 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
     return null;
   }
 
+  const product = data.product;
+
   return (
     <div className="space-y-6">
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
 
       <PageHeader
         eyebrow="Catalog"
-        title={data.product.name}
-        description="Review pricing, active state, and the current organization scope."
+        title={product.name}
+        description="Review pricing, inventory, and product enrichment fields."
         actions={
           <>
             <Link href="/products" className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10">
@@ -67,7 +73,7 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
               Back to catalog
             </Link>
             {editable ? (
-              <Link href={`/products/${data.product.id}/edit?redirect_to=/products/${data.product.id}`} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950">
+              <Link href={`/products/${product.id}/edit?redirect_to=/products/${product.id}`} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950">
                 <Pencil className="h-4 w-4" />
                 Edit
               </Link>
@@ -81,51 +87,141 @@ export default async function ProductDetailPage({ params, searchParams }: Produc
       />
 
       <div className="grid gap-4 md:grid-cols-4">
-        <Metric label="Price" value={data.product.price_label} />
-        <Metric label="SKU" value={data.product.sku ?? "—"} />
-        <Metric label="Status" value={data.product.active ? "Active" : "Inactive"} />
-        <Metric label="Updated" value={data.product.updated_at ? formatDateTime(data.product.updated_at) : "—"} />
+        <Metric label="Price" value={product.price_label} />
+        <Metric label="SKU" value={product.sku || "N/A"} />
+        <Metric label="Status" value={product.active ? "Active" : "Inactive"} />
+        <Metric label="Updated" value={product.updated_at ? formatDateTime(product.updated_at) : "N/A"} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <SectionCard title="Product summary" description="Core catalog details and pricing context.">
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              {badge ? <StatusBadge tone={badge.tone} title={badge.title}>{badge.label}</StatusBadge> : null}
-              <StatusBadge tone={data.product.active ? "success" : "neutral"}>{data.product.active ? "Active" : "Inactive"}</StatusBadge>
+      <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        <SectionCard title="Product summary" description="Core catalog details, logistics, and pricing context.">
+          <div className="space-y-5">
+            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  {badge ? <StatusBadge tone={badge.tone} title={badge.title}>{badge.label}</StatusBadge> : null}
+                  <StatusBadge tone={product.active ? "success" : "neutral"}>{product.active ? "Active" : "Inactive"}</StatusBadge>
+                  {product.featured ? <StatusBadge tone="neutral">Featured</StatusBadge> : null}
+                </div>
+                <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">{product.description}</p>
+                {product.short_description ? (
+                  <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{product.short_description}</p>
+                ) : null}
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <Stat label="Category" value={product.category} />
+                  <Stat label="Unit" value={product.unit} />
+                  <Stat label="Currency" value={product.currency} />
+                  <Stat label="Tax rate" value={`${product.tax_rate}%`} />
+                  <Stat label="Brand" value={product.brand || "N/A"} />
+                  <Stat label="Model" value={product.model || "N/A"} />
+                  <Stat label="Internal code" value={product.internal_code || "N/A"} />
+                  <Stat label="Barcode" value={product.barcode || "N/A"} />
+                </dl>
+              </div>
+
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-3xl border border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5">
+                  {product.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={product.image_url} alt={product.name} className="h-56 w-full object-cover" />
+                  ) : (
+                    <div className="flex h-56 items-center justify-center px-4 text-sm text-slate-500 dark:text-slate-400">No main image available.</div>
+                  )}
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Metric label="Stock" value={String(product.stock_quantity ?? 0)} />
+                  <Metric label="Lead time" value={`${product.lead_time_days ?? 0} days`} />
+                  <Metric label="Warranty" value={`${product.warranty_months ?? 0} months`} />
+                  <Metric label="Gallery" value={String(product.gallery_count)} />
+                </div>
+              </div>
             </div>
-            <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">{data.product.description}</p>
-            <dl className="grid gap-4 sm:grid-cols-2">
-              <Stat label="Category" value={data.product.category} />
-              <Stat label="Unit" value={data.product.unit} />
-              <Stat label="Currency" value={data.product.currency} />
-              <Stat label="Tax rate" value={`${data.product.tax_rate}%`} />
-            </dl>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <Stat label="Dimensions" value={getProductDimensionSummary(product)} />
+              <Stat label="Weight" value={product.weight_kg ? `${product.weight_kg} kg` : "N/A"} />
+              <Stat label="Material" value={product.material || "N/A"} />
+              <Stat label="Color" value={product.color || "N/A"} />
+              <Stat label="Minimum order" value={String(product.minimum_order_quantity ?? 1)} />
+              <Stat label="Gallery images" value={String(product.gallery_count)} />
+            </div>
+
+            {product.tags.length ? (
+              <div className="flex flex-wrap gap-2">
+                {product.tags.map((tag) => (
+                  <StatusBadge key={tag} tone="neutral">
+                    {tag}
+                  </StatusBadge>
+                ))}
+              </div>
+            ) : null}
+
             {restriction ? <p className="text-sm text-slate-500 dark:text-slate-400">{restriction}</p> : null}
           </div>
         </SectionCard>
 
-        <SectionCard title="Specifications" description="Used by quotes and catalog browsing.">
-          <div className="flex flex-wrap gap-2">
-            {data.product.specifications.length ? (
-              data.product.specifications.map((spec) => (
-                <StatusBadge key={spec} tone="neutral">{spec}</StatusBadge>
-              ))
+        <div className="space-y-6">
+          <SectionCard title="Features" description="Selling points used in quotes and catalog browsing.">
+            <div className="flex flex-wrap gap-2">
+              {product.features.length ? (
+                product.features.map((feature) => (
+                  <StatusBadge key={feature} tone="neutral">
+                    {feature}
+                  </StatusBadge>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500 dark:text-slate-400">No features recorded.</p>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Specifications" description="Used by quotes and catalog browsing.">
+            <div className="space-y-2">
+              {product.specifications.length ? (
+                product.specifications.map((spec) => (
+                  <div key={`${spec.key}:${spec.value}`} className="flex items-start justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+                    <p className="text-sm font-medium text-slate-950 dark:text-white">{spec.key}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{spec.value}</p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500 dark:text-slate-400">No specifications recorded.</p>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Gallery" description="Additional catalog images.">
+            {product.gallery_urls.length ? (
+              <div className="grid grid-cols-2 gap-3">
+                {product.gallery_urls.map((url, index) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={`${url}-${index}`} src={url} alt={`${product.name} gallery ${index + 1}`} className="h-32 w-full rounded-2xl object-cover" />
+                ))}
+              </div>
             ) : (
-              <p className="text-sm text-slate-500 dark:text-slate-400">No specifications recorded.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">No gallery images available.</p>
             )}
-          </div>
-        </SectionCard>
+          </SectionCard>
+        </div>
       </div>
+
+      <SectionCard title="Notes" description="Internal catalog notes and sales guidance.">
+        {product.notes ? (
+          <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">{product.notes}</p>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400">No internal notes recorded.</p>
+        )}
+      </SectionCard>
 
       <SectionCard title="Actions" description="Manage the record if the workspace role allows it.">
         <div className="flex flex-wrap gap-3">
           {editable ? (
             <ProductDeleteDialog
               productId={data.product.id}
-              productName={data.product.name}
+              productName={product.name}
               redirectTo="/products"
-              recordMode={data.product.recordMode}
+              recordMode={product.recordMode}
               role={data.context.role}
             />
           ) : (

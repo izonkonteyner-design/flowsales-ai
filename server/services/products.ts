@@ -6,8 +6,10 @@ import {
   canManageProducts,
   filterProducts,
   getProductDisplayPrice,
+  getProductDimensionSummary,
   getProductRecordBadge,
   getProductRecordRestrictionMessage,
+  normalizeProductRecord,
   normalizeProductSearchParams,
   sortProducts,
   type ProductFilterState,
@@ -19,6 +21,45 @@ export type ProductRow = Product & {
   recordMode: ProductRecordMode;
   price_label: string;
   specifications_text: string;
+  features_text: string;
+  tags_text: string;
+  gallery_count: number;
+  dimension_summary: string;
+};
+
+type ProductMutationInput = {
+  sku: string;
+  name: string;
+  category: string;
+  description: string;
+  short_description: string;
+  brand: string;
+  model: string;
+  unit_price: number;
+  currency: string;
+  tax_rate: number;
+  unit: string;
+  width: number;
+  length: number;
+  height: number;
+  area_m2: number;
+  weight_kg: number;
+  material: string;
+  color: string;
+  stock_quantity: number;
+  minimum_order_quantity: number;
+  lead_time_days: number;
+  warranty_months: number;
+  internal_code: string;
+  barcode: string;
+  tags: string[];
+  features: string[];
+  specifications: Array<{ key: string; value: string }>;
+  image_url: string;
+  gallery_urls: string[];
+  featured: boolean;
+  notes: string;
+  active: boolean;
 };
 
 export type ProductPageData = {
@@ -36,19 +77,27 @@ export type ProductDetailData = {
   error: string | null;
 };
 
+const productSelectColumns =
+  "id, organization_id, sku, name, category, description, short_description, brand, model, base_price, unit_price, currency, tax_rate, unit, width, length, height, area_m2, weight_kg, material, color, stock_quantity, minimum_order_quantity, lead_time_days, warranty_months, internal_code, barcode, tags, features, specifications, image_url, gallery_urls, featured, notes, active, created_by, created_at, updated_at";
+
 function mapProductRow(product: Product, recordMode: ProductRecordMode): ProductRow {
-  const specifications = Array.isArray(product.specifications) ? product.specifications : [];
+  const normalized = normalizeProductRecord(product);
+
   return {
-    ...product,
+    ...normalized,
     recordMode,
-    unit_price: product.unit_price ?? product.base_price,
-    base_price: product.base_price ?? product.unit_price ?? 0,
+    unit_price: normalized.unit_price ?? normalized.base_price,
+    base_price: normalized.base_price ?? normalized.unit_price ?? 0,
     price_label: getProductDisplayPrice({
-      unit_price: product.unit_price ?? product.base_price,
-      base_price: product.base_price ?? product.unit_price ?? 0,
-      currency: product.currency,
+      unit_price: normalized.unit_price ?? normalized.base_price,
+      base_price: normalized.base_price ?? normalized.unit_price ?? 0,
+      currency: normalized.currency,
     }),
-    specifications_text: specifications.join(", "),
+    specifications_text: normalized.specifications.map((entry) => `${entry.key}: ${entry.value}`).join(", "),
+    features_text: normalized.features.join(", "),
+    tags_text: normalized.tags.join(", "),
+    gallery_count: normalized.gallery_urls.length,
+    dimension_summary: getProductDimensionSummary(normalized),
   };
 }
 
@@ -72,10 +121,7 @@ async function loadLiveProducts(context: ProductWorkspaceContext) {
     return { error: null, products: null };
   }
 
-  const { data, error } = await client
-    .from("products")
-    .select("id, organization_id, sku, name, category, description, base_price, unit_price, currency, tax_rate, unit, active, specifications, created_by, created_at, updated_at")
-    .eq("organization_id", context.organization.id);
+  const { data, error } = await client.from("products").select(productSelectColumns).eq("organization_id", context.organization.id);
 
   if (error) {
     return { error: error.message, products: null };
@@ -108,7 +154,7 @@ function buildProductPageData(
   products: ProductRow[],
   error: string | null,
 ): ProductPageData {
-  const filtered = sortProducts(filterProducts(products, filters), filters.sort).map((product) => product);
+  const filtered = sortProducts(filterProducts(products, filters), filters.sort);
   return {
     context,
     filters,
@@ -157,12 +203,7 @@ export async function getProductDetailData(id: string) {
     } satisfies ProductDetailData;
   }
 
-  const { data, error } = await client
-    .from("products")
-    .select("id, organization_id, sku, name, category, description, base_price, unit_price, currency, tax_rate, unit, active, specifications, created_by, created_at, updated_at")
-    .eq("id", id)
-    .eq("organization_id", context.organization.id)
-    .maybeSingle();
+  const { data, error } = await client.from("products").select(productSelectColumns).eq("id", id).eq("organization_id", context.organization.id).maybeSingle();
 
   if (error || !data) {
     return {
@@ -196,45 +237,45 @@ function ensureCanManage(context: ProductWorkspaceContext) {
   }
 }
 
-function buildProductPayload(input: {
-  sku: string;
-  name: string;
-  category: string;
-  description: string;
-  unit_price: number;
-  currency: string;
-  tax_rate: number;
-  unit: string;
-  active: boolean;
-  specifications: string[];
-}) {
+function buildProductPayload(input: ProductMutationInput) {
   return {
     sku: input.sku,
     name: input.name,
     category: input.category,
     description: input.description,
+    short_description: input.short_description,
+    brand: input.brand,
+    model: input.model,
     base_price: input.unit_price,
     unit_price: input.unit_price,
     currency: input.currency,
     tax_rate: input.tax_rate,
     unit: input.unit,
-    active: input.active,
+    width: input.width,
+    length: input.length,
+    height: input.height,
+    area_m2: input.area_m2,
+    weight_kg: input.weight_kg,
+    material: input.material,
+    color: input.color,
+    stock_quantity: input.stock_quantity,
+    minimum_order_quantity: input.minimum_order_quantity,
+    lead_time_days: input.lead_time_days,
+    warranty_months: input.warranty_months,
+    internal_code: input.internal_code,
+    barcode: input.barcode,
+    tags: input.tags,
+    features: input.features,
     specifications: input.specifications,
+    image_url: input.image_url || null,
+    gallery_urls: input.gallery_urls,
+    featured: input.featured,
+    notes: input.notes,
+    active: input.active,
   };
 }
 
-export async function createProductRecord(input: {
-  sku: string;
-  name: string;
-  category: string;
-  description: string;
-  unit_price: number;
-  currency: string;
-  tax_rate: number;
-  unit: string;
-  active: boolean;
-  specifications: string[];
-}) {
+export async function createProductRecord(input: ProductMutationInput) {
   const mutation = await getMutationContext();
   if (!mutation) {
     throw new Error("Product creation requires a live Supabase session.");
@@ -249,7 +290,7 @@ export async function createProductRecord(input: {
       created_by: mutation.context.userId,
       ...buildProductPayload(input),
     })
-    .select("id, organization_id, sku, name, category, description, base_price, unit_price, currency, tax_rate, unit, active, specifications, created_by, created_at, updated_at")
+    .select(productSelectColumns)
     .single();
 
   if (error || !data) {
@@ -259,21 +300,7 @@ export async function createProductRecord(input: {
   return { product: mapProductRow(data as Product, "live") };
 }
 
-export async function updateProductRecord(
-  productId: string,
-  input: {
-    sku: string;
-    name: string;
-    category: string;
-    description: string;
-    unit_price: number;
-    currency: string;
-    tax_rate: number;
-    unit: string;
-    active: boolean;
-    specifications: string[];
-  },
-) {
+export async function updateProductRecord(productId: string, input: ProductMutationInput) {
   const mutation = await getMutationContext();
   if (!mutation) {
     throw new Error("Product updates require a live Supabase session.");
@@ -286,7 +313,7 @@ export async function updateProductRecord(
     .update(buildProductPayload(input))
     .eq("id", productId)
     .eq("organization_id", mutation.context.organization.id)
-    .select("id, organization_id, sku, name, category, description, base_price, unit_price, currency, tax_rate, unit, active, specifications, created_by, created_at, updated_at")
+    .select(productSelectColumns)
     .single();
 
   if (error || !data) {
@@ -304,11 +331,7 @@ export async function deleteProductRecord(productId: string) {
 
   ensureCanManage(mutation.context);
 
-  const { error } = await mutation.client
-    .from("products")
-    .delete()
-    .eq("id", productId)
-    .eq("organization_id", mutation.context.organization.id);
+  const { error } = await mutation.client.from("products").delete().eq("id", productId).eq("organization_id", mutation.context.organization.id);
 
   if (error) {
     throw new Error(error.message ?? "Unable to delete product.");

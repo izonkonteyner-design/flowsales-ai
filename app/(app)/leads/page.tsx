@@ -17,6 +17,9 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { getLeadPageData } from "@/server/services/leads";
 import {
   formatLeadFollowUpState,
+  canMutateLeadRecord,
+  getLeadRecordBadge,
+  getLeadRecordRestrictionMessage,
   getLeadStatusLabel,
   getLeadStatusTone,
   type LeadFilterState,
@@ -205,9 +208,9 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
       </SectionCard>
 
       {data.filters.view === "pipeline" ? (
-        <LeadPipelineView leads={data.leads} redirectTo={currentHref} />
+        <LeadPipelineView leads={data.leads} redirectTo={currentHref} role={data.context.role} />
       ) : (
-        <LeadTableView leads={data.leads} redirectTo={currentHref} />
+        <LeadTableView leads={data.leads} redirectTo={currentHref} role={data.context.role} />
       )}
 
       {data.totalPages > 1 ? (
@@ -255,7 +258,15 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
   );
 }
 
-function LeadTableView({ leads, redirectTo }: { leads: Awaited<ReturnType<typeof getLeadPageData>>["leads"]; redirectTo: string }) {
+function LeadTableView({
+  leads,
+  redirectTo,
+  role,
+}: {
+  leads: Awaited<ReturnType<typeof getLeadPageData>>["leads"];
+  redirectTo: string;
+  role: "owner" | "admin" | "sales" | "viewer";
+}) {
   return (
     <SectionCard title="All leads" description="A responsive list with search, sort, and status context.">
       <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10">
@@ -278,6 +289,19 @@ function LeadTableView({ leads, redirectTo }: { leads: Awaited<ReturnType<typeof
                   </Link>
                   <p className="mt-1 text-sm text-slate-500">{lead.email || "No email"}</p>
                   <p className="mt-1 text-xs text-slate-500">Assigned to {lead.assigned_to_label}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <StatusBadge
+                      tone={getLeadRecordBadge(lead.recordMode).tone}
+                      title={getLeadRecordBadge(lead.recordMode).title}
+                    >
+                      {getLeadRecordBadge(lead.recordMode).label}
+                    </StatusBadge>
+                    {!canMutateLeadRecord(lead.recordMode, role) ? (
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {getLeadRecordRestrictionMessage(lead.recordMode, role)}
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
                 <div>
                   <p className="font-medium text-slate-700 dark:text-slate-300">{lead.company || "No company"}</p>
@@ -307,6 +331,19 @@ function LeadTableView({ leads, redirectTo }: { leads: Awaited<ReturnType<typeof
                       {lead.full_name}
                     </Link>
                     <p className="mt-1 text-sm text-slate-500">{lead.company || "No company"}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <StatusBadge
+                        tone={getLeadRecordBadge(lead.recordMode).tone}
+                        title={getLeadRecordBadge(lead.recordMode).title}
+                      >
+                        {getLeadRecordBadge(lead.recordMode).label}
+                      </StatusBadge>
+                    </div>
+                    {canMutateLeadRecord(lead.recordMode, role) ? null : (
+                      <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                        {getLeadRecordRestrictionMessage(lead.recordMode, role)}
+                      </p>
+                    )}
                   </div>
                   <StatusBadge tone={getLeadStatusTone(lead.status)}>{getLeadStatusLabel(lead.status)}</StatusBadge>
                 </div>
@@ -341,13 +378,28 @@ function LeadTableView({ leads, redirectTo }: { leads: Awaited<ReturnType<typeof
                   >
                     View
                   </Link>
-                  <Link
-                    href={`/leads/${lead.id}/edit?redirect_to=${encodeURIComponent(redirectTo)}`}
-                    className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                  >
-                    Edit
-                  </Link>
-                  <LeadDeleteDialog leadId={lead.id} leadName={lead.full_name} redirectTo={redirectTo} />
+                  {canMutateLeadRecord(lead.recordMode, role) ? (
+                    <Link
+                      href={`/leads/${lead.id}/edit?redirect_to=${encodeURIComponent(redirectTo)}`}
+                      className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                    >
+                      Edit
+                    </Link>
+                  ) : (
+                    <span
+                      title={getLeadRecordRestrictionMessage(lead.recordMode, role)}
+                      className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                    >
+                      Edit
+                    </span>
+                  )}
+                  <LeadDeleteDialog
+                    leadId={lead.id}
+                    leadName={lead.full_name}
+                    redirectTo={redirectTo}
+                    recordMode={lead.recordMode}
+                    role={role}
+                  />
                 </div>
               </div>
             </article>
@@ -361,9 +413,11 @@ function LeadTableView({ leads, redirectTo }: { leads: Awaited<ReturnType<typeof
 function LeadPipelineView({
   leads,
   redirectTo,
+  role,
 }: {
   leads: Awaited<ReturnType<typeof getLeadPageData>>["leads"];
   redirectTo: string;
+  role: "owner" | "admin" | "sales" | "viewer";
 }) {
   const grouped = Object.fromEntries(LEAD_STATUSES.map((status) => [status.value, leads.filter((lead) => lead.status === status.value)]));
 
@@ -396,6 +450,14 @@ function LeadPipelineView({
                           {lead.full_name}
                         </Link>
                         <p className="mt-1 text-sm text-slate-500">{lead.company || "No company"}</p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <StatusBadge
+                            tone={getLeadRecordBadge(lead.recordMode).tone}
+                            title={getLeadRecordBadge(lead.recordMode).title}
+                          >
+                            {getLeadRecordBadge(lead.recordMode).label}
+                          </StatusBadge>
+                        </div>
                       </div>
                       <StatusBadge tone={getLeadStatusTone(lead.status)}>{getLeadStatusLabel(lead.status)}</StatusBadge>
                     </div>
@@ -411,6 +473,8 @@ function LeadPipelineView({
                         leadId={lead.id}
                         currentStatus={lead.status}
                         redirectTo={redirectTo}
+                        recordMode={lead.recordMode}
+                        role={role}
                         label="Save stage"
                         compact
                       />

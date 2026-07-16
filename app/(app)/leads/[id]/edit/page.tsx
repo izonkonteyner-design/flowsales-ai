@@ -8,6 +8,7 @@ import { FlashToast } from "@/components/shared/flash-toast";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { getLeadDetailData } from "@/server/services/leads";
+import { canMutateLeadRecord, getLeadRecordRestrictionMessage } from "@/server/services/lead-domain";
 
 type LeadEditPageProps = {
   params: Promise<{ id: string }>;
@@ -38,6 +39,9 @@ export default async function LeadEditPage({ params, searchParams }: LeadEditPag
     );
   }
 
+  const canMutate = canMutateLeadRecord(data.lead.recordMode, data.context.role);
+  const restrictionMessage = getLeadRecordRestrictionMessage(data.lead.recordMode, data.context.role);
+
   return (
     <div className="space-y-6">
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
@@ -58,14 +62,18 @@ export default async function LeadEditPage({ params, searchParams }: LeadEditPag
       />
 
       <SectionCard title="Lead details" description="Validated edits are persisted through a secure server action.">
-        <LeadForm
-          action={updateLeadAction}
-          redirectTo={redirectTo}
-          lead={data.lead}
-          members={data.context.members}
-          submitLabel="Save changes"
-          leadId={data.lead.id}
-        />
+        {canMutate ? (
+          <LeadForm
+            action={updateLeadAction}
+            redirectTo={redirectTo}
+            lead={data.lead}
+            members={data.context.members}
+            submitLabel="Save changes"
+            leadId={data.lead.id}
+          />
+        ) : (
+          <EmptyState title="Read-only lead" description={restrictionMessage} />
+        )}
       </SectionCard>
     </div>
   );

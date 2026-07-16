@@ -4,6 +4,7 @@ import type { Activity, Lead, LeadStatus, Organization, Task } from "@/types/crm
 export type LeadRole = Organization["role"];
 export type LeadSortMode = "newest" | "oldest" | "value" | "follow_up";
 export type LeadViewMode = "table" | "pipeline";
+export type LeadRecordMode = "demo" | "live";
 
 export type LeadFilterState = {
   query: string;
@@ -51,6 +52,38 @@ export function canManageLeads(role: LeadRole | null | undefined) {
 
 export function canViewLeads(role: LeadRole | null | undefined) {
   return role === "owner" || role === "admin" || role === "sales" || role === "viewer";
+}
+
+export function canMutateLeadRecord(recordMode: LeadRecordMode, role: LeadRole | null | undefined) {
+  return recordMode === "live" && canManageLeads(role);
+}
+
+export function getLeadRecordBadge(recordMode: LeadRecordMode) {
+  if (recordMode === "demo") {
+    return {
+      label: "Demo data",
+      tone: "neutral" as const,
+      title: "Connect live Supabase data or create a real lead to edit this record.",
+    };
+  }
+
+  return {
+    label: "Live data",
+    tone: "success" as const,
+    title: "This record is stored in live Supabase data.",
+  };
+}
+
+export function getLeadRecordRestrictionMessage(recordMode: LeadRecordMode, role: LeadRole | null | undefined) {
+  if (recordMode === "demo") {
+    return "Connect live Supabase data or create a real lead to edit this record.";
+  }
+
+  if (!canManageLeads(role)) {
+    return "Viewer permissions can inspect leads but cannot create, edit, delete, or change stage.";
+  }
+
+  return "";
 }
 
 export function isLeadInOrganization(lead: Pick<Lead, "organization_id">, organizationId: string) {

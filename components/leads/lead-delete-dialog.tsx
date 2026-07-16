@@ -4,11 +4,14 @@ import { useState } from "react";
 import { Trash2, X } from "lucide-react";
 
 import { deleteLeadAction } from "@/app/(app)/leads/actions";
+import { getLeadRecordRestrictionMessage } from "@/server/services/lead-domain";
 
 type LeadDeleteDialogProps = {
   leadId: string;
   leadName: string;
   redirectTo: string;
+  recordMode: "demo" | "live";
+  role?: "owner" | "admin" | "sales" | "viewer" | null;
   buttonLabel?: string;
 };
 
@@ -16,16 +19,22 @@ export function LeadDeleteDialog({
   leadId,
   leadName,
   redirectTo,
+  recordMode,
+  role,
   buttonLabel = "Delete",
 }: LeadDeleteDialogProps) {
   const [open, setOpen] = useState(false);
+  const disabledReason = getLeadRecordRestrictionMessage(recordMode, role);
+  const disabled = Boolean(disabledReason);
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-50 focus:outline-none focus:ring-2 focus:ring-rose-200 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+        onClick={disabled ? undefined : () => setOpen(true)}
+        disabled={disabled}
+        title={disabledReason || undefined}
+        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rose-200 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
       >
         <Trash2 className="h-4 w-4" />
         {buttonLabel}

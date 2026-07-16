@@ -18,6 +18,11 @@ export type Customer = {
   lifetime_value: number;
   last_order_at: string | null;
   next_review_at: string | null;
+  source_lead_id?: string | null;
+  converted_at?: string | null;
+  converted_by?: string | null;
+  quote_count?: number;
+  last_quote_at?: string | null;
 };
 
 export type LeadStatus =
@@ -110,6 +115,9 @@ export type Lead = {
   created_by: string;
   created_at: string;
   updated_at: string;
+  converted_customer_id?: string | null;
+  converted_at?: string | null;
+  converted_by?: string | null;
 };
 
 export type Task = {

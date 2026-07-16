@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, Copy, Pencil, Send } from "lucide-react";
+import { ArrowLeft, Copy, ExternalLink, Pencil, Send } from "lucide-react";
 
 import { FlashToast } from "@/components/shared/flash-toast";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -43,6 +43,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
   const backHref = typeof rawSearchParams.redirect_to === "string" && rawSearchParams.redirect_to.startsWith("/") ? rawSearchParams.redirect_to : "/quotes";
   const canMutate = quote.recordMode === "live" && canManageQuotes(data.context.role);
   const restriction = getQuoteRecordRestrictionMessage(quote.recordMode, data.context.role);
+  const recipientType = quote.customer_id ? "customer" : quote.lead_id ? "lead" : "none";
 
   return (
     <div className="space-y-6">
@@ -194,6 +195,36 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
                 <span>Grand total</span>
                 <span>{formatCurrency(quote.grand_total ?? quote.total ?? 0, quote.currency)}</span>
               </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Recipient" description="Source lead and customer links for this quote.">
+            <div className="space-y-3 text-sm">
+              <Row label="Recipient type" value={recipientType === "customer" ? "Customer" : recipientType === "lead" ? "Lead" : "None"} />
+              {quote.customer_id ? (
+                <Link
+                  href={`/customers/${quote.customer_id}`}
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  <div>
+                    <p className="font-medium text-slate-950 dark:text-white">{quote.customer_name ?? "Customer"}</p>
+                    <p className="mt-1 text-xs text-slate-500">{quote.customer_company ?? "No company"}</p>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-slate-400" />
+                </Link>
+              ) : null}
+              {quote.lead_id ? (
+                <Link
+                  href={`/leads/${quote.lead_id}`}
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  <div>
+                    <p className="font-medium text-slate-950 dark:text-white">{quote.lead_name ?? "Lead"}</p>
+                    <p className="mt-1 text-xs text-slate-500">{quote.lead_company ?? "No company"}</p>
+                  </div>
+                  <ExternalLink className="h-4 w-4 text-slate-400" />
+                </Link>
+              ) : null}
             </div>
           </SectionCard>
 

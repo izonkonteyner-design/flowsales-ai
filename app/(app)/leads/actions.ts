@@ -12,6 +12,7 @@ import {
   scheduleLeadFollowUpRecord,
   updateLeadRecord,
 } from "@/server/services/leads";
+import { convertLeadToCustomerRecord } from "@/server/services/lead-conversion";
 import {
   leadFormSchema,
   leadFollowUpSchema,
@@ -70,6 +71,31 @@ function formDataToLeadInput(formData: FormData) {
     assigned_to: parsed.assigned_to,
     next_follow_up_at: parsed.next_follow_up_at ? `${parsed.next_follow_up_at}T00:00:00.000Z` : null,
   };
+}
+
+export async function convertLeadToCustomerAction(formData: FormData) {
+  const leadId = String(formData.get("lead_id") ?? "").trim();
+  const redirectTo = safeRedirectTarget(formData.get("redirect_to"), `/leads/${leadId}`);
+
+  try {
+    const result = await convertLeadToCustomerRecord(leadId);
+    revalidatePath("/dashboard");
+    revalidatePath("/leads");
+    revalidatePath("/customers");
+    revalidatePath(`/leads/${result.lead.id}`);
+    revalidatePath(`/customers/${result.customer.id}`);
+
+    const message =
+      result.state === "existing"
+        ? "Lead was already converted. Opened the linked customer."
+        : result.state === "linked"
+          ? "Lead matched an existing customer."
+          : "Lead converted to customer.";
+
+    redirect(redirectWithToast(`/customers/${result.customer.id}`, message));
+  } catch (error) {
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to convert lead."), "danger"));
+  }
 }
 
 export async function createLeadAction(formData: FormData) {

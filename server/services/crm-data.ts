@@ -35,6 +35,9 @@ export const demoLeads: Lead[] = [
     created_by: "Selin Kaya",
     created_at: "2026-07-14T08:45:00.000Z",
     updated_at: "2026-07-15T08:10:00.000Z",
+    converted_customer_id: "cust_001",
+    converted_at: "2026-07-15T10:20:00.000Z",
+    converted_by: "Selin Kaya",
   },
   {
     id: "lead_002",
@@ -54,6 +57,9 @@ export const demoLeads: Lead[] = [
     created_by: "Mert Arslan",
     created_at: "2026-07-12T11:15:00.000Z",
     updated_at: "2026-07-15T12:00:00.000Z",
+    converted_customer_id: null,
+    converted_at: null,
+    converted_by: null,
   },
   {
     id: "lead_003",
@@ -73,6 +79,9 @@ export const demoLeads: Lead[] = [
     created_by: "Selin Kaya",
     created_at: "2026-07-11T09:30:00.000Z",
     updated_at: "2026-07-15T09:10:00.000Z",
+    converted_customer_id: null,
+    converted_at: null,
+    converted_by: null,
   },
   {
     id: "lead_004",
@@ -92,6 +101,9 @@ export const demoLeads: Lead[] = [
     created_by: "Aylin Toprak",
     created_at: "2026-07-15T06:45:00.000Z",
     updated_at: "2026-07-15T06:45:00.000Z",
+    converted_customer_id: null,
+    converted_at: null,
+    converted_by: null,
   },
 ];
 
@@ -323,6 +335,7 @@ export const demoQuotes: Quote[] = [
     id: "quote_001",
     organization_id: demoOrganization.id,
     lead_id: "lead_001",
+    customer_id: "cust_001",
     quote_number: "FSA-2026-0142",
     issue_date: "2026-07-12",
     expiry_date: "2026-08-11",
@@ -344,6 +357,7 @@ export const demoQuotes: Quote[] = [
     id: "quote_002",
     organization_id: demoOrganization.id,
     lead_id: "lead_002",
+    customer_id: "cust_002",
     quote_number: "FSA-2026-0143",
     issue_date: "2026-07-13",
     expiry_date: "2026-08-12",
@@ -365,6 +379,7 @@ export const demoQuotes: Quote[] = [
     id: "quote_003",
     organization_id: demoOrganization.id,
     lead_id: "lead_003",
+    customer_id: "cust_003",
     quote_number: "FSA-2026-0144",
     issue_date: "2026-07-10",
     expiry_date: "2026-08-09",

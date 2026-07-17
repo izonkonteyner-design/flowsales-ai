@@ -57,17 +57,23 @@ alter table public.quote_items
 
 update public.quote_items qi
 set
-  name = coalesce(nullif(name, ''), description),
-  sku = coalesce(sku, ''),
-  unit = coalesce(nullif(unit, ''), 'unit'),
-  currency = coalesce(currency, q.currency),
-  discount_type = coalesce(discount_type, 'percentage'),
-  discount_value = coalesce(discount_value, discount),
-  line_subtotal = coalesce(line_subtotal, quantity * unit_price),
-  line_discount = coalesce(line_discount, quantity * unit_price * coalesce(discount, 0) / 100),
-  taxable_subtotal = coalesce(taxable_subtotal, (quantity * unit_price) - (quantity * unit_price * coalesce(discount, 0) / 100)),
-  line_tax = coalesce(line_tax, line_total - ((quantity * unit_price) - (quantity * unit_price * coalesce(discount, 0) / 100))),
-  sort_order = coalesce(sort_order, 0)
+  name = coalesce(nullif(qi.name, ''), qi.description),
+  sku = coalesce(qi.sku, ''),
+  unit = coalesce(nullif(qi.unit, ''), 'unit'),
+  currency = coalesce(qi.currency, q.currency),
+  discount_type = coalesce(qi.discount_type, 'percentage'),
+  discount_value = coalesce(qi.discount_value, qi.discount),
+  line_subtotal = coalesce(qi.line_subtotal, qi.quantity * qi.unit_price),
+  line_discount = coalesce(qi.line_discount, qi.quantity * qi.unit_price * coalesce(qi.discount, 0) / 100),
+  taxable_subtotal = coalesce(
+    qi.taxable_subtotal,
+    (qi.quantity * qi.unit_price) - (qi.quantity * qi.unit_price * coalesce(qi.discount, 0) / 100)
+  ),
+  line_tax = coalesce(
+    qi.line_tax,
+    qi.line_total - ((qi.quantity * qi.unit_price) - (qi.quantity * qi.unit_price * coalesce(qi.discount, 0) / 100))
+  ),
+  sort_order = coalesce(qi.sort_order, 0)
 from public.quotes q
 where q.id = qi.quote_id;
 

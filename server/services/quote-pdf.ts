@@ -28,12 +28,13 @@ function resolveFonts(): PdfFonts {
     "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
   ]);
 
-  const bold = firstExistingPath([
-    "C:\\Windows\\Fonts\\segoeuib.ttf",
-    "C:\\Windows\\Fonts\\arialbd.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
-  ]) ?? regular;
+  const bold =
+    firstExistingPath([
+      "C:\\Windows\\Fonts\\segoeuib.ttf",
+      "C:\\Windows\\Fonts\\arialbd.ttf",
+      "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+      "/usr/share/fonts/truetype/liberation2/LiberationSans-Bold.ttf",
+    ]) ?? regular;
 
   return { regular, bold };
 }
@@ -74,16 +75,18 @@ function drawKeyValue(pdf: PDFKit.PDFDocument, fonts: PdfFonts, label: string, v
   pdf.fontSize(8.5).fillColor("#64748b").text(label, x, y, { width, continued: false });
   const valueY = y + 11;
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(9.5).fillColor("#0f172a").text(value || "—", x, valueY, { width, continued: false });
+  pdf.fontSize(9.5).fillColor("#0f172a").text(value || "-", x, valueY, { width, continued: false });
 }
 
 function drawPageHeader(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document?: QuoteDocumentModel) {
   const topY = PAGE_MARGIN;
 
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(18).fillColor("#0f172a").text("FlowSales AI", PAGE_MARGIN, topY, { width: CONTENT_WIDTH * 0.55 });
+  pdf.fontSize(18).fillColor("#0f172a").text(document?.company.name ?? "Quote", PAGE_MARGIN, topY, { width: CONTENT_WIDTH * 0.55 });
   setFont(pdf, fonts, "regular");
-  pdf.fontSize(8.5).fillColor("#64748b").text("Professional quote document", PAGE_MARGIN, topY + 22, { width: CONTENT_WIDTH * 0.55 });
+  pdf.fontSize(8.5).fillColor("#64748b").text(document?.company.company_slogan ?? "Branded quote document", PAGE_MARGIN, topY + 22, {
+    width: CONTENT_WIDTH * 0.55,
+  });
 
   if (document) {
     const headerX = PAGE_MARGIN + CONTENT_WIDTH * 0.58;
@@ -96,8 +99,17 @@ function drawPageHeader(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document?: Quo
   pdf.y = topY + 94;
 }
 
-function drawPartyCard(pdf: PDFKit.PDFDocument, fonts: PdfFonts, title: string, lines: Array<[string, string | null | undefined]>, x: number, y: number, width: number) {
-  const boxHeight = 86;
+function drawPartyCard(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  title: string,
+  lines: Array<[string, string | null | undefined]>,
+  x: number,
+  y: number,
+  width: number,
+) {
+  const visibleLineCount = lines.filter(([, value]) => formatText(value).length > 0).length;
+  const boxHeight = Math.max(86, 34 + visibleLineCount * 12 + 10);
   pdf.roundedRect(x, y, width, boxHeight, 12).fillAndStroke("#ffffff", "#e2e8f0");
   setFont(pdf, fonts, "bold");
   pdf.fontSize(9.2).fillColor("#0f172a").text(title, x + 12, y + 10, { width: width - 24 });
@@ -113,6 +125,8 @@ function drawPartyCard(pdf: PDFKit.PDFDocument, fonts: PdfFonts, title: string, 
     pdf.fontSize(8.6).fillColor("#0f172a").text(formatText(value), x + 58, currentY, { width: width - 70 });
     currentY += 12;
   }
+
+  return boxHeight;
 }
 
 function drawMetaCard(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel) {
@@ -128,7 +142,7 @@ function drawMetaCard(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteD
     ["Valid until", document.valid_until],
     ["Currency", document.currency],
     ["Record mode", document.recordMode === "demo" ? "Demo" : "Live"],
-    ["Updated", document.updated_at ? document.updated_at : "—"],
+    ["Updated", document.updated_at || "-"],
   ];
 
   let currentY = y + 28;
@@ -237,14 +251,20 @@ function drawTotals(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDoc
   for (const [label, value] of rows) {
     setFont(pdf, fonts, "regular");
     pdf.fontSize(8.5).fillColor("#64748b").text(label, x + 12, currentY, { width: 104 });
-    pdf.fontSize(8.7).fillColor("#0f172a").text(formatMoney(document.currency, value), x + 118, currentY, { width: 80, align: "right" });
+    pdf.fontSize(8.7).fillColor("#0f172a").text(formatMoney(document.currency, value), x + 118, currentY, {
+      width: 80,
+      align: "right",
+    });
     currentY += 15;
   }
 
   pdf.moveTo(x + 12, currentY + 3).lineTo(x + width - 12, currentY + 3).strokeColor("#e2e8f0").stroke();
   setFont(pdf, fonts, "bold");
   pdf.fontSize(10.2).fillColor("#0f172a").text("Grand total", x + 12, currentY + 8, { width: 104 });
-  pdf.fontSize(10.2).text(formatMoney(document.currency, document.grand_total), x + 118, currentY + 8, { width: 80, align: "right" });
+  pdf.fontSize(10.2).text(formatMoney(document.currency, document.grand_total), x + 118, currentY + 8, {
+    width: 80,
+    align: "right",
+  });
   pdf.y = y + 136;
 }
 
@@ -266,11 +286,15 @@ function drawNotesAndTerms(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: Q
   };
 
   renderBox(PAGE_MARGIN, "Notes", document.notes || "No notes provided.");
-  renderBox(PAGE_MARGIN + boxWidth + 10, "Payment and delivery", `Payment terms: ${document.payment_terms || "Not specified"}\nDelivery terms: ${document.delivery_terms || "Not specified"}`);
+  renderBox(
+    PAGE_MARGIN + boxWidth + 10,
+    "Payment and delivery",
+    `Payment terms: ${document.payment_terms || "Not specified"}\nDelivery terms: ${document.delivery_terms || "Not specified"}`,
+  );
   pdf.y = y + 102;
 }
 
-function drawSignature(pdf: PDFKit.PDFDocument, fonts: PdfFonts) {
+function drawSignature(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel) {
   ensureSpace(pdf, 90, fonts);
   const y = pdf.y + 10;
   const width = CONTENT_WIDTH;
@@ -279,7 +303,9 @@ function drawSignature(pdf: PDFKit.PDFDocument, fonts: PdfFonts) {
   pdf.fontSize(9.2).fillColor("#0f172a").text("Signature / approval", PAGE_MARGIN + 12, y + 10, { width: width - 24 });
   pdf.moveTo(PAGE_MARGIN + 12, y + 52).lineTo(PAGE_MARGIN + width - 12, y + 52).strokeColor("#cbd5e0").stroke();
   setFont(pdf, fonts, "regular");
-  pdf.fontSize(8.6).fillColor("#64748b").text("Authorized signature and company stamp", PAGE_MARGIN + 12, y + 58, { width: width - 24 });
+  const signer = document.company.signature_name || "Authorized signatory";
+  const signerTitle = document.company.signature_title ? `, ${document.company.signature_title}` : "";
+  pdf.fontSize(8.6).fillColor("#64748b").text(`${signer}${signerTitle}`, PAGE_MARGIN + 12, y + 58, { width: width - 24 });
   pdf.y = y + 92;
 }
 
@@ -287,7 +313,10 @@ function drawFooter(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDoc
   const footerY = PAGE_HEIGHT - PAGE_MARGIN + 2;
   pdf.moveTo(PAGE_MARGIN, PAGE_HEIGHT - PAGE_MARGIN - 8).lineTo(PAGE_MARGIN + CONTENT_WIDTH, PAGE_HEIGHT - PAGE_MARGIN - 8).strokeColor("#e2e8f0").stroke();
   setFont(pdf, fonts, "regular");
-  pdf.fontSize(7.8).fillColor("#64748b").text(`FlowSales AI · ${document.quote_number}`, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH * 0.7 });
+  const footerText = document.company.quote_footer_text
+    ? `${document.company.name} - ${document.company.quote_footer_text}`
+    : `${document.company.name} - ${document.quote_number}`;
+  pdf.fontSize(7.8).fillColor("#64748b").text(footerText, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH * 0.7 });
   pdf.text(`Page ${pageNumber} of ${totalPages}`, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH, align: "right" });
 }
 
@@ -298,9 +327,9 @@ export async function renderQuotePdfBuffer(document: QuoteDocumentModel) {
     margin: PAGE_MARGIN,
     bufferPages: true,
     info: {
-      Title: `Quote ${document.quote_number}`,
-      Author: "FlowSales AI",
-      Subject: "Quote document",
+      Title: `${document.company.name} quote ${document.quote_number}`,
+      Author: document.company.name,
+      Subject: document.company.company_slogan ?? "Quote document",
     },
   });
 
@@ -314,12 +343,20 @@ export async function renderQuotePdfBuffer(document: QuoteDocumentModel) {
     drawPageHeader(pdf, fonts, document);
 
     const companyAndRecipientY = pdf.y + 14;
-    drawPartyCard(
+    const companyCardHeight = drawPartyCard(
       pdf,
       fonts,
       "Company",
       [
         ["Name", document.company.name],
+        ["Legal name", document.company.legal_name],
+        ["Website", document.company.website],
+        ["Email", document.company.email],
+        ["Phone", document.company.phone],
+        ["Address", [document.company.address_line_1, document.company.address_line_2].filter(Boolean).join(", ")],
+        ["City", [document.company.district, document.company.city, document.company.country].filter(Boolean).join(", ")],
+        ["Tax office", document.company.tax_office],
+        ["Tax number", document.company.tax_number],
         ["Workspace", document.company.slug],
         ["Currency", document.company.currency],
       ],
@@ -330,7 +367,7 @@ export async function renderQuotePdfBuffer(document: QuoteDocumentModel) {
 
     drawMetaCard(pdf, fonts, document);
 
-    const recipientY = companyAndRecipientY + 100;
+    const recipientY = companyAndRecipientY + Math.max(companyCardHeight, 96) + 14;
     drawPartyCard(
       pdf,
       fonts,
@@ -363,7 +400,7 @@ export async function renderQuotePdfBuffer(document: QuoteDocumentModel) {
 
     drawTotals(pdf, fonts, document);
     drawNotesAndTerms(pdf, fonts, document);
-    drawSignature(pdf, fonts);
+    drawSignature(pdf, fonts, document);
 
     const pages = pdf.bufferedPageRange();
     for (let index = 0; index < pages.count; index += 1) {

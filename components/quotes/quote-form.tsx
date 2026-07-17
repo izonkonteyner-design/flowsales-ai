@@ -13,6 +13,7 @@ import { calculateNormalizedQuoteTotals } from "@/server/services/quote-domain";
 import { formatCurrency } from "@/lib/utils";
 import type { QuoteRow } from "@/server/services/quotes";
 import type { CurrencyCode, QuoteDiscountType } from "@/types/crm";
+import type { WorkspaceCompanySettings } from "@/types/settings";
 
 type QuotePartyOption = {
   id: string;
@@ -41,6 +42,7 @@ type QuoteFormProps = {
   customerOptions: QuotePartyOption[];
   productOptions: QuoteProductOption[];
   defaultQuoteNumber: string;
+  workspaceSettings: WorkspaceCompanySettings;
   initialLeadId: string | null;
   initialCustomerId: string | null;
   recipientType: "lead" | "customer" | "none";
@@ -66,7 +68,7 @@ type QuoteLineState = {
   sort_order: number;
 };
 
-function makeLine(id: string, currency: CurrencyCode, override: Partial<QuoteLineState> = {}): QuoteLineState {
+function makeLine(id: string, currency: CurrencyCode, taxRate: number, override: Partial<QuoteLineState> = {}): QuoteLineState {
   return {
     id,
     product_id: "",
@@ -79,19 +81,19 @@ function makeLine(id: string, currency: CurrencyCode, override: Partial<QuoteLin
     currency,
     discount_type: "percentage",
     discount_value: "0",
-    tax_rate: "20",
+    tax_rate: String(taxRate),
     sort_order: 0,
     ...override,
   };
 }
 
-function quoteToLine(quote: QuoteRow | null, currency: CurrencyCode, index: number): QuoteLineState {
+function quoteToLine(quote: QuoteRow | null, currency: CurrencyCode, taxRate: number, index: number): QuoteLineState {
   if (!quote?.items?.[index]) {
-    return makeLine(`line-${index + 1}`, currency, { sort_order: index });
+    return makeLine(`line-${index + 1}`, currency, taxRate, { sort_order: index });
   }
 
   const item = quote.items[index];
-  return makeLine(item.id ?? `line-${index + 1}`, (item.currency as CurrencyCode) ?? currency, {
+  return makeLine(item.id ?? `line-${index + 1}`, (item.currency as CurrencyCode) ?? currency, taxRate, {
     product_id: item.product_id ?? "",
     name: item.name ?? item.description ?? "",
     description: item.description ?? "",
@@ -102,13 +104,21 @@ function quoteToLine(quote: QuoteRow | null, currency: CurrencyCode, index: numb
     currency: (item.currency as CurrencyCode) ?? currency,
     discount_type: (item.discount_type ?? "percentage") as QuoteDiscountType,
     discount_value: String(item.discount_value ?? 0),
-    tax_rate: String(item.tax_rate ?? 20),
+    tax_rate: String(item.tax_rate ?? taxRate),
     sort_order: item.sort_order ?? index,
   });
 }
 
-export function buildQuoteLineFromProduct(product: QuoteProductOption, fallbackCurrency: CurrencyCode, id = product.id) {
-  return makeLine(id, product.currency ?? fallbackCurrency, {
+export function buildQuoteLineFromProduct(
+  product: QuoteProductOption,
+  fallbackCurrency: CurrencyCode,
+  taxRateOrId: number | string = 20,
+  id?: string,
+) {
+  const taxRate = typeof taxRateOrId === "number" ? taxRateOrId : 20;
+  const lineId = typeof taxRateOrId === "string" ? taxRateOrId : id ?? product.id;
+
+  return makeLine(lineId, product.currency ?? fallbackCurrency, taxRate, {
     product_id: product.id,
     name: product.label,
     description: product.subtitle,
@@ -119,9 +129,15 @@ export function buildQuoteLineFromProduct(product: QuoteProductOption, fallbackC
   });
 }
 
-function buildInitialLines(quote: QuoteRow | null, currency: CurrencyCode) {
+function buildInitialLines(quote: QuoteRow | null, currency: CurrencyCode, taxRate: number) {
   const count = quote?.items?.length ?? 1;
-  return Array.from({ length: count }, (_, index) => quoteToLine(quote, currency, index));
+  return Array.from({ length: count }, (_, index) => quoteToLine(quote, currency, taxRate, index));
+}
+
+function addDays(value: string, days: number) {
+  const next = new Date(`${value}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next.toISOString().slice(0, 10);
 }
 
 function asNumber(value: string) {
@@ -137,6 +153,7 @@ export function QuoteForm({
   customerOptions,
   productOptions,
   defaultQuoteNumber,
+  workspaceSettings,
   initialLeadId,
   initialCustomerId,
   recipientType,
@@ -145,8 +162,9 @@ export function QuoteForm({
   redirectTo,
   readOnlyMessage,
 }: QuoteFormProps) {
-  const initialCurrency = (quote?.currency as CurrencyCode) ?? "TRY";
-  const [lines, setLines] = useState<QuoteLineState[]>(() => buildInitialLines(quote ?? null, initialCurrency));
+  const initialCurrency = (quote?.currency as CurrencyCode) ?? workspaceSettings.default_currency;
+  const initialTaxRate = workspaceSettings.default_tax_rate;
+  const [lines, setLines] = useState<QuoteLineState[]>(() => buildInitialLines(quote ?? null, initialCurrency, initialTaxRate));
 
   const productMap = useMemo(() => new Map(productOptions.map((product) => [product.id, product])), [productOptions]);
   const serializedLines = lines.map((line, index) => ({
@@ -176,7 +194,7 @@ export function QuoteForm({
   }
 
   function addLine() {
-    setLines((current) => [...current, makeLine(`line-${current.length + 1}`, initialCurrency, { sort_order: current.length })]);
+    setLines((current) => [...current, makeLine(`line-${current.length + 1}`, initialCurrency, initialTaxRate, { sort_order: current.length })]);
   }
 
   function removeLine(index: number) {
@@ -191,8 +209,11 @@ export function QuoteForm({
     }
 
     const currentLineId = lines[index]?.id ?? product.id;
-    updateLine(index, buildQuoteLineFromProduct(product, initialCurrency, currentLineId));
+    updateLine(index, buildQuoteLineFromProduct(product, initialCurrency, initialTaxRate, currentLineId));
   }
+
+  const issueDate = quote?.issue_date ?? new Date().toISOString().slice(0, 10);
+  const validUntil = quote?.valid_until ?? quote?.expiry_date ?? addDays(issueDate, workspaceSettings.default_quote_validity_days);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
@@ -265,17 +286,17 @@ export function QuoteForm({
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Issue date</span>
-              <Input name="issue_date" type="date" defaultValue={quote?.issue_date ?? new Date().toISOString().slice(0, 10)} disabled={!canMutate} />
+              <Input name="issue_date" type="date" defaultValue={issueDate} disabled={!canMutate} />
             </label>
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Valid until</span>
-              <Input name="valid_until" type="date" defaultValue={quote?.valid_until ?? quote?.expiry_date ?? new Date().toISOString().slice(0, 10)} disabled={!canMutate} />
+              <Input name="valid_until" type="date" defaultValue={validUntil} disabled={!canMutate} />
             </label>
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency</span>
-              <Select name="currency" defaultValue={(quote?.currency as CurrencyCode) ?? "TRY"} disabled={!canMutate}>
+              <Select name="currency" defaultValue={(quote?.currency as CurrencyCode) ?? workspaceSettings.default_currency} disabled={!canMutate}>
                 <option value="TRY">TRY</option>
                 <option value="USD">USD</option>
                 <option value="EUR">EUR</option>
@@ -304,17 +325,17 @@ export function QuoteForm({
           <div className="grid gap-4">
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment terms</span>
-              <Textarea name="payment_terms" defaultValue={quote?.payment_terms ?? ""} disabled={!canMutate} />
+              <Textarea name="payment_terms" defaultValue={quote?.payment_terms ?? workspaceSettings.default_payment_terms ?? ""} disabled={!canMutate} />
             </label>
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Delivery terms</span>
-              <Textarea name="delivery_terms" defaultValue={quote?.delivery_terms ?? ""} disabled={!canMutate} />
+              <Textarea name="delivery_terms" defaultValue={quote?.delivery_terms ?? workspaceSettings.default_delivery_terms ?? ""} disabled={!canMutate} />
             </label>
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes</span>
-              <Textarea name="notes" defaultValue={quote?.notes ?? ""} disabled={!canMutate} />
+              <Textarea name="notes" defaultValue={quote?.notes ?? workspaceSettings.default_quote_notes ?? ""} disabled={!canMutate} />
             </label>
           </div>
 

@@ -89,7 +89,7 @@ test("pdf response headers are safe and include the filename", async () => {
   assert.equal(response.headers.get("content-type"), "application/pdf");
   assert.equal(response.headers.get("cache-control"), "no-store");
   assert.match(contentDisposition, /attachment/);
-  assert.match(contentDisposition, /FlowSales-Quote-FSA-2026-0401\.pdf/);
+  assert.match(contentDisposition, /Quote-FSA-2026-0401\.pdf/);
 });
 
 test("pdf buffer renders a PDF and supports Turkish text", async () => {

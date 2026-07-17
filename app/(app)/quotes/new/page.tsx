@@ -64,6 +64,7 @@ export default async function NewQuotePage({ searchParams }: NewQuotePageProps) 
         customerOptions={data.customerOptions}
         productOptions={data.productOptions}
         defaultQuoteNumber={data.defaultQuoteNumber}
+        workspaceSettings={data.workspaceSettings}
         initialLeadId={data.initialLeadId}
         initialCustomerId={data.initialCustomerId}
         recipientType={data.recipientType}

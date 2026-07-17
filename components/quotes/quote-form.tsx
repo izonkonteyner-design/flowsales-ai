@@ -41,6 +41,10 @@ type QuoteFormProps = {
   customerOptions: QuotePartyOption[];
   productOptions: QuoteProductOption[];
   defaultQuoteNumber: string;
+  initialLeadId: string | null;
+  initialCustomerId: string | null;
+  recipientType: "lead" | "customer" | "none";
+  recipientMessage: string;
   canMutate: boolean;
   redirectTo: string;
   readOnlyMessage?: string;
@@ -133,6 +137,10 @@ export function QuoteForm({
   customerOptions,
   productOptions,
   defaultQuoteNumber,
+  initialLeadId,
+  initialCustomerId,
+  recipientType,
+  recipientMessage,
   canMutate,
   redirectTo,
   readOnlyMessage,
@@ -203,10 +211,19 @@ export function QuoteForm({
           <input type="hidden" name="redirect_to" value={redirectTo} />
           <input type="hidden" name="items_json" value={JSON.stringify(serializedLines)} />
 
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone={recipientType === "customer" ? "success" : recipientType === "lead" ? "info" : "neutral"}>
+                {recipientType === "customer" ? "Customer primary" : recipientType === "lead" ? "Lead primary" : "No recipient"}
+              </StatusBadge>
+              <Badge variant="secondary">{recipientMessage}</Badge>
+            </div>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Lead</span>
-              <Select name="lead_id" defaultValue={quote?.lead_id ?? ""} disabled={!canMutate}>
+              <Select name="lead_id" defaultValue={quote?.lead_id ?? initialLeadId ?? ""} disabled={!canMutate}>
                 <option value="">Select a lead</option>
                 {leadOptions.map((lead) => (
                   <option key={lead.id} value={lead.id}>
@@ -218,7 +235,7 @@ export function QuoteForm({
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Customer</span>
-              <Select name="customer_id" defaultValue={quote?.customer_id ?? ""} disabled={!canMutate}>
+              <Select name="customer_id" defaultValue={quote?.customer_id ?? initialCustomerId ?? ""} disabled={!canMutate}>
                 <option value="">Select a customer</option>
                 {customerOptions.map((customer) => (
                   <option key={customer.id} value={customer.id}>

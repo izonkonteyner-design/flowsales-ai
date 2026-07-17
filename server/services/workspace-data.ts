@@ -21,6 +21,11 @@ export const demoCustomers: Customer[] = [
     lifetime_value: 1850000,
     last_order_at: "2026-06-12T10:00:00.000Z",
     next_review_at: "2026-07-21T09:00:00.000Z",
+    source_lead_id: "lead_001",
+    converted_at: "2026-07-15T10:20:00.000Z",
+    converted_by: "Selin Kaya",
+    quote_count: 2,
+    last_quote_at: "2026-07-15T11:00:00.000Z",
   },
   {
     id: "cust_002",
@@ -34,6 +39,11 @@ export const demoCustomers: Customer[] = [
     lifetime_value: 920000,
     last_order_at: "2026-05-03T14:30:00.000Z",
     next_review_at: "2026-07-18T13:00:00.000Z",
+    source_lead_id: "lead_002",
+    converted_at: null,
+    converted_by: null,
+    quote_count: 1,
+    last_quote_at: "2026-07-13T09:45:00.000Z",
   },
   {
     id: "cust_003",
@@ -47,6 +57,11 @@ export const demoCustomers: Customer[] = [
     lifetime_value: 2450000,
     last_order_at: null,
     next_review_at: "2026-07-17T09:00:00.000Z",
+    source_lead_id: "lead_003",
+    converted_at: null,
+    converted_by: null,
+    quote_count: 1,
+    last_quote_at: "2026-07-10T08:00:00.000Z",
   },
 ];
 

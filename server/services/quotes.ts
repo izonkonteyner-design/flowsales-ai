@@ -2,6 +2,12 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { demoQuotes, demoLeads, demoProducts } from "@/server/services/crm-data";
 import { demoCustomers } from "@/server/services/workspace-data";
+import {
+  loadQuoteRecipientDemo,
+  loadQuoteRecipientResolution,
+  type QuoteRecipientResolution,
+  type QuoteRecipientType,
+} from "@/server/services/crm-integration";
 import { createDemoWorkspaceContext, getWorkspaceContext, type WorkspaceRole } from "@/server/services/workspace-context";
 import {
   canManageQuotes,
@@ -75,8 +81,17 @@ export type QuoteFormData = {
   customerOptions: PartyOption[];
   productOptions: ProductOption[];
   defaultQuoteNumber: string;
+  initialLeadId: string | null;
+  initialCustomerId: string | null;
+  recipientType: QuoteRecipientType;
+  recipientMessage: string;
   canMutate: boolean;
   error: string | null;
+};
+
+export type QuoteRecipientHints = {
+  leadId?: string | null;
+  customerId?: string | null;
 };
 
 const quoteSelectColumns =
@@ -115,6 +130,38 @@ function createDemoOptions() {
       unit_price: Number(product.unit_price ?? product.base_price ?? 0),
       active: Boolean(product.active),
     })),
+  };
+}
+
+function describeRecipientState(selection: QuoteRecipientResolution) {
+  if (selection.customer) {
+    const company = selection.customer.company ?? selection.lead?.company ?? "";
+    return {
+      initialLeadId: selection.leadId,
+      initialCustomerId: selection.customerId,
+      recipientType: "customer" as const,
+      recipientMessage: company
+        ? `Customer takes precedence. Linked customer: ${selection.customer.name} - ${company}.`
+        : `Customer takes precedence. Linked customer: ${selection.customer.name}.`,
+    };
+  }
+
+  if (selection.lead) {
+    return {
+      initialLeadId: selection.leadId,
+      initialCustomerId: selection.customerId,
+      recipientType: "lead" as const,
+      recipientMessage: selection.lead.company
+        ? `Lead recipient selected: ${selection.lead.full_name} - ${selection.lead.company}.`
+        : `Lead recipient selected: ${selection.lead.full_name}.`,
+    };
+  }
+
+  return {
+    initialLeadId: null,
+    initialCustomerId: null,
+    recipientType: "none" as const,
+    recipientMessage: "Select a lead or customer before saving the quote.",
   };
 }
 
@@ -381,11 +428,13 @@ async function loadLiveQuotePageData(context: QuoteWorkspaceContext, filters: Qu
   };
 }
 
-async function loadQuoteOptions(context: QuoteWorkspaceContext) {
+async function loadQuoteOptions(context: QuoteWorkspaceContext, hints: QuoteRecipientHints = {}) {
   if (context.mode === "demo") {
+    const selection = await loadQuoteRecipientDemo(hints.leadId ?? null, hints.customerId ?? null);
     return {
       ...createDemoOptions(),
       defaultQuoteNumber: generateQuoteNumber(demoQuotes.map((quote) => quote.quote_number), new Date()),
+      ...describeRecipientState(selection),
     };
   }
 
@@ -404,6 +453,8 @@ async function loadQuoteOptions(context: QuoteWorkspaceContext) {
   if (leadResult.error || contactResult.error || productResult.error || quoteNumbers.error) {
     return null;
   }
+
+  const selection = await loadQuoteRecipientResolution(context.organization.id, hints.leadId ?? null, hints.customerId ?? null);
 
   return {
     leadOptions: ((leadResult.data ?? []) as any[]).map((row) => ({
@@ -427,6 +478,7 @@ async function loadQuoteOptions(context: QuoteWorkspaceContext) {
       active: Boolean(row.active),
     })),
     defaultQuoteNumber: generateQuoteNumber(((quoteNumbers.data ?? []) as any[]).map((row) => row.quote_number), new Date()),
+    ...describeRecipientState(selection),
   };
 }
 
@@ -611,10 +663,10 @@ export async function getQuoteDetailData(id: string): Promise<QuoteDetailData> {
   };
 }
 
-export async function getQuoteFormData(id?: string): Promise<QuoteFormData> {
+export async function getQuoteFormData(id?: string, hints: QuoteRecipientHints = {}): Promise<QuoteFormData> {
   const context = await getContext();
   const canMutate = context.mode === "live" && canManageQuotes(context.role);
-  const options = await loadQuoteOptions(context);
+  const options = await loadQuoteOptions(context, hints);
   const quote = id ? await loadQuoteById(context, id) : null;
 
   if (!options) {
@@ -625,6 +677,10 @@ export async function getQuoteFormData(id?: string): Promise<QuoteFormData> {
       customerOptions: [],
       productOptions: [],
       defaultQuoteNumber: generateQuoteNumber([], new Date()),
+      initialLeadId: null,
+      initialCustomerId: null,
+      recipientType: "none",
+      recipientMessage: "Select a lead or customer before saving the quote.",
       canMutate,
       error: "Unable to load quote form options.",
     };
@@ -652,7 +708,18 @@ export async function createQuoteRecord(input: QuoteFormInput) {
   }
 
   assertCanMutate(mutation.context);
-  const payload = buildQuotePayload(input);
+  const recipient = await loadQuoteRecipientResolution(mutation.context.organization.id, input.lead_id ?? null, input.customer_id ?? null);
+  if (input.lead_id && !recipient.leadId) {
+    throw new Error("Lead not found in the current workspace.");
+  }
+  if (input.customer_id && !recipient.customerId) {
+    throw new Error("Customer not found in the current workspace.");
+  }
+  const payload = buildQuotePayload({
+    ...input,
+    lead_id: recipient.leadId,
+    customer_id: recipient.customerId,
+  });
 
   const { data, error } = await mutation.client
     .from("quotes")
@@ -689,7 +756,18 @@ export async function updateQuoteRecord(id: string, input: QuoteFormInput) {
   }
 
   assertCanMutate(mutation.context);
-  const payload = buildQuotePayload(input);
+  const recipient = await loadQuoteRecipientResolution(mutation.context.organization.id, input.lead_id ?? null, input.customer_id ?? null);
+  if (input.lead_id && !recipient.leadId) {
+    throw new Error("Lead not found in the current workspace.");
+  }
+  if (input.customer_id && !recipient.customerId) {
+    throw new Error("Customer not found in the current workspace.");
+  }
+  const payload = buildQuotePayload({
+    ...input,
+    lead_id: recipient.leadId,
+    customer_id: recipient.customerId,
+  });
 
   const { data, error } = await mutation.client
     .from("quotes")

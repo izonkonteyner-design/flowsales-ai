@@ -63,6 +63,10 @@ export default async function EditQuotePage({ params, searchParams }: EditQuoteP
         customerOptions={data.customerOptions}
         productOptions={data.productOptions}
         defaultQuoteNumber={data.defaultQuoteNumber}
+        initialLeadId={data.initialLeadId}
+        initialCustomerId={data.initialCustomerId}
+        recipientType={data.recipientType}
+        recipientMessage={data.recipientMessage}
         canMutate={data.canMutate}
         redirectTo={redirectTo}
         readOnlyMessage={data.error ?? "Connect live Supabase data or create a real quote to edit this record."}

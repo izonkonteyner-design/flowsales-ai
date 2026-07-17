@@ -6,13 +6,19 @@ import {
   CheckSquare2,
   Mail,
   MessageSquare,
+  MessageSquarePlus,
   PencilLine,
   Phone,
   Plus,
   Target,
 } from "lucide-react";
 
-import { addLeadNoteAction, createLeadTaskAction, scheduleLeadFollowUpAction } from "@/app/(app)/leads/actions";
+import {
+  addLeadNoteAction,
+  convertLeadToCustomerAction,
+  createLeadTaskAction,
+  scheduleLeadFollowUpAction,
+} from "@/app/(app)/leads/actions";
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
 import { LeadStatusMenu } from "@/components/leads/lead-status-menu";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -20,6 +26,7 @@ import { FlashToast } from "@/components/shared/flash-toast";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -70,6 +77,13 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
   const canMutate = canMutateLeadRecord(lead.recordMode, data.context.role);
   const recordBadge = getLeadRecordBadge(lead.recordMode);
   const restrictionMessage = getLeadRecordRestrictionMessage(lead.recordMode, data.context.role);
+  const createQuoteHref = lead.recordMode === "live"
+    ? `/quotes/new?${new URLSearchParams(
+        lead.converted_customer_id
+          ? { lead_id: lead.id, customer_id: lead.converted_customer_id }
+          : { lead_id: lead.id },
+      ).toString()}`
+    : `/quotes/new?lead_id=${encodeURIComponent(lead.id)}`;
 
   return (
     <div className="space-y-6">
@@ -104,6 +118,38 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
                 Read only
               </span>
             )}
+            {canMutate ? (
+              data.linkedCustomer ? (
+                <Link
+                  href={`/customers/${data.linkedCustomer.id}`}
+                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                >
+                  <MessageSquarePlus className="h-4 w-4" />
+                  Customer linked
+                </Link>
+              ) : (
+                <form action={convertLeadToCustomerAction}>
+                  <input type="hidden" name="lead_id" value={lead.id} />
+                  <input type="hidden" name="redirect_to" value={redirectTo} />
+                  <button
+                    type="submit"
+                    className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+                  >
+                    <MessageSquarePlus className="h-4 w-4" />
+                    Convert to customer
+                  </button>
+                </form>
+              )
+            ) : null}
+            {canMutate ? (
+              <Link
+                href={createQuoteHref}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+              >
+                <Plus className="h-4 w-4" />
+                Create quote
+              </Link>
+            ) : null}
             <LeadDeleteDialog
               leadId={lead.id}
               leadName={lead.full_name}
@@ -139,6 +185,40 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
               label="Assigned user"
               value={assignedMember ? `${assignedMember.full_name} (${assignedMember.role})` : lead.assigned_to_label}
             />
+          </div>
+
+          <div className="mt-6 grid gap-4 lg:grid-cols-2">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge tone={lead.converted_customer_id ? "success" : "neutral"}>
+                  {lead.converted_customer_id ? "Converted" : "Not converted"}
+                </StatusBadge>
+                {lead.converted_at ? <Badge variant="secondary">Converted {formatDateTime(lead.converted_at)}</Badge> : null}
+              </div>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-400">
+                {lead.converted_customer_id
+                  ? "This lead is already linked to a customer record."
+                  : "This lead can be converted into a customer once it is ready to move beyond qualification."}
+              </p>
+              {data.linkedCustomer ? (
+                <Link
+                  href={`/customers/${data.linkedCustomer.id}`}
+                  className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-slate-950 underline-offset-4 hover:underline dark:text-white"
+                >
+                  Open customer record
+                  <ArrowLeft className="h-4 w-4 rotate-180" />
+                </Link>
+              ) : null}
+            </div>
+
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+              <p className="text-sm font-medium text-slate-950 dark:text-white">Recipient preview</p>
+              <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
+                {data.linkedCustomer
+                  ? `Quotes created from this lead will default to the converted customer ${data.linkedCustomer.name}.`
+                  : "Quotes created from this lead will default to the lead until it is converted to a customer."}
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -321,6 +401,24 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
         </SectionCard>
       </div>
 
+      <SectionCard title="Related quotes" description="Direct lead quotes and quotes created for the converted customer.">
+        <div className="space-y-6">
+          <QuoteGroup
+            title="Quotes for this lead"
+            emptyMessage="No direct lead quotes yet."
+            quotes={data.leadQuotes}
+          />
+
+          {data.linkedCustomer ? (
+            <QuoteGroup
+              title={`Quotes for ${data.linkedCustomer.name}`}
+              emptyMessage="No customer-linked quotes yet."
+              quotes={data.customerQuotes}
+            />
+          ) : null}
+        </div>
+      </SectionCard>
+
       <SectionCard title="Lead context" description="Security and organization details for this record.">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <MiniDetail label="Organization" value={data.context.organization.name} />
@@ -370,6 +468,58 @@ function MiniDetail({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
       <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-2 text-sm font-medium text-slate-950 dark:text-white">{value}</p>
+    </div>
+  );
+}
+
+function QuoteGroup({
+  title,
+  emptyMessage,
+  quotes,
+}: {
+  title: string;
+  emptyMessage: string;
+  quotes: Array<{
+    id: string;
+    quote_number: string;
+    status: string;
+    issue_date: string;
+    currency: string;
+    grand_total: number;
+    total: number;
+  }>;
+}) {
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-medium text-slate-950 dark:text-white">{title}</p>
+      {quotes.length ? (
+        <div className="space-y-2">
+          {quotes.map((quote) => (
+            <Link
+              key={quote.id}
+              href={`/quotes/${quote.id}`}
+              className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              <div>
+                <p className="font-medium text-slate-950 dark:text-white">{quote.quote_number}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  {formatDateTime(quote.issue_date)} · {quote.currency}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-medium text-slate-950 dark:text-white">
+                  {formatCurrency(quote.grand_total ?? quote.total ?? 0, quote.currency)}
+                </p>
+                <p className="mt-1 text-xs text-slate-500">{quote.status}</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-2xl border border-dashed border-slate-300 bg-white px-4 py-3 text-sm text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+          {emptyMessage}
+        </p>
+      )}
     </div>
   );
 }

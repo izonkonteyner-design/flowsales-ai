@@ -4,8 +4,16 @@ import {
   demoActivities,
   demoLeads,
   demoOrganization,
+  demoQuotes,
   demoTasks,
 } from "@/server/services/crm-data";
+import {
+  loadDemoCustomerById,
+  loadLiveCustomerById,
+  loadRelatedQuotesByCustomer,
+  loadRelatedQuotesByLead,
+  type RelatedQuoteSummary,
+} from "@/server/services/crm-integration";
 import { demoTeam } from "@/server/services/workspace-data";
 import {
   buildLeadDashboardMetrics,
@@ -24,7 +32,7 @@ import {
   type LeadMemberOption,
   type LeadRole,
 } from "@/server/services/lead-domain";
-import type { Activity, Lead, Organization, Task } from "@/types/crm";
+import type { Activity, CurrencyCode, Lead, Organization, Task } from "@/types/crm";
 
 export type LeadRow = Lead & {
   recordMode: LeadRecordMode;
@@ -56,6 +64,13 @@ export type LeadPageData = {
 export type LeadDetailData = {
   context: LeadWorkspaceContext;
   lead: LeadRow | null;
+  linkedCustomer: {
+    id: string;
+    name: string;
+    company: string | null;
+  } | null;
+  leadQuotes: RelatedQuoteSummary[];
+  customerQuotes: RelatedQuoteSummary[];
   tasks: Task[];
   activities: Activity[];
 };
@@ -180,7 +195,7 @@ async function loadLiveLeads(context: LeadWorkspaceContext) {
 
   const { data, error } = await client
     .from("leads")
-    .select("id, organization_id, full_name, company, email, phone, city, source, status, estimated_value, currency, notes, assigned_to, next_follow_up_at, created_by, created_at, updated_at")
+    .select("id, organization_id, full_name, company, email, phone, city, source, status, estimated_value, currency, notes, assigned_to, next_follow_up_at, created_by, created_at, updated_at, converted_customer_id, converted_at, converted_by")
     .eq("organization_id", context.organization.id);
 
   if (error || !data) {
@@ -240,9 +255,41 @@ export async function getLeadDetailData(id: string) {
     const lead = demoLeads.find((item) => item.id === id) ?? null;
     const tasks = demoTasks.filter((task) => task.lead_id === id);
     const activities = demoActivities.filter((activity) => activity.lead_id === id);
+    const linkedCustomer = lead?.converted_customer_id ? await loadDemoCustomerById(lead.converted_customer_id) : null;
+    const leadQuotes = demoQuotes
+      .filter((quote) => quote.lead_id === id)
+      .map((quote) => ({
+        id: quote.id,
+        quote_number: quote.quote_number,
+        status: quote.status,
+        issue_date: quote.issue_date,
+        currency: quote.currency as CurrencyCode,
+        grand_total: Number(quote.grand_total ?? quote.total ?? 0),
+        total: Number(quote.total ?? quote.grand_total ?? 0),
+        lead_id: quote.lead_id ?? null,
+        customer_id: quote.customer_id ?? null,
+      }));
+    const customerQuotes = linkedCustomer
+      ? demoQuotes
+          .filter((quote) => quote.customer_id === linkedCustomer.id)
+          .map((quote) => ({
+            id: quote.id,
+            quote_number: quote.quote_number,
+            status: quote.status,
+            issue_date: quote.issue_date,
+            currency: quote.currency as CurrencyCode,
+            grand_total: Number(quote.grand_total ?? quote.total ?? 0),
+            total: Number(quote.total ?? quote.grand_total ?? 0),
+            lead_id: quote.lead_id ?? null,
+            customer_id: quote.customer_id ?? null,
+          }))
+      : [];
     return {
       context,
       lead: lead ? mapLeadRow(lead, context.members, "demo") : null,
+      linkedCustomer: linkedCustomer ? { id: linkedCustomer.id, name: linkedCustomer.name, company: linkedCustomer.company ?? null } : null,
+      leadQuotes,
+      customerQuotes,
       tasks,
       activities,
     } satisfies LeadDetailData;
@@ -253,6 +300,9 @@ export async function getLeadDetailData(id: string) {
     return {
       context: createDemoContext(),
       lead: null,
+      linkedCustomer: null,
+      leadQuotes: [],
+      customerQuotes: [],
       tasks: [],
       activities: [],
     } satisfies LeadDetailData;
@@ -260,7 +310,7 @@ export async function getLeadDetailData(id: string) {
 
   const { data: lead, error } = await client
     .from("leads")
-    .select("id, organization_id, full_name, company, email, phone, city, source, status, estimated_value, currency, notes, assigned_to, next_follow_up_at, created_by, created_at, updated_at")
+    .select("id, organization_id, full_name, company, email, phone, city, source, status, estimated_value, currency, notes, assigned_to, next_follow_up_at, created_by, created_at, updated_at, converted_customer_id, converted_at, converted_by")
     .eq("id", id)
     .eq("organization_id", context.organization.id)
     .maybeSingle();
@@ -269,6 +319,9 @@ export async function getLeadDetailData(id: string) {
     return {
       context,
       lead: null,
+      linkedCustomer: null,
+      leadQuotes: [],
+      customerQuotes: [],
       tasks: [],
       activities: [],
     } satisfies LeadDetailData;
@@ -291,6 +344,13 @@ export async function getLeadDetailData(id: string) {
 
   const memberMap = new Map(context.members.map((member) => [member.user_id, member.full_name]));
   const leadRow = mapLeadRow(lead as Lead, context.members, "live");
+  const linkedCustomer = lead.converted_customer_id
+    ? await loadLiveCustomerById(context.organization.id, lead.converted_customer_id)
+    : null;
+  const [leadQuotes, customerQuotes] = await Promise.all([
+    loadRelatedQuotesByLead(context.organization.id, id, 5),
+    linkedCustomer ? loadRelatedQuotesByCustomer(context.organization.id, linkedCustomer.id, 5) : Promise.resolve([] as RelatedQuoteSummary[]),
+  ]);
 
   return {
     context,
@@ -298,6 +358,9 @@ export async function getLeadDetailData(id: string) {
       ...leadRow,
       created_by_label: lead.created_by ? memberMap.get(lead.created_by) ?? "Team member" : "Team member",
     },
+    linkedCustomer: linkedCustomer ? { id: linkedCustomer.id, name: linkedCustomer.name, company: linkedCustomer.company ?? null } : null,
+    leadQuotes,
+    customerQuotes,
     tasks: (tasksResponse.data ?? []) as Task[],
     activities: (activitiesResponse.data ?? []) as Activity[],
   };

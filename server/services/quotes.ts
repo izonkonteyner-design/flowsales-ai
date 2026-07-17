@@ -2,6 +2,7 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { demoQuotes, demoLeads, demoProducts } from "@/server/services/crm-data";
 import { demoCustomers } from "@/server/services/workspace-data";
+import { getWorkspaceCompanySettingsData, mapOrganizationToWorkspaceSettings } from "@/server/services/workspace-settings";
 import {
   loadQuoteRecipientDemo,
   loadQuoteRecipientResolution,
@@ -27,6 +28,7 @@ import {
 } from "@/server/services/quote-domain";
 import { quoteLineItemSchema, quoteStatusSchema, type QuoteFormInput } from "@/lib/validations/quote";
 import type { CurrencyCode, Quote, QuoteItem, QuoteStatus } from "@/types/crm";
+import type { WorkspaceCompanySettings } from "@/types/settings";
 
 type PartyOption = {
   id: string;
@@ -77,6 +79,7 @@ export type QuoteDetailData = {
 export type QuoteFormData = {
   context: QuoteWorkspaceContext;
   quote: QuoteRow | null;
+  workspaceSettings: WorkspaceCompanySettings;
   leadOptions: PartyOption[];
   customerOptions: PartyOption[];
   productOptions: ProductOption[];
@@ -667,12 +670,15 @@ export async function getQuoteFormData(id?: string, hints: QuoteRecipientHints =
   const context = await getContext();
   const canMutate = context.mode === "live" && canManageQuotes(context.role);
   const options = await loadQuoteOptions(context, hints);
+  const workspaceSettingsResult = await getWorkspaceCompanySettingsData();
+  const workspaceSettings = workspaceSettingsResult.settings ?? mapOrganizationToWorkspaceSettings(context.organization as any);
   const quote = id ? await loadQuoteById(context, id) : null;
 
   if (!options) {
     return {
       context,
       quote,
+      workspaceSettings,
       leadOptions: [],
       customerOptions: [],
       productOptions: [],
@@ -689,6 +695,7 @@ export async function getQuoteFormData(id?: string, hints: QuoteRecipientHints =
   return {
     context,
     quote,
+    workspaceSettings,
     ...options,
     canMutate,
     error: null,

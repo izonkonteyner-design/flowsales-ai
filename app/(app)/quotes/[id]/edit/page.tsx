@@ -63,6 +63,7 @@ export default async function EditQuotePage({ params, searchParams }: EditQuoteP
         customerOptions={data.customerOptions}
         productOptions={data.productOptions}
         defaultQuoteNumber={data.defaultQuoteNumber}
+        workspaceSettings={data.workspaceSettings}
         initialLeadId={data.initialLeadId}
         initialCustomerId={data.initialCustomerId}
         recipientType={data.recipientType}

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { QuoteDocumentImage } from "@/components/quotes/quote-document-image";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import type { QuoteDocumentModel } from "@/server/services/quote-document";
@@ -28,7 +30,7 @@ function SectionTitle({ title, subtitle }: { title: string; subtitle?: string })
   );
 }
 
-function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
+function InfoCard({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm break-inside-avoid-page">
       <SectionTitle title={title} />
@@ -37,16 +39,36 @@ function InfoCard({ title, children }: { title: string; children: React.ReactNod
   );
 }
 
+function CompanyLine({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) {
+    return null;
+  }
+
+  return <DetailRow label={label} value={value} />;
+}
+
 export function QuoteDocument({ document }: QuoteDocumentProps) {
+  const address = [document.company.address_line_1, document.company.address_line_2].filter(Boolean).join(", ");
+  const cityLine = [document.company.district, document.company.city, document.company.country].filter(Boolean).join(", ");
+
   return (
     <div className="mx-auto w-full max-w-[210mm] bg-white p-4 text-slate-950 sm:p-6 print:max-w-none print:p-0">
       <article className="space-y-5 rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm print:rounded-none print:border-0 print:p-0 print:shadow-none">
         <header className="grid gap-6 border-b border-slate-200 pb-5 sm:grid-cols-[1.2fr_0.8fr] print:border-slate-300">
           <div className="space-y-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">FlowSales AI</p>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Quote</h1>
-              <p className="mt-2 text-sm text-slate-500">Professional commercial proposal, ready for print or PDF.</p>
+            <div className="flex items-start gap-4">
+              {document.company.logo_url ? (
+                <QuoteDocumentImage
+                  src={document.company.logo_url}
+                  alt={`${document.company.name} logo`}
+                  className="h-20 w-20 rounded-3xl border border-slate-200 object-cover shadow-sm"
+                />
+              ) : null}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">{document.company.name}</p>
+                <h1 className="mt-2 text-3xl font-semibold tracking-tight text-slate-950">Quote</h1>
+                <p className="mt-2 text-sm text-slate-500">{document.company.company_slogan ?? "Branded commercial proposal, ready for print or PDF."}</p>
+              </div>
             </div>
 
             <div className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-700">
@@ -68,6 +90,20 @@ export function QuoteDocument({ document }: QuoteDocumentProps) {
         <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
           <InfoCard title="Company">
             <DetailRow label="Name" value={document.company.name} />
+            <CompanyLine label="Legal name" value={document.company.legal_name} />
+            <CompanyLine label="Website" value={document.company.website} />
+            <CompanyLine label="Email" value={document.company.email} />
+            <CompanyLine label="Phone" value={document.company.phone} />
+            <CompanyLine label="Secondary phone" value={document.company.secondary_phone} />
+            <CompanyLine label="Address" value={address || null} />
+            <CompanyLine label="City" value={cityLine || null} />
+            <CompanyLine label="Tax office" value={document.company.tax_office} />
+            <CompanyLine label="Tax number" value={document.company.tax_number} />
+            <CompanyLine label="Registry number" value={document.company.trade_registry_number} />
+            <CompanyLine label="MERSIS" value={document.company.mersis_number} />
+            <CompanyLine label="Bank" value={document.company.bank_name} />
+            <CompanyLine label="Branch" value={document.company.bank_branch} />
+            <CompanyLine label="IBAN" value={document.company.iban} />
             <DetailRow label="Workspace" value={document.company.slug} />
             <DetailRow label="Currency" value={document.company.currency} />
           </InfoCard>
@@ -116,14 +152,8 @@ export function QuoteDocument({ document }: QuoteDocumentProps) {
                   <div className="text-slate-700">{item.discount}</div>
                   <div className="text-slate-700">{item.tax}</div>
                   <div className="font-medium text-slate-950">{formatCurrency(item.line_total, document.currency)}</div>
-                  <div className="text-xs text-slate-500 break-all">{item.sku ?? "—"}</div>
-                  <div>
-                    {item.product_image_url ? (
-                      <QuoteDocumentImage src={item.product_image_url} alt={item.name} />
-                    ) : (
-                      <span className="text-xs text-slate-400">—</span>
-                    )}
-                  </div>
+                  <div className="text-xs text-slate-500 break-all">{item.sku ?? "-"}</div>
+                  <div>{item.product_image_url ? <QuoteDocumentImage src={item.product_image_url} alt={item.name} /> : <span className="text-xs text-slate-400">-</span>}</div>
                 </div>
               ))}
             </div>
@@ -159,23 +189,28 @@ export function QuoteDocument({ document }: QuoteDocumentProps) {
           <InfoCard title="Signature">
             <div className="space-y-3">
               <div className="h-20 rounded-2xl border border-dashed border-slate-300 bg-slate-50" />
-              <p className="text-sm text-slate-500">Authorized signature and company stamp.</p>
+              <p className="text-sm text-slate-500">
+                {document.company.signature_name || "Authorized signatory"}
+                {document.company.signature_title ? `, ${document.company.signature_title}` : ""}
+              </p>
             </div>
           </InfoCard>
 
           <InfoCard title="Metadata">
-            <DetailRow label="Created at" value={document.created_at ? formatDateTime(document.created_at) : "—"} />
-            <DetailRow label="Updated at" value={document.updated_at ? formatDateTime(document.updated_at) : "—"} />
-            <DetailRow label="Created by" value={document.created_by || "—"} />
+            <DetailRow label="Created at" value={document.created_at ? formatDateTime(document.created_at) : "-"} />
+            <DetailRow label="Updated at" value={document.updated_at ? formatDateTime(document.updated_at) : "-"} />
+            <DetailRow label="Created by" value={document.created_by || "-"} />
           </InfoCard>
         </section>
 
         <footer className="flex items-center justify-between border-t border-slate-200 pt-4 text-xs text-slate-500 print:border-slate-300">
-          <span>FlowSales AI quote document</span>
+          <span>
+            {document.company.name} quote document
+            {document.company.quote_footer_text ? ` - ${document.company.quote_footer_text}` : ""}
+          </span>
           <span>{document.quote_number}</span>
         </footer>
       </article>
     </div>
   );
 }
-

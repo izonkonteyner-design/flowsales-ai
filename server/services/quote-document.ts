@@ -15,11 +15,42 @@ const quoteDocumentLeadColumns = "id, full_name, company, email, phone, city, no
 const quoteDocumentContactColumns = "id, full_name, company, email, phone, city, notes";
 const quoteDocumentProductColumns = "id, image_url";
 
-type QuoteDocumentCompany = {
-  name: string;
-  slug: string;
-  currency: CurrencyCode;
-};
+type QuoteDocumentCompany = Pick<
+  Organization,
+  | "name"
+  | "slug"
+  | "currency"
+  | "logo_url"
+  | "logo_path"
+  | "legal_name"
+  | "website"
+  | "email"
+  | "phone"
+  | "secondary_phone"
+  | "address_line_1"
+  | "address_line_2"
+  | "district"
+  | "city"
+  | "postal_code"
+  | "country"
+  | "tax_office"
+  | "tax_number"
+  | "trade_registry_number"
+  | "mersis_number"
+  | "bank_name"
+  | "bank_branch"
+  | "iban"
+  | "account_holder"
+  | "default_tax_rate"
+  | "default_payment_terms"
+  | "default_delivery_terms"
+  | "default_quote_notes"
+  | "default_quote_validity_days"
+  | "quote_footer_text"
+  | "signature_name"
+  | "signature_title"
+  | "company_slogan"
+>;
 
 type QuoteDocumentParty = {
   type: "customer" | "lead" | "none";
@@ -121,7 +152,7 @@ function sanitizeFileNamePart(value: string) {
 export function buildQuotePdfFileName(quoteNumber: string) {
   const safeNumber = sanitizeFileNamePart(quoteNumber) || "Quote";
   const trimmed = safeNumber.toLowerCase().endsWith(".pdf") ? safeNumber.slice(0, -4) : safeNumber;
-  return `FlowSales-Quote-${trimmed}.pdf`;
+  return `Quote-${trimmed}.pdf`;
 }
 
 function mapParty(party: Partial<QuoteDocumentParty> | null | undefined, type: QuoteDocumentParty["type"]): QuoteDocumentParty {
@@ -148,18 +179,48 @@ function buildRecipient(quote: QuoteRow, lead: Partial<QuoteDocumentParty> | nul
   return mapParty({ name: "No recipient information" }, "none");
 }
 
-function resolveCompany(organization: Pick<Organization, "name" | "slug" | "currency">): QuoteDocumentCompany {
+function resolveCompany(organization: Organization): QuoteDocumentCompany {
   return {
     name: organization.name,
     slug: organization.slug,
     currency: organization.currency as CurrencyCode,
+    logo_url: organization.logo_url ?? null,
+    logo_path: organization.logo_path ?? null,
+    legal_name: organization.legal_name ?? null,
+    website: organization.website ?? null,
+    email: organization.email ?? null,
+    phone: organization.phone ?? null,
+    secondary_phone: organization.secondary_phone ?? null,
+    address_line_1: organization.address_line_1 ?? null,
+    address_line_2: organization.address_line_2 ?? null,
+    district: organization.district ?? null,
+    city: organization.city ?? null,
+    postal_code: organization.postal_code ?? null,
+    country: organization.country ?? null,
+    tax_office: organization.tax_office ?? null,
+    tax_number: organization.tax_number ?? null,
+    trade_registry_number: organization.trade_registry_number ?? null,
+    mersis_number: organization.mersis_number ?? null,
+    bank_name: organization.bank_name ?? null,
+    bank_branch: organization.bank_branch ?? null,
+    iban: organization.iban ?? null,
+    account_holder: organization.account_holder ?? null,
+    default_tax_rate: organization.default_tax_rate ?? null,
+    default_payment_terms: organization.default_payment_terms ?? null,
+    default_delivery_terms: organization.default_delivery_terms ?? null,
+    default_quote_notes: organization.default_quote_notes ?? null,
+    default_quote_validity_days: organization.default_quote_validity_days ?? null,
+    quote_footer_text: organization.quote_footer_text ?? null,
+    signature_name: organization.signature_name ?? null,
+    signature_title: organization.signature_title ?? null,
+    company_slogan: organization.company_slogan ?? null,
   };
 }
 
 function quoteItemDiscountLabel(item: QuoteRow["items"][number]) {
   const discountValue = safeNumber(item.discount_value ?? item.discount ?? 0);
   if (discountValue <= 0) {
-    return "—";
+    return "-";
   }
 
   return item.discount_type === "fixed" ? `${discountValue.toFixed(2)} ${item.currency ?? ""}`.trim() : `${discountValue.toFixed(2)}%`;
@@ -193,7 +254,7 @@ function mapQuoteDocumentItems(quote: QuoteRow, productImageMap: Map<string, str
 
 export function buildQuoteDocumentModel(
   quote: QuoteRow,
-  organization: Pick<Organization, "name" | "slug" | "currency">,
+  organization: Organization,
   lead: Partial<QuoteDocumentParty> | null,
   customer: Partial<QuoteDocumentParty> | null,
   productImageMap: Map<string, string | null>,
@@ -386,7 +447,7 @@ export function getQuoteDocumentRecipientLabel(document: QuoteDocumentModel) {
     return "No recipient information";
   }
 
-  return document.recipient.company ? `${document.recipient.name} · ${document.recipient.company}` : document.recipient.name;
+  return document.recipient.company ? `${document.recipient.name} - ${document.recipient.company}` : document.recipient.name;
 }
 
 export function isQuoteDocumentDemo(document: QuoteDocumentModel) {

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Bell,
@@ -36,7 +36,8 @@ import {
 import { BRAND, APP_NAVIGATION } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import { signOutAction } from "@/app/(auth)/actions";
+import type { WorkspaceContext } from "@/server/services/workspace-context";
 
 const iconMap = {
   "layout-dashboard": LayoutDashboard,
@@ -86,12 +87,16 @@ function useThemeMode() {
   return { theme, setTheme, mounted };
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  workspace,
+}: {
+  children: React.ReactNode;
+  workspace: WorkspaceContext;
+}) {
   const pathname = usePathname();
-  const router = useRouter();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-  const [isSigningOut, setIsSigningOut] = useState(false);
   const { theme, setTheme, mounted } = useThemeMode();
   const isPrintRoute = pathname.endsWith("/print");
 
@@ -99,19 +104,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => APP_NAVIGATION.find((item) => pathname === item.href || pathname.startsWith(`${item.href}/`)),
     [pathname],
   );
-
-  async function handleSignOut() {
-    setIsSigningOut(true);
-    const client = getSupabaseBrowserClient();
-
-    if (client) {
-      await client.auth.signOut();
-    }
-
-    router.push("/login");
-    router.refresh();
-    setIsSigningOut(false);
-  }
 
   if (isPrintRoute) {
     return <div className="min-h-screen bg-white text-slate-950">{children}</div>;
@@ -192,10 +184,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {!isSidebarCollapsed ? (
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-slate-950 dark:text-white">
-                    Demo Operator
+                    {workspace.mode === "demo" ? "Demo workspace" : workspace.organization.name}
                   </p>
                   <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    owner@flowsales.ai
+                    {workspace.role.toUpperCase()} · {workspace.mode === "demo" ? "Read-only demo data" : "Live workspace"}
                   </p>
                 </div>
               ) : null}
@@ -314,15 +306,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/5 md:flex">
                   <UserCircle2 className="h-5 w-5 text-slate-500" />
                   <div className="leading-tight">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Demo user</p>
-                    <p className="font-medium text-slate-950 dark:text-white">Selin Kaya</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      {workspace.mode === "demo" ? "Demo user" : "Signed in"}
+                    </p>
+                    <p className="font-medium text-slate-950 dark:text-white">
+                      {workspace.mode === "demo" ? "Workspace preview" : workspace.organization.name}
+                    </p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-slate-400" />
                 </div>
 
-                <Button variant="ghost" size="icon" aria-label="Log out" onClick={handleSignOut} disabled={isSigningOut}>
-                  <LogOut className="h-4 w-4" />
-                </Button>
+                <form action={signOutAction}>
+                  <Button variant="ghost" size="icon" aria-label="Log out" type="submit">
+                    <LogOut className="h-4 w-4" />
+                  </Button>
+                </form>
               </div>
             </div>
           </header>

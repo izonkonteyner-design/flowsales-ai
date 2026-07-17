@@ -4,6 +4,7 @@ const routes = [
   "/",
   "/login",
   "/signup",
+  "/register",
   "/forgot-password",
   "/reset-password",
   "/dashboard",

@@ -42,18 +42,31 @@ begin
 
   update public.leads
   set organization_id = coalesce(organization_id, default_org),
-      full_name = coalesce(full_name, case when has_name then name else full_name end),
-      estimated_value = coalesce(
-        estimated_value,
-        case
-          when has_value then nullif(regexp_replace(coalesce(value::text, ''), '[^0-9\.]', '', 'g'), '')::numeric
-          else estimated_value
-        end,
-        0
-      ),
+      estimated_value = coalesce(estimated_value, 0),
       currency = coalesce(currency, 'TRY'),
       notes = coalesce(notes, ''),
       updated_at = now();
+
+  if has_name then
+    execute $sql$
+      update public.leads
+      set full_name = coalesce(nullif(full_name, ''), name)
+      where name is not null
+        and nullif(full_name, '') is null
+    $sql$;
+  end if;
+
+  if has_value then
+    execute $sql$
+      update public.leads
+      set estimated_value = coalesce(
+        nullif(regexp_replace(coalesce(value::text, ''), '[^0-9\.]', '', 'g'), '')::numeric,
+        0
+      )
+      where value is not null
+        and estimated_value = 0
+    $sql$;
+  end if;
 
   alter table public.leads alter column organization_id set not null;
   alter table public.leads alter column full_name set not null;

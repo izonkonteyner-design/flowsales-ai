@@ -10,12 +10,12 @@ import {
   loginAction,
   registerAction,
   resetPasswordAction,
-  type AuthActionState,
 } from "@/app/(auth)/actions";
 import { hasSupabaseConfig } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
+import type { AuthActionState } from "@/server/services/auth-domain";
 
 type AuthMode = "login" | "register" | "bootstrap" | "forgot" | "reset";
 

@@ -103,7 +103,7 @@ as $$
     wi.updated_at
   from public.workspace_invitations wi
   inner join public.organizations o on o.id = wi.organization_id
-  where wi.token_hash = encode(digest(invitation_token, 'sha256'), 'hex')
+  where wi.token_hash = encode(extensions.digest(invitation_token, 'sha256'), 'hex')
   limit 1;
 $$;
 
@@ -140,7 +140,7 @@ begin
   select *
   into invitation_row
   from public.workspace_invitations
-  where token_hash = encode(digest(invitation_token, 'sha256'), 'hex')
+  where token_hash = encode(extensions.digest(invitation_token, 'sha256'), 'hex')
   limit 1
   for update;
 

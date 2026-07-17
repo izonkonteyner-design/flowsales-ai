@@ -1,18 +1,18 @@
 import { AuthForm } from "@/components/auth/auth-form";
 
 export const metadata = {
-  title: "Sign up",
+  title: "Register",
   description: "Create your FlowSales AI account.",
 };
 
-type SignupPageProps = {
+type RegisterPageProps = {
   searchParams?: Promise<{
     bootstrap?: string;
     next?: string;
   }>;
 };
 
-export default async function SignupPage({ searchParams }: SignupPageProps) {
+export default async function RegisterPage({ searchParams }: RegisterPageProps) {
   const params = (await searchParams) ?? {};
   const bootstrap = params.bootstrap === "1";
   return <AuthForm mode={bootstrap ? "bootstrap" : "register"} next={params.next ?? "/dashboard"} />;

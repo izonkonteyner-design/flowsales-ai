@@ -5,6 +5,13 @@ export const metadata = {
   description: "Sign in to FlowSales AI.",
 };
 
-export default function LoginPage() {
-  return <AuthForm mode="login" />;
+type LoginPageProps = {
+  searchParams?: Promise<{
+    next?: string;
+  }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = (await searchParams) ?? {};
+  return <AuthForm mode="login" next={params.next ?? "/dashboard"} />;
 }

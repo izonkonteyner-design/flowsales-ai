@@ -5,6 +5,13 @@ export const metadata = {
   description: "Set a new password for FlowSales AI.",
 };
 
-export default function ResetPasswordPage() {
-  return <AuthForm mode="reset" />;
+type ResetPasswordPageProps = {
+  searchParams?: Promise<{
+    next?: string;
+  }>;
+};
+
+export default async function ResetPasswordPage({ searchParams }: ResetPasswordPageProps) {
+  const params = (await searchParams) ?? {};
+  return <AuthForm mode="reset" next={params.next ?? "/dashboard"} />;
 }

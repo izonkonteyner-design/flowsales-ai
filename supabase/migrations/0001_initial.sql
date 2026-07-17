@@ -11,33 +11,6 @@ begin
 end;
 $$;
 
-create or replace function public.is_org_member(target_org uuid)
-returns boolean
-language sql
-stable
-as $$
-  select exists (
-    select 1
-    from public.organization_members om
-    where om.organization_id = target_org
-      and om.user_id = auth.uid()
-  );
-$$;
-
-create or replace function public.has_org_role(target_org uuid, allowed_roles text[])
-returns boolean
-language sql
-stable
-as $$
-  select exists (
-    select 1
-    from public.organization_members om
-    where om.organization_id = target_org
-      and om.user_id = auth.uid()
-      and om.role = any(allowed_roles)
-  );
-$$;
-
 create table if not exists public.organizations (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -67,6 +40,33 @@ create table if not exists public.organization_members (
   updated_at timestamptz not null default now(),
   unique (organization_id, user_id)
 );
+
+create or replace function public.is_org_member(target_org uuid)
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.organization_members om
+    where om.organization_id = target_org
+      and om.user_id = auth.uid()
+  );
+$$;
+
+create or replace function public.has_org_role(target_org uuid, allowed_roles text[])
+returns boolean
+language sql
+stable
+as $$
+  select exists (
+    select 1
+    from public.organization_members om
+    where om.organization_id = target_org
+      and om.user_id = auth.uid()
+      and om.role = any(allowed_roles)
+  );
+$$;
 
 create table if not exists public.contacts (
   id uuid primary key default gen_random_uuid(),

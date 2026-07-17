@@ -22,8 +22,6 @@ import {
 import { buildAuthRedirectPath, createAuthActionState } from "@/server/services/auth-domain";
 import type { AuthActionState } from "@/server/services/auth-domain";
 
-export type { AuthActionState };
-
 function configMissingState() {
   return createAuthActionState("Authentication is not configured.", {}, false);
 }

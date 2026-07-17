@@ -23,6 +23,7 @@ const routes = [
   "/audit-logs",
   "/api-layer",
   "/settings",
+  "/settings/members",
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

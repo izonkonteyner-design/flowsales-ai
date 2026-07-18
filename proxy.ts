@@ -84,13 +84,23 @@ export async function proxy(request: NextRequest) {
 
   let membership: { organization_id: string; role: string } | null = null;
   if (user) {
-    const { data } = await supabase
+    const { data, error: membershipError } = await supabase
       .from("organization_members")
       .select("organization_id, role")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
+
+    if (membershipError) {
+      console.error("[proxy] membership lookup failed", {
+        message: membershipError.message,
+        code: membershipError.code,
+        details: membershipError.details,
+        hint: membershipError.hint,
+      });
+      return response;
+    }
 
     membership = data ?? null;
   }

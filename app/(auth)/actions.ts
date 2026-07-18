@@ -23,6 +23,9 @@ import { buildAuthRedirectPath, createAuthActionState } from "@/server/services/
 import type { AuthActionState } from "@/server/services/auth-domain";
 
 function configMissingState() {
+  console.error("[auth] authentication configuration is missing", {
+    returnedAuthError: "Authentication is not configured.",
+  });
   return createAuthActionState("Authentication is not configured.", {}, false);
 }
 
@@ -40,7 +43,13 @@ export async function loginAction(_: AuthActionState, formData: FormData): Promi
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
     }
-    return toAuthActionStateFromError(error, "Unable to sign in.");
+    const actionState = toAuthActionStateFromError(error, "Unable to sign in.");
+    console.error("[auth] loginAction failure", {
+      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      returnedAuthError: actionState.message,
+      fieldErrors: actionState.fieldErrors,
+    });
+    return actionState;
   }
 }
 
@@ -62,7 +71,13 @@ export async function registerAction(_: AuthActionState, formData: FormData): Pr
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
     }
-    return toAuthActionStateFromError(error, "Unable to create your account.");
+    const actionState = toAuthActionStateFromError(error, "Unable to create your account.");
+    console.error("[auth] registerAction failure", {
+      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      returnedAuthError: actionState.message,
+      fieldErrors: actionState.fieldErrors,
+    });
+    return actionState;
   }
 }
 
@@ -80,7 +95,13 @@ export async function bootstrapWorkspaceAction(_: AuthActionState, formData: For
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
     }
-    return toAuthActionStateFromError(error, "Unable to complete workspace setup.");
+    const actionState = toAuthActionStateFromError(error, "Unable to complete workspace setup.");
+    console.error("[auth] bootstrapWorkspaceAction failure", {
+      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      returnedAuthError: actionState.message,
+      fieldErrors: actionState.fieldErrors,
+    });
+    return actionState;
   }
 }
 
@@ -94,6 +115,9 @@ export async function forgotPasswordAction(_: AuthActionState, formData: FormDat
     const input = parseAuthForgotPasswordInput(formData);
     const sent = await requestPasswordReset(client, input);
     if (!sent) {
+      console.error("[auth] forgotPasswordAction failure", {
+        returnedAuthError: "Unable to send the reset email right now.",
+      });
       return createAuthActionState("Unable to send the reset email right now.", {}, false);
     }
 
@@ -102,7 +126,13 @@ export async function forgotPasswordAction(_: AuthActionState, formData: FormDat
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
     }
-    return toAuthActionStateFromError(error, "Unable to send the reset email.");
+    const actionState = toAuthActionStateFromError(error, "Unable to send the reset email.");
+    console.error("[auth] forgotPasswordAction failure", {
+      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      returnedAuthError: actionState.message,
+      fieldErrors: actionState.fieldErrors,
+    });
+    return actionState;
   }
 }
 
@@ -120,7 +150,13 @@ export async function resetPasswordAction(_: AuthActionState, formData: FormData
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
     }
-    return toAuthActionStateFromError(error, "Unable to update your password.");
+    const actionState = toAuthActionStateFromError(error, "Unable to update your password.");
+    console.error("[auth] resetPasswordAction failure", {
+      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      returnedAuthError: actionState.message,
+      fieldErrors: actionState.fieldErrors,
+    });
+    return actionState;
   }
 }
 

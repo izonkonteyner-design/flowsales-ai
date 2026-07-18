@@ -49,6 +49,22 @@ function getSupabaseOrigin() {
   return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 }
 
+function serializeAuthError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return error;
+}
+
+function logAuthDiagnostic(event: string, details: Record<string, unknown>) {
+  console.error(`[auth] ${event}`, details);
+}
+
 export async function getAuthRouteState(client?: SupabaseServerClient): Promise<AuthRouteState> {
   if (!hasSupabaseConfig()) {
     return { mode: "unconfigured" };
@@ -61,6 +77,10 @@ export async function getAuthRouteState(client?: SupabaseServerClient): Promise<
 
   const { data: userResponse, error: userError } = await supabase.auth.getUser();
   if (userError) {
+    logAuthDiagnostic("getAuthRouteState user lookup error", {
+      supabaseError: serializeAuthError(userError),
+      returnedAuthError: "Unable to verify your session.",
+    });
     return { mode: "error", message: "Unable to verify your session." };
   }
 
@@ -78,6 +98,11 @@ export async function getAuthRouteState(client?: SupabaseServerClient): Promise<
     .maybeSingle();
 
   if (membershipError) {
+    logAuthDiagnostic("getAuthRouteState workspace membership lookup error", {
+      supabaseError: serializeAuthError(membershipError),
+      returnedAuthError: "Unable to load your workspace.",
+      userId: user.id,
+    });
     return { mode: "error", message: "Unable to load your workspace." };
   }
 
@@ -100,6 +125,12 @@ export async function getAuthRouteState(client?: SupabaseServerClient): Promise<
     .maybeSingle();
 
   if (orgError || !organization) {
+    logAuthDiagnostic("getAuthRouteState organization profile lookup error", {
+      supabaseError: serializeAuthError(orgError),
+      returnedAuthError: "Unable to load your workspace.",
+      organizationId: membership.organization_id,
+      userId: user.id,
+    });
     return { mode: "error", message: "Unable to load your workspace." };
   }
 
@@ -122,6 +153,10 @@ export async function bootstrapWorkspaceForCurrentUser(
   } = await client.auth.getUser();
 
   if (userError || !user) {
+    logAuthDiagnostic("bootstrapWorkspaceForCurrentUser auth error", {
+      supabaseError: serializeAuthError(userError),
+      returnedAuthError: "You must be signed in to complete workspace setup.",
+    });
     throw new Error("You must be signed in to complete workspace setup.");
   }
 
@@ -131,6 +166,10 @@ export async function bootstrapWorkspaceForCurrentUser(
   });
 
   if (error) {
+    logAuthDiagnostic("bootstrapWorkspaceForCurrentUser workspace bootstrap error", {
+      supabaseError: serializeAuthError(error),
+      returnedAuthError: error.message || "Unable to complete workspace setup.",
+    });
     throw new Error(error.message || "Unable to complete workspace setup.");
   }
 
@@ -151,10 +190,22 @@ export async function loginWithPassword(client: SupabaseServerClient, input: Log
   });
 
   if (error) {
-    throw new Error(getAuthPublicMessageFromError(error, "Invalid email or password."));
+    const returnedAuthError = getAuthPublicMessageFromError(error, "Invalid email or password.");
+    logAuthDiagnostic("loginWithPassword auth error", {
+      supabaseError: serializeAuthError(error),
+      returnedAuthError,
+    });
+    throw new Error(returnedAuthError);
   }
 
-  return getAuthRouteState(client);
+  const routeState = await getAuthRouteState(client);
+  if (routeState.mode === "error") {
+    logAuthDiagnostic("loginWithPassword route state error", {
+      returnedAuthError: routeState.message,
+    });
+  }
+
+  return routeState;
 }
 
 export async function registerWithPassword(client: SupabaseServerClient, input: RegisterFormInput) {
@@ -171,7 +222,12 @@ export async function registerWithPassword(client: SupabaseServerClient, input: 
   });
 
   if (error) {
-    throw new Error(getAuthPublicMessageFromError(error, "Unable to create your account."));
+    const returnedAuthError = getAuthPublicMessageFromError(error, "Unable to create your account.");
+    logAuthDiagnostic("registerWithPassword auth error", {
+      supabaseError: serializeAuthError(error),
+      returnedAuthError,
+    });
+    throw new Error(returnedAuthError);
   }
 
   const hasActiveSession = Boolean(data.session);
@@ -192,6 +248,10 @@ export async function requestPasswordReset(client: SupabaseServerClient, input: 
   });
 
   if (error) {
+    logAuthDiagnostic("requestPasswordReset auth error", {
+      supabaseError: serializeAuthError(error),
+      returnedAuthError: false,
+    });
     return false;
   }
 
@@ -201,6 +261,10 @@ export async function requestPasswordReset(client: SupabaseServerClient, input: 
 export async function updatePassword(client: SupabaseServerClient, input: ResetPasswordFormInput) {
   const { data: userData, error: userError } = await client.auth.getUser();
   if (userError || !userData.user) {
+    logAuthDiagnostic("updatePassword auth error", {
+      supabaseError: serializeAuthError(userError),
+      returnedAuthError: "This reset link is invalid or expired.",
+    });
     throw new Error("This reset link is invalid or expired.");
   }
 
@@ -209,7 +273,12 @@ export async function updatePassword(client: SupabaseServerClient, input: ResetP
   });
 
   if (error) {
-    throw new Error(getAuthPublicMessageFromError(error, "Unable to update your password."));
+    const returnedAuthError = getAuthPublicMessageFromError(error, "Unable to update your password.");
+    logAuthDiagnostic("updatePassword auth error", {
+      supabaseError: serializeAuthError(error),
+      returnedAuthError,
+    });
+    throw new Error(returnedAuthError);
   }
 
   return userData.user;

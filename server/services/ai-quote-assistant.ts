@@ -1,4 +1,4 @@
-import "server-only";
+﻿import "server-only";
 
 import { generateText } from "@/server/services/ai";
 import {
@@ -14,7 +14,7 @@ import {
 
 type GenerateQuoteAiDraftOptions = {
   temperature?: number;
-  systemPrompt?: string | null;
+  workspacePrompt?: string | null;
 };
 
 function logQuoteAiDiagnostic(event: string, details: Record<string, unknown>) {
@@ -54,12 +54,9 @@ function toSafeQuoteAiError(error: unknown): QuoteAiErrorCode {
 
 export async function generateQuoteAiDraft(input: QuoteAiDraftInput, options: GenerateQuoteAiDraftOptions = {}): Promise<QuoteAiDraft> {
   const normalizedInput = quoteAiDraftInputSchema.parse(input);
-  const prompt = [
-    options.systemPrompt?.trim() ? `Workspace prompt:\n${options.systemPrompt.trim()}` : null,
-    buildQuoteAiDraftPrompt(normalizedInput),
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  const prompt = buildQuoteAiDraftPrompt(normalizedInput, {
+    workspacePrompt: options.workspacePrompt,
+  });
 
   try {
     const responseText = await generateText(prompt, {

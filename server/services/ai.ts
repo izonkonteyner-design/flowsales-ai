@@ -2,7 +2,7 @@ import "server-only";
 
 import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
 
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
+const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite";
 
 type GeminiConfig = {
   apiKey: string;
@@ -11,13 +11,21 @@ type GeminiConfig = {
 
 function readGeminiConfig(): GeminiConfig {
   const apiKey = process.env.GEMINI_API_KEY?.trim() ?? "";
-  const model = process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+  const model = getGeminiModel();
 
   if (!apiKey) {
     throw new Error("Gemini is not configured. Set GEMINI_API_KEY on the server.");
   }
 
   return { apiKey, model };
+}
+
+export function getGeminiModel() {
+  return process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
+}
+
+export function hasGeminiConfig() {
+  return Boolean(process.env.GEMINI_API_KEY?.trim());
 }
 
 function assertServerRuntime() {
@@ -75,7 +83,7 @@ export async function generateText(prompt: string, options?: GenerateTextOptions
     return text;
   } catch (error) {
     if (isUnsupportedModelError(error)) {
-      console.error("[ai] Gemini model is no longer available to new users. Update GEMINI_MODEL to a currently supported model such as gemini-2.5-flash-lite.", {
+      console.error("[ai] Gemini model is no longer available to new users. Update GEMINI_MODEL to a currently supported model such as gemini-3.1-flash-lite.", {
         model,
       });
     }

@@ -11,6 +11,8 @@ import {
   type QuoteAiDraftRequest,
   type QuoteAiErrorCode,
 } from "@/lib/validations/quote-ai";
+import { hasGeminiConfig } from "@/server/services/ai";
+import { finalizeQuoteAiUsage, reserveQuoteAiUsage } from "@/server/services/ai-usage";
 import { loadQuoteRecipientResolution } from "@/server/services/crm-integration";
 import { generateQuoteAiDraft } from "@/server/services/ai-quote-assistant";
 import { canManageQuotes } from "@/server/services/quote-domain";
@@ -23,11 +25,8 @@ const inFlightRequests = new Set<string>();
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
 
 type WorkspaceLimits = {
-  systemPrompt: string | null;
+  workspacePrompt: string | null;
   temperature: number;
-  requireHumanApproval: boolean;
-  usageLimit: number;
-  aiMessageLimit: number;
 };
 
 function logQuoteAiRouteDiagnostic(event: string, details: Record<string, unknown>) {
@@ -101,19 +100,15 @@ function getStatusForCode(code: QuoteAiErrorCode) {
 }
 
 async function loadWorkspaceLimits(client: SupabaseServerClient, organizationId: string): Promise<WorkspaceLimits> {
-  const [settingsResult, subscriptionResult] = await Promise.all([
-    client.from("ai_agent_settings").select("system_prompt, temperature, require_human_approval, usage_limit").eq("organization_id", organizationId).maybeSingle(),
-    client.from("subscriptions").select("ai_message_limit").eq("organization_id", organizationId).maybeSingle(),
-  ]);
+  const { data } = await client
+    .from("ai_agent_settings")
+    .select("system_prompt, temperature")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
 
   return {
-    systemPrompt: typeof settingsResult.data?.system_prompt === "string" && settingsResult.data.system_prompt.trim() ? settingsResult.data.system_prompt.trim() : null,
-    temperature: typeof settingsResult.data?.temperature === "number" && Number.isFinite(settingsResult.data.temperature) ? settingsResult.data.temperature : 0.2,
-    requireHumanApproval: Boolean(settingsResult.data?.require_human_approval ?? true),
-    usageLimit: typeof settingsResult.data?.usage_limit === "number" && Number.isFinite(settingsResult.data.usage_limit) ? settingsResult.data.usage_limit : 500,
-    aiMessageLimit: typeof subscriptionResult.data?.ai_message_limit === "number" && Number.isFinite(subscriptionResult.data.ai_message_limit)
-      ? subscriptionResult.data.ai_message_limit
-      : 100,
+    workspacePrompt: typeof data?.system_prompt === "string" && data.system_prompt.trim() ? data.system_prompt.trim() : null,
+    temperature: typeof data?.temperature === "number" && Number.isFinite(data.temperature) ? data.temperature : 0.2,
   };
 }
 
@@ -344,20 +339,6 @@ export async function POST(request: Request) {
   }
 
   const limits = await loadWorkspaceLimits(client, organization.id);
-  if (limits.usageLimit <= 0 || limits.aiMessageLimit <= 0) {
-    logQuoteAiRouteDiagnostic("usage limit reached", {
-      organizationId: organization.id,
-      usageLimit: limits.usageLimit,
-      aiMessageLimit: limits.aiMessageLimit,
-    });
-    return NextResponse.json(
-      {
-        success: false,
-        message: getQuoteAiPublicErrorMessage("usage_limit_reached"),
-      },
-      { status: 429 },
-    );
-  }
 
   const requestKey = `${user.id}:${requestBody.formId}`;
   if (inFlightRequests.has(requestKey)) {
@@ -371,6 +352,8 @@ export async function POST(request: Request) {
   }
 
   inFlightRequests.add(requestKey);
+
+  let usageEventId: string | null = null;
 
   try {
     const recipient = await loadQuoteRecipientResolution(organization.id, requestBody.leadId ?? null, requestBody.customerId ?? null);
@@ -404,16 +387,57 @@ export async function POST(request: Request) {
     const authoritativeItems = mapRequestItemsToAuthoritativeItems(requestBody, productLookup);
     const input = buildAuthoritativeInput(requestBody, organization as Organization, recipient, authoritativeItems);
 
+    if (!hasGeminiConfig()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: getQuoteAiPublicErrorMessage("ai_not_configured"),
+        },
+        { status: 503 },
+      );
+    }
+
+    const reservation = await reserveQuoteAiUsage(client, organization.id);
+    usageEventId = reservation.usageEventId;
+
     const draft = await generateQuoteAiDraft(input, {
       temperature: limits.temperature,
-      systemPrompt: limits.systemPrompt,
+      workspacePrompt: limits.workspacePrompt,
     });
+
+    if (usageEventId) {
+      try {
+        await finalizeQuoteAiUsage(client, usageEventId, "succeeded");
+      } catch (finalizeError) {
+        logQuoteAiRouteDiagnostic("usage finalization failure", {
+          usageEventId,
+          supabaseError: serializeError(finalizeError),
+          organizationId: organization.id,
+          userId: user.id,
+        });
+      } finally {
+        usageEventId = null;
+      }
+    }
 
     return NextResponse.json({
       success: true,
       draft,
     });
   } catch (error) {
+    if (usageEventId) {
+      try {
+        await finalizeQuoteAiUsage(client, usageEventId, "failed");
+      } catch (finalizeError) {
+        logQuoteAiRouteDiagnostic("usage finalization failure", {
+          usageEventId,
+          supabaseError: serializeError(finalizeError),
+          organizationId: organization.id,
+          userId: user.id,
+        });
+      }
+    }
+
     const code = error instanceof Error && "code" in error ? (error as { code?: QuoteAiErrorCode }).code ?? getErrorCode(error) : getErrorCode(error);
     const status = error instanceof Error && "status" in error ? (error as { status?: number }).status ?? getStatusForCode(code) : getStatusForCode(code);
 

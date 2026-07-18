@@ -35,10 +35,12 @@ export async function loginAction(_: AuthActionState, formData: FormData): Promi
     return configMissingState();
   }
 
+  let redirectPath = "";
+
   try {
     const input = parseAuthLoginInput(formData);
     await loginWithPassword(client, input);
-    redirect(buildAuthRedirectPath(input.next));
+    redirectPath = buildAuthRedirectPath(input.next);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
@@ -51,6 +53,8 @@ export async function loginAction(_: AuthActionState, formData: FormData): Promi
     });
     return actionState;
   }
+
+  redirect(redirectPath);
 }
 
 export async function registerAction(_: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -59,14 +63,17 @@ export async function registerAction(_: AuthActionState, formData: FormData): Pr
     return configMissingState();
   }
 
+  let redirectPath = "";
+  let confirmationState: AuthActionState | null = null;
+
   try {
     const input = parseAuthRegisterInput(formData);
     const hasSession = await registerWithPassword(client, input);
     if (hasSession) {
-      redirect(buildAuthRedirectPath(input.next));
+      redirectPath = buildAuthRedirectPath(input.next);
+    } else {
+      confirmationState = createAuthActionState("Check your email to confirm your account.", {}, true);
     }
-
-    return createAuthActionState("Check your email to confirm your account.", {}, true);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
@@ -79,6 +86,12 @@ export async function registerAction(_: AuthActionState, formData: FormData): Pr
     });
     return actionState;
   }
+
+  if (redirectPath) {
+    redirect(redirectPath);
+  }
+
+  return confirmationState ?? createAuthActionState("Check your email to confirm your account.", {}, true);
 }
 
 export async function bootstrapWorkspaceAction(_: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -87,10 +100,12 @@ export async function bootstrapWorkspaceAction(_: AuthActionState, formData: For
     return configMissingState();
   }
 
+  let redirectPath = "";
+
   try {
     const input = parseAuthBootstrapInput(formData);
     await bootstrapWorkspaceForCurrentUser(client, input);
-    redirect(buildAuthRedirectPath(input.next));
+    redirectPath = buildAuthRedirectPath(input.next);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
@@ -103,6 +118,8 @@ export async function bootstrapWorkspaceAction(_: AuthActionState, formData: For
     });
     return actionState;
   }
+
+  redirect(redirectPath);
 }
 
 export async function forgotPasswordAction(_: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -142,10 +159,12 @@ export async function resetPasswordAction(_: AuthActionState, formData: FormData
     return configMissingState();
   }
 
+  let redirectPath = "";
+
   try {
     const input = parseAuthResetPasswordInput(formData);
     await updatePassword(client, input);
-    redirect(buildAuthRedirectPath(input.next));
+    redirectPath = buildAuthRedirectPath(input.next);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return toAuthValidationActionState(error);
@@ -158,6 +177,8 @@ export async function resetPasswordAction(_: AuthActionState, formData: FormData
     });
     return actionState;
   }
+
+  redirect(redirectPath);
 }
 
 export async function signOutAction() {

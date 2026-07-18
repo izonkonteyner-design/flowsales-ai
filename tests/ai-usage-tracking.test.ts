@@ -3,6 +3,18 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import {
+  getQuoteAiPublicErrorMessage,
+} from "@/lib/validations/quote-ai";
+import {
+  getErrorMessage,
+  getErrorCode,
+  getErrorDetails,
+  getErrorHint,
+  getReservationStatus,
+  mapReservationErrorCode,
+  serializeSupabaseError,
+} from "@/server/services/ai-usage-errors";
 
 const testsDir = dirname(fileURLToPath(import.meta.url));
 const migrationPath = join(testsDir, "..", "supabase", "migrations", "0015_ai_usage_tracking.sql");
@@ -81,4 +93,45 @@ test("ai usage helper keeps reservation and finalization responses server side",
   assert.match(serviceSource, /finalize_quote_ai_usage/);
   assert.match(serviceSource, /createQuoteAiServiceError\(code, status\)/);
   assert.doesNotMatch(serviceSource, /usageEventId.*browser/i);
+});
+
+test("plain-object Supabase errors map to the correct AI usage codes and statuses", () => {
+  assert.equal(getErrorMessage({ message: "AI usage limit reached.", code: "P0001" }), "AI usage limit reached.");
+  assert.equal(mapReservationErrorCode({ message: "AI usage limit reached.", code: "P0001" }), "usage_limit_reached");
+  assert.equal(getReservationStatus("usage_limit_reached"), 429);
+
+  assert.equal(getErrorMessage({ message: "Authentication required.", code: "28000" }), "Authentication required.");
+  assert.equal(mapReservationErrorCode({ message: "Authentication required.", code: "28000" }), "unauthorized");
+  assert.equal(getReservationStatus("unauthorized"), 401);
+
+  assert.equal(getErrorMessage({ message: "Workspace membership required.", code: "42501" }), "Workspace membership required.");
+  assert.equal(mapReservationErrorCode({ message: "Workspace membership required.", code: "42501" }), "workspace_access_error");
+  assert.equal(getReservationStatus("workspace_access_error"), 403);
+
+  assert.equal(mapReservationErrorCode({ message: "Organization not found.", code: "P0002" }), "workspace_access_error");
+
+  assert.equal(mapReservationErrorCode({ message: "Something unexpected happened.", code: "XX000" }), "temporary_failure");
+  assert.equal(getQuoteAiPublicErrorMessage("usage_limit_reached"), "AI kullanım sınırına ulaşıldı.");
+});
+
+test("plain-object error mapping ignores secret values and keeps safe logs only", () => {
+  const error = {
+    message: "AI usage limit reached.",
+    code: "P0001",
+    details: "hidden details",
+    hint: "hidden hint",
+  };
+
+  const message = getErrorMessage(error);
+  assert.equal(message, "AI usage limit reached.");
+  assert.doesNotMatch(message, /hidden details|hidden hint|token|key/i);
+  assert.equal(getErrorCode(error), "P0001");
+  assert.equal(getErrorDetails(error), "hidden details");
+  assert.equal(getErrorHint(error), "hidden hint");
+
+  const serialized = serializeSupabaseError(error);
+  assert.equal(serialized.message, "AI usage limit reached.");
+  assert.equal(serialized.code, "P0001");
+  assert.equal(serialized.details, "hidden details");
+  assert.equal(serialized.hint, "hidden hint");
 });

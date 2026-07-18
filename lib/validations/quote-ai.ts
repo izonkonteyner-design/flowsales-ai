@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 import { CURRENCY_CODES } from "@/lib/constants";
 import type { CurrencyCode } from "@/types/crm";

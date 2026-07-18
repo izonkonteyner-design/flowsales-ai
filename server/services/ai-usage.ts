@@ -1,10 +1,14 @@
-﻿import "server-only";
+import "server-only";
 
 import {
   createQuoteAiServiceError,
-  type QuoteAiErrorCode,
 } from "@/lib/validations/quote-ai";
 import { getGeminiModel } from "@/server/services/ai";
+import {
+  mapReservationErrorCode,
+  getReservationStatus,
+  serializeSupabaseError,
+} from "@/server/services/ai-usage-errors";
 
 type SupabaseServerClient = {
   rpc: (
@@ -31,44 +35,10 @@ function logAiUsageDiagnostic(event: string, details: Record<string, unknown>) {
 }
 
 function serializeError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-    };
-  }
-
-  return { message: String(error) };
+  return serializeSupabaseError(error);
 }
 
-function mapReservationErrorCode(error: unknown): QuoteAiErrorCode {
-  if (error instanceof Error && /authentication required/i.test(error.message)) {
-    return "unauthorized";
-  }
-
-  if (error instanceof Error && /workspace membership required|organization not found/i.test(error.message)) {
-    return "workspace_access_error";
-  }
-
-  if (error instanceof Error && /usage limit/i.test(error.message)) {
-    return "usage_limit_reached";
-  }
-
-  return "temporary_failure";
-}
-
-function getReservationStatus(code: QuoteAiErrorCode) {
-  switch (code) {
-    case "unauthorized":
-      return 401;
-    case "workspace_access_error":
-      return 403;
-    case "usage_limit_reached":
-      return 429;
-    default:
-      return 502;
-  }
-}
+export { mapReservationErrorCode, serializeSupabaseError };
 
 export async function reserveQuoteAiUsage(client: SupabaseServerClient, organizationId: string): Promise<QuoteAiUsageReservation> {
   const { data, error } = await client.rpc("reserve_quote_ai_usage", {

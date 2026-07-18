@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 
 import { generateText } from "@/server/services/ai";
 import {

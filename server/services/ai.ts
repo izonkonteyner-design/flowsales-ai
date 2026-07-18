@@ -1,6 +1,6 @@
 import "server-only";
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
 
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-lite";
 
@@ -48,7 +48,9 @@ export function getGeminiClient() {
   return new GoogleGenAI({ apiKey });
 }
 
-export async function generateText(prompt: string) {
+type GenerateTextOptions = Pick<GenerateContentConfig, "responseMimeType" | "responseSchema" | "temperature" | "seed">;
+
+export async function generateText(prompt: string, options?: GenerateTextOptions) {
   assertServerRuntime();
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt) {
@@ -62,6 +64,7 @@ export async function generateText(prompt: string) {
     const response = await client.models.generateContent({
       model,
       contents: normalizedPrompt,
+      config: options,
     });
 
     const text = response.text?.trim();

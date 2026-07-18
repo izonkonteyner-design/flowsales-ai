@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Plus, Save, Sparkles, Trash2 } from "lucide-react";
 
 import { SectionCard } from "@/components/shared/section-card";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { QuoteAiAssistant, applyQuoteAiDraftToFormState } from "@/components/quotes/quote-ai-assistant";
 import { calculateNormalizedQuoteTotals } from "@/server/services/quote-domain";
 import { formatCurrency } from "@/lib/utils";
 import type { QuoteRow } from "@/server/services/quotes";
@@ -164,7 +165,13 @@ export function QuoteForm({
 }: QuoteFormProps) {
   const initialCurrency = (quote?.currency as CurrencyCode) ?? workspaceSettings.default_currency;
   const initialTaxRate = workspaceSettings.default_tax_rate;
+  const formRef = useRef<HTMLFormElement | null>(null);
   const [lines, setLines] = useState<QuoteLineState[]>(() => buildInitialLines(quote ?? null, initialCurrency, initialTaxRate));
+  const [textFields, setTextFields] = useState(() => ({
+    notes: quote?.notes ?? workspaceSettings.default_quote_notes ?? "",
+    paymentTerms: quote?.payment_terms ?? workspaceSettings.default_payment_terms ?? "",
+    deliveryTerms: quote?.delivery_terms ?? workspaceSettings.default_delivery_terms ?? "",
+  }));
 
   const productMap = useMemo(() => new Map(productOptions.map((product) => [product.id, product])), [productOptions]);
   const serializedLines = lines.map((line, index) => ({
@@ -212,6 +219,10 @@ export function QuoteForm({
     updateLine(index, buildQuoteLineFromProduct(product, initialCurrency, initialTaxRate, currentLineId));
   }
 
+  function applyAiDraft(draft: { notes: string; paymentTerms: string; deliveryTerms: string }) {
+    setTextFields(() => applyQuoteAiDraftToFormState(draft));
+  }
+
   const issueDate = quote?.issue_date ?? new Date().toISOString().slice(0, 10);
   const validUntil = quote?.valid_until ?? quote?.expiry_date ?? addDays(issueDate, workspaceSettings.default_quote_validity_days);
 
@@ -227,7 +238,7 @@ export function QuoteForm({
           </div>
         ) : null}
 
-        <form action={action} className="space-y-6">
+        <form ref={formRef} action={action} className="space-y-6">
           <input type="hidden" name="quote_id" value={quote?.id ?? ""} />
           <input type="hidden" name="redirect_to" value={redirectTo} />
           <input type="hidden" name="items_json" value={JSON.stringify(serializedLines)} />
@@ -325,19 +336,41 @@ export function QuoteForm({
           <div className="grid gap-4">
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment terms</span>
-              <Textarea name="payment_terms" defaultValue={quote?.payment_terms ?? workspaceSettings.default_payment_terms ?? ""} disabled={!canMutate} />
+              <Textarea
+                name="payment_terms"
+                value={textFields.paymentTerms}
+                onChange={(event) => setTextFields((current) => ({ ...current, paymentTerms: event.target.value }))}
+                disabled={!canMutate}
+              />
             </label>
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Delivery terms</span>
-              <Textarea name="delivery_terms" defaultValue={quote?.delivery_terms ?? workspaceSettings.default_delivery_terms ?? ""} disabled={!canMutate} />
+              <Textarea
+                name="delivery_terms"
+                value={textFields.deliveryTerms}
+                onChange={(event) => setTextFields((current) => ({ ...current, deliveryTerms: event.target.value }))}
+                disabled={!canMutate}
+              />
             </label>
 
             <label className="space-y-2">
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes</span>
-              <Textarea name="notes" defaultValue={quote?.notes ?? workspaceSettings.default_quote_notes ?? ""} disabled={!canMutate} />
+              <Textarea
+                name="notes"
+                value={textFields.notes}
+                onChange={(event) => setTextFields((current) => ({ ...current, notes: event.target.value }))}
+                disabled={!canMutate}
+              />
             </label>
           </div>
+
+          <QuoteAiAssistant
+            formRef={formRef}
+            canMutate={canMutate}
+            readOnlyMessage={readOnlyMessage}
+            onApplyDraft={applyAiDraft}
+          />
 
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">

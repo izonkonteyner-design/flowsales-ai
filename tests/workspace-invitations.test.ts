@@ -9,6 +9,9 @@ import {
 } from "@/server/services/workspace-members";
 import { invitationAcceptanceSchema, invitationLookupSchema } from "@/lib/validations/workspace-invitation";
 
+const futureExpiresAt = "2999-01-01T00:00:00.000Z";
+const pastExpiresAt = "2000-01-01T00:00:00.000Z";
+
 test("invitation token validation rejects malformed tokens", () => {
   assert.equal(invitationLookupSchema.safeParse({ token: "short" }).success, false);
 });
@@ -33,9 +36,9 @@ test("invitation url generation includes the raw token only in the invite link",
 });
 
 test("invitation status helper maps pending, expired, revoked, and accepted states", () => {
-  assert.equal(normalizeWorkspaceInvitationStatus({ status: "pending", expires_at: "2026-07-18T00:00:00.000Z" }), "pending");
-  assert.equal(normalizeWorkspaceInvitationStatus({ status: "pending", expires_at: "2026-07-01T00:00:00.000Z" }), "expired");
-  assert.equal(normalizeWorkspaceInvitationStatus({ status: "revoked", expires_at: "2026-07-18T00:00:00.000Z" }), "revoked");
-  assert.equal(normalizeWorkspaceInvitationStatus({ status: "accepted", expires_at: "2026-07-18T00:00:00.000Z" }), "accepted");
+  assert.equal(normalizeWorkspaceInvitationStatus({ status: "pending", expires_at: futureExpiresAt }), "pending");
+  assert.equal(normalizeWorkspaceInvitationStatus({ status: "pending", expires_at: pastExpiresAt }), "expired");
+  assert.equal(normalizeWorkspaceInvitationStatus({ status: "revoked", expires_at: futureExpiresAt }), "revoked");
+  assert.equal(normalizeWorkspaceInvitationStatus({ status: "accepted", expires_at: futureExpiresAt }), "accepted");
 });
 

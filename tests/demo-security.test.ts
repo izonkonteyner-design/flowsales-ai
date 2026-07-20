@@ -2,8 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
-import { parseAuthLoginInput } from "../server/services/auth";
-import { updateCurrentUserProfile } from "../server/services/account";
+
 
 describe("Demo Security & Migration Verification", () => {
   it("migration 0017 contains no invalid UUID literals with non-hex characters like 'm'", () => {
@@ -11,7 +10,7 @@ describe("Demo Security & Migration Verification", () => {
     const sql = fs.readFileSync(migrationPath, "utf-8");
     
     // We expect UUIDs like 'd3e00000-0000-0000-0000-000000000000'
-    const uuidRegex = /'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'/gi;
+    // We expect UUIDs like 'd3e00000-0000-0000-0000-000000000000'
     const invalidUuidRegex = /'[0-9a-z]{8}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{12}'/gi;
 
     const allStringUuids = sql.match(invalidUuidRegex) || [];
@@ -48,7 +47,7 @@ describe("Demo Security & Migration Verification", () => {
     
     // We mock the supabase client inside account.ts by intercepting it or relying on the code logic
     // Since this requires supabase mocking and the tests usually run in integration, we can mock it here
-    const { updateCurrentUserProfile } = await import("../server/services/account");
+    await import("../server/services/account");
     
     // Actually, in our test suite we typically use a mocked client or test database. 
     // Just asserting the logic exists in the file is an alternative if integration is hard
@@ -79,13 +78,43 @@ describe("Demo Security & Migration Verification", () => {
     
     // Check sign out on rpc failure
     assert.ok(actionsTs.includes("await client.auth.signOut()"));
+    // Fail closed on rate limit RPC error
+    assert.ok(actionsTs.includes("Service%20temporarily%20unavailable"));
+    assert.ok(actionsTs.includes("if (rlError) {"));
   });
-  
-  it("demo start rate limiting is checked", async () => {
+
+  it("demo start rate limiting uses IP hash and secret pepper", async () => {
     const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
     const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
     
-    assert.ok(actionsTs.includes("check_demo_rate_limit"));
-    assert.ok(actionsTs.includes("allowed === false"));
+    assert.ok(actionsTs.includes("crypto.createHash(\"sha256\")"));
+    assert.ok(actionsTs.includes("process.env.DEMO_RATE_LIMIT_SECRET"));
+    assert.ok(actionsTs.includes("fallback-demo-bucket"));
+    // Not sending raw IP
+    assert.ok(!actionsTs.includes("p_identifier: rawIp,"));
+  });
+
+  it("rate limit RPC is not executable by public, anon, or authenticated", async () => {
+    const migrationPath = path.join(process.cwd(), "supabase/migrations/0017_demo_mode.sql");
+    const sql = fs.readFileSync(migrationPath, "utf-8");
+    
+    assert.ok(sql.includes("REVOKE ALL ON FUNCTION public.check_demo_rate_limit(text) FROM public, anon, authenticated;"));
+  });
+
+  it("rate limit uses per-source and global buckets", async () => {
+    const migrationPath = path.join(process.cwd(), "supabase/migrations/0017_demo_mode.sql");
+    const sql = fs.readFileSync(migrationPath, "utf-8");
+    
+    assert.ok(sql.includes("v_max_source_requests int :="));
+    assert.ok(sql.includes("v_max_global_requests int :="));
+    assert.ok(sql.includes("v_global_identifier text := 'global-demo-limit';"));
+  });
+
+  it("browser/client code cannot import the service-role helper", async () => {
+    const serverAdminPath = path.join(process.cwd(), "lib/supabase/server-admin.ts");
+    const serverAdminTs = fs.readFileSync(serverAdminPath, "utf-8");
+    
+    assert.ok(serverAdminTs.includes("import \"server-only\";"));
+    assert.ok(serverAdminTs.includes("process.env.SUPABASE_SERVICE_ROLE_KEY"));
   });
 });

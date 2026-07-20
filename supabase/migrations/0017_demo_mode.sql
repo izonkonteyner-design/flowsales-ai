@@ -70,24 +70,59 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_count int;
-  v_first_at timestamptz;
-  v_time_window interval := interval '1 hour';
-  v_max_requests int := 5;
+  v_source_count int;
+  v_global_count int;
+  v_time_window interval := interval '15 minutes';
+  v_max_source_requests int := 5;
+  v_max_global_requests int := 100;
+  v_global_identifier text := 'global-demo-limit';
 BEGIN
-  -- Cleanup old records for this identifier if outside window
-  DELETE FROM public.demo_rate_limits
-  WHERE identifier = p_identifier AND first_request_at < now() - v_time_window;
+  IF p_identifier IS NULL OR length(p_identifier) = 0 THEN
+    RAISE EXCEPTION 'Invalid identifier';
+  END IF;
 
+  IF length(p_identifier) > 64 AND p_identifier != 'fallback-demo-bucket' THEN
+    RAISE EXCEPTION 'Invalid identifier length';
+  END IF;
+
+  -- 1. Check and update Global Limit
+  -- We don't DELETE to avoid expensive global locks. We just reset the row if it's expired.
+  INSERT INTO public.demo_rate_limits (identifier, request_count, first_request_at, last_request_at)
+  VALUES (v_global_identifier, 1, now(), now())
+  ON CONFLICT (identifier) DO UPDATE
+  SET 
+    request_count = CASE 
+      WHEN public.demo_rate_limits.first_request_at < now() - v_time_window THEN 1 
+      ELSE public.demo_rate_limits.request_count + 1 
+    END,
+    first_request_at = CASE 
+      WHEN public.demo_rate_limits.first_request_at < now() - v_time_window THEN now() 
+      ELSE public.demo_rate_limits.first_request_at 
+    END,
+    last_request_at = now()
+  RETURNING request_count INTO v_global_count;
+
+  IF v_global_count > v_max_global_requests THEN
+    RETURN false;
+  END IF;
+
+  -- 2. Check and update Per-Source Limit
   INSERT INTO public.demo_rate_limits (identifier, request_count, first_request_at, last_request_at)
   VALUES (p_identifier, 1, now(), now())
   ON CONFLICT (identifier) DO UPDATE
   SET 
-    request_count = public.demo_rate_limits.request_count + 1,
+    request_count = CASE 
+      WHEN public.demo_rate_limits.first_request_at < now() - v_time_window THEN 1 
+      ELSE public.demo_rate_limits.request_count + 1 
+    END,
+    first_request_at = CASE 
+      WHEN public.demo_rate_limits.first_request_at < now() - v_time_window THEN now() 
+      ELSE public.demo_rate_limits.first_request_at 
+    END,
     last_request_at = now()
-  RETURNING request_count INTO v_count;
+  RETURNING request_count INTO v_source_count;
 
-  IF v_count > v_max_requests THEN
+  IF v_source_count > v_max_source_requests THEN
     RETURN false;
   END IF;
 
@@ -95,5 +130,4 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.check_demo_rate_limit(text) FROM public;
-GRANT EXECUTE ON FUNCTION public.check_demo_rate_limit(text) TO anon, authenticated;
+REVOKE ALL ON FUNCTION public.check_demo_rate_limit(text) FROM public, anon, authenticated;

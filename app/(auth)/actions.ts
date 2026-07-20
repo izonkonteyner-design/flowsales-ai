@@ -1,9 +1,12 @@
 "use server";
 
+import crypto from "crypto";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import {
   parseAuthBootstrapInput,
   parseAuthForgotPasswordInput,
@@ -199,18 +202,30 @@ export async function startDemoAction() {
 
   const email = process.env.DEMO_USER_EMAIL;
   const password = process.env.DEMO_USER_PASSWORD;
+  const pepper = process.env.DEMO_RATE_LIMIT_SECRET;
 
-  if (!email || !password) {
+  if (!email || !password || !pepper) {
     redirect("/login?toast=Demo%20mode%20is%20not%20configured&tone=danger");
   }
 
-  // Rate limiting via anon RPC call
-  const { data: allowed, error: rlError } = await client.rpc("check_demo_rate_limit", {
-    p_identifier: "demo-login", // IP-based limits are tricky in edge without headers, we'll limit globally for the demo button
+  const headersList = await headers();
+  const rawIp = 
+    headersList.get("x-vercel-forwarded-for")?.split(",")[0].trim() ||
+    headersList.get("x-forwarded-for")?.split(",")[0].trim() ||
+    headersList.get("x-real-ip")?.trim();
+  
+  const identifier = rawIp
+    ? crypto.createHash("sha256").update(`${rawIp}:${pepper}`).digest("hex")
+    : "fallback-demo-bucket";
+
+  const adminClient = createSupabaseAdminClient();
+  const { data: allowed, error: rlError } = await adminClient.rpc("check_demo_rate_limit", {
+    p_identifier: identifier,
   });
   
   if (rlError) {
     console.error("[auth] check_demo_rate_limit failed", { name: rlError.name, message: rlError.message, code: rlError.code });
+    redirect("/login?toast=Service%20temporarily%20unavailable.&tone=danger");
   } else if (allowed === false) {
     redirect("/login?toast=Too%20many%20requests.%20Please%20try%20again%20later.&tone=danger");
   }

@@ -18,6 +18,8 @@ Set these in both local `.env.local` and your Vercel production environment:
 - `GOOGLE_GEMINI_API_KEY` (Required for AI quote assistant features)
 - `DEMO_USER_EMAIL` (Optional: used for the public demo login button)
 - `DEMO_USER_PASSWORD` (Optional: used for the public demo login button)
+- `DEMO_RATE_LIMIT_SECRET` (Optional: server-only secret pepper for hashing IPs in demo rate limits)
+- `SUPABASE_SERVICE_ROLE_KEY` (Server-only admin key used for secure internal operations)
 
 ## Deployment steps
 

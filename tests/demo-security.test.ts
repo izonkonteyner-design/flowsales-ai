@@ -147,4 +147,25 @@ describe("Demo Security & Migration Verification", () => {
     assert.ok(serverAdminTs.includes("import \"server-only\";"));
     assert.ok(serverAdminTs.includes("process.env.SUPABASE_SERVICE_ROLE_KEY"));
   });
+
+  it("demo inserts contain all required schema fields and use ON CONFLICT DO UPDATE", async () => {
+    const migrationPath = path.join(process.cwd(), "supabase/migrations/0017_demo_mode.sql");
+    const sql = fs.readFileSync(migrationPath, "utf-8");
+    
+    // Products schema contract
+    assert.ok(sql.includes("description, short_description"));
+    assert.ok(sql.includes("unit_price"));
+    assert.ok(sql.includes("stock_quantity"));
+    assert.ok(sql.includes("ON CONFLICT (id) DO UPDATE"));
+    assert.ok(sql.includes("organization_id = EXCLUDED.organization_id"));
+    assert.ok(sql.includes("description = EXCLUDED.description"));
+
+    // Leads schema contract
+    assert.ok(sql.includes("INSERT INTO public.leads ("));
+    assert.ok(sql.includes("full_name, company, email, source, status, estimated_value, currency"));
+
+    // Contacts (Customers) schema contract
+    assert.ok(sql.includes("INSERT INTO public.contacts ("));
+    assert.ok(sql.includes("full_name, company, email, phone, city"));
+  });
 });

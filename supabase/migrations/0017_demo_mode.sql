@@ -16,26 +16,60 @@ BEGIN
   END IF;
 
   -- Demo Products
-  INSERT INTO public.products (id, organization_id, name, category, base_price, currency, tax_rate, unit, active)
+  INSERT INTO public.products (
+    id, organization_id, name, category, description, short_description, 
+    base_price, unit_price, currency, tax_rate, unit, active, 
+    stock_quantity, minimum_order_quantity, lead_time_days, warranty_months,
+    featured, tags, features, gallery_urls
+  )
   VALUES 
-    ('d3e00001-0000-0000-0000-000000000000', v_demo_org_id, 'Enterprise CRM License', 'Software', 499, 'USD', 20, 'month', true),
-    ('d3e00002-0000-0000-0000-000000000000', v_demo_org_id, 'AI Sales Add-on', 'Software', 99, 'USD', 20, 'month', true),
-    ('d3e00003-0000-0000-0000-000000000000', v_demo_org_id, 'Premium Support SLA', 'Service', 299, 'USD', 20, 'month', true)
-  ON CONFLICT (id) DO NOTHING;
+    (
+      'd3e00001-0000-0000-0000-000000000000', v_demo_org_id, 'Enterprise CRM License', 'Software', 
+      'Full-featured CRM license for enterprise organizations.', 'Enterprise CRM',
+      499, 499, 'USD', 20, 'month', true,
+      0, 1, 0, 12, false, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb
+    ),
+    (
+      'd3e00002-0000-0000-0000-000000000000', v_demo_org_id, 'AI Sales Add-on', 'Software', 
+      'Generative AI assistant for drafting sales quotes.', 'AI Assistant',
+      99, 99, 'USD', 20, 'month', true,
+      0, 1, 0, 12, false, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb
+    ),
+    (
+      'd3e00003-0000-0000-0000-000000000000', v_demo_org_id, 'Premium Support SLA', 'Service', 
+      '24/7 technical support with 1-hour response time.', 'Premium Support',
+      299, 299, 'USD', 20, 'month', true,
+      0, 1, 0, 12, false, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb
+    )
+  ON CONFLICT (id) DO UPDATE 
+  SET 
+    organization_id = EXCLUDED.organization_id,
+    description = EXCLUDED.description,
+    short_description = EXCLUDED.short_description,
+    unit_price = EXCLUDED.unit_price,
+    stock_quantity = EXCLUDED.stock_quantity;
 
   -- Demo Leads
-  INSERT INTO public.leads (id, organization_id, full_name, company, email, source, status, estimated_value, currency)
+  INSERT INTO public.leads (
+    id, organization_id, full_name, company, email, source, status, estimated_value, currency
+  )
   VALUES
     ('d3e00004-0000-0000-0000-000000000000', v_demo_org_id, 'Alice Johnson', 'Acme Corp', 'alice@acme.com', 'Website', 'new', 10000, 'USD'),
     ('d3e00005-0000-0000-0000-000000000000', v_demo_org_id, 'Bob Smith', 'Globex', 'bob@globex.com', 'Referral', 'qualified', 25000, 'USD'),
     ('d3e00006-0000-0000-0000-000000000000', v_demo_org_id, 'Carol White', 'Initech', 'carol@initech.com', 'Cold Call', 'quote_sent', 5000, 'USD')
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (id) DO UPDATE 
+  SET 
+    organization_id = EXCLUDED.organization_id;
 
-  -- Demo Customers
-  INSERT INTO public.customers (id, organization_id, name, company, email, phone, city, segment, lifetime_value, source_lead_id)
+  -- Demo Customers (Contacts)
+  INSERT INTO public.contacts (
+    id, organization_id, full_name, company, email, phone, city
+  )
   VALUES
-    ('d3e00007-0000-0000-0000-000000000000', v_demo_org_id, 'David Black', 'Massive Dynamic', 'david@massive.com', '555-0100', 'New York', 'Enterprise', 120000, null)
-  ON CONFLICT (id) DO NOTHING;
+    ('d3e00007-0000-0000-0000-000000000000', v_demo_org_id, 'David Black', 'Massive Dynamic', 'david@massive.com', '555-0100', 'New York')
+  ON CONFLICT (id) DO UPDATE 
+  SET 
+    organization_id = EXCLUDED.organization_id;
 
 END $$;
 

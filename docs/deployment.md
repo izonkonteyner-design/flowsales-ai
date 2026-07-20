@@ -1,42 +1,45 @@
-# Deployment
+# Deployment & Production Checklist
 
-FlowSales AI is set up for a standard Supabase plus Vercel deployment.
+FlowSales AI is designed for deployment on Vercel with a Supabase PostgreSQL backend.
 
 ## Prerequisites
 
-- A Supabase project
+- A Supabase project (Database & Auth)
 - A Vercel project
 - Node.js 20 or newer
 
 ## Environment variables
 
-Set these in both local and production environments as needed:
+Set these in both local `.env.local` and your Vercel production environment:
 
+- `NEXT_PUBLIC_SITE_URL` (e.g. https://flowsales.ai)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEXT_PUBLIC_APP_URL`
-- `OPENAI_API_KEY`
-- `STRIPE_SECRET_KEY`
+- `GOOGLE_GEMINI_API_KEY` (Required for AI quote assistant features)
+- `DEMO_USER_EMAIL` (Optional: used for the public demo login button)
+- `DEMO_USER_PASSWORD` (Optional: used for the public demo login button)
 
 ## Deployment steps
 
-1. Create the Supabase project and apply the SQL migrations in `supabase/migrations/`
-2. Confirm auth settings and redirect URLs in Supabase
-3. Create the Vercel project from this repository
-4. Add the required environment variables in Vercel
-5. Deploy the main branch
-6. Verify `/api/health`, `/login`, and the protected app routes after deploy
+1. Create the Supabase project.
+2. Apply the SQL migrations in `supabase/migrations/` sequentially using the Supabase CLI or SQL Editor.
+   *Ensure you run migration `0017_demo_mode.sql` if you intend to use the demo button.*
+3. Confirm auth settings, email templates, and redirect URLs in Supabase Auth.
+4. Create the Vercel project from this repository.
+5. Add the required environment variables in Vercel.
+6. Deploy the main branch.
+7. Verify `/api/health`, `/login`, `/dashboard`, and the marketing pages.
 
 ## Production checks
 
-- Confirm the root page loads
-- Confirm auth redirects protect the app routes
-- Confirm the build succeeds in CI
-- Confirm the health endpoint returns a 200 response
+- Confirm the root page `/` and `/pricing` load correctly.
+- Confirm authentication redirects protect the app routes.
+- Confirm the build succeeds in CI (lint, typecheck, tests).
+- Create a test account, complete the onboarding flow, and create a test quote.
+- Test the "Try Demo" button on the login/marketing pages (if demo mode is configured).
 
 ## Operational notes
 
-- `proxy.ts` handles auth boundary redirects and session refresh behavior
-- Demo data keeps the UI functional when Supabase is not configured
-- AI and billing integrations are scaffolded, so they should be connected deliberately before customer use
+- `app/(app)/layout.tsx` enforces workspace onboarding completion.
+- `app/api/quotes/ai-draft/route.ts` rate-limits and blocks AI features for demo viewers.
+- Demo users are automatically forced into a `viewer` role on the `flowsales-demo` workspace, preventing them from modifying any live data.

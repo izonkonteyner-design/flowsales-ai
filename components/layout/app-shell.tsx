@@ -303,7 +303,7 @@ export function AppShell({
                   <ChevronRight className="h-4 w-4 text-slate-400" />
                 </div>
 
-                <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/5 md:flex">
+                <Link href="/account" className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:flex">
                   <UserCircle2 className="h-5 w-5 text-slate-500" />
                   <div className="leading-tight">
                     <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -314,7 +314,7 @@ export function AppShell({
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-slate-400" />
-                </div>
+                </Link>
 
                 <form action={signOutAction}>
                   <Button variant="ghost" size="icon" aria-label="Log out" type="submit">

@@ -1,31 +1,43 @@
 -- Add Demo Mode Database Migration
 -- This creates a read-only global demo workspace and an idempotent function to join it.
 
-INSERT INTO public.organizations (id, name, slug, currency, onboarding_completed_at, industry)
-VALUES ('d3e00000-0000-0000-0000-000000000000', 'FlowSales Demo', 'flowsales-demo', 'USD', now(), 'Software')
-ON CONFLICT (id) DO NOTHING;
+DO $$ 
+DECLARE
+  v_demo_org_id uuid;
+BEGIN
+  -- Try to get existing org by slug
+  SELECT id INTO v_demo_org_id FROM public.organizations WHERE slug = 'flowsales-demo';
+  
+  IF v_demo_org_id IS NULL THEN
+    v_demo_org_id := 'd3e00000-0000-0000-0000-000000000000';
+    INSERT INTO public.organizations (id, name, slug, currency, onboarding_completed_at, industry)
+    VALUES (v_demo_org_id, 'FlowSales Demo', 'flowsales-demo', 'USD', now(), 'Software')
+    ON CONFLICT (id) DO NOTHING;
+  END IF;
 
--- Demo Products
-INSERT INTO public.products (id, organization_id, name, category, base_price, currency, tax_rate, unit, active)
-VALUES 
-  ('d3e00001-0000-0000-0000-000000000000', 'd3e00000-0000-0000-0000-000000000000', 'Enterprise CRM License', 'Software', 499, 'USD', 20, 'month', true),
-  ('d3e00002-0000-0000-0000-000000000000', 'd3e00000-0000-0000-0000-000000000000', 'AI Sales Add-on', 'Software', 99, 'USD', 20, 'month', true),
-  ('d3e00003-0000-0000-0000-000000000000', 'd3e00000-0000-0000-0000-000000000000', 'Premium Support SLA', 'Service', 299, 'USD', 20, 'month', true)
-ON CONFLICT (id) DO NOTHING;
+  -- Demo Products
+  INSERT INTO public.products (id, organization_id, name, category, base_price, currency, tax_rate, unit, active)
+  VALUES 
+    ('d3e00001-0000-0000-0000-000000000000', v_demo_org_id, 'Enterprise CRM License', 'Software', 499, 'USD', 20, 'month', true),
+    ('d3e00002-0000-0000-0000-000000000000', v_demo_org_id, 'AI Sales Add-on', 'Software', 99, 'USD', 20, 'month', true),
+    ('d3e00003-0000-0000-0000-000000000000', v_demo_org_id, 'Premium Support SLA', 'Service', 299, 'USD', 20, 'month', true)
+  ON CONFLICT (id) DO NOTHING;
 
--- Demo Leads
-INSERT INTO public.leads (id, organization_id, full_name, company, email, source, status, estimated_value, currency)
-VALUES
-  ('d3e00004-0000-0000-0000-000000000000', 'd3e00000-0000-0000-0000-000000000000', 'Alice Johnson', 'Acme Corp', 'alice@acme.com', 'Website', 'new', 10000, 'USD'),
-  ('d3e00005-0000-0000-0000-000000000000', 'd3e00000-0000-0000-0000-000000000000', 'Bob Smith', 'Globex', 'bob@globex.com', 'Referral', 'qualified', 25000, 'USD'),
-  ('d3e00006-0000-0000-0000-000000000000', 'd3e00000-0000-0000-0000-000000000000', 'Carol White', 'Initech', 'carol@initech.com', 'Cold Call', 'quote_sent', 5000, 'USD')
-ON CONFLICT (id) DO NOTHING;
+  -- Demo Leads
+  INSERT INTO public.leads (id, organization_id, full_name, company, email, source, status, estimated_value, currency)
+  VALUES
+    ('d3e00004-0000-0000-0000-000000000000', v_demo_org_id, 'Alice Johnson', 'Acme Corp', 'alice@acme.com', 'Website', 'new', 10000, 'USD'),
+    ('d3e00005-0000-0000-0000-000000000000', v_demo_org_id, 'Bob Smith', 'Globex', 'bob@globex.com', 'Referral', 'qualified', 25000, 'USD'),
+    ('d3e00006-0000-0000-0000-000000000000', v_demo_org_id, 'Carol White', 'Initech', 'carol@initech.com', 'Cold Call', 'quote_sent', 5000, 'USD')
+  ON CONFLICT (id) DO NOTHING;
 
--- Demo Customers
-INSERT INTO public.customers (id, organization_id, name, company, email, phone, city, segment, lifetime_value, source_lead_id)
-VALUES
-  ('d3e00007-0000-0000-0000-000000000000', 'd3e00000-0000-0000-0000-000000000000', 'David Black', 'Massive Dynamic', 'david@massive.com', '555-0100', 'New York', 'Enterprise', 120000, null)
-ON CONFLICT (id) DO NOTHING;
+  -- Demo Customers
+  INSERT INTO public.customers (id, organization_id, name, company, email, phone, city, segment, lifetime_value, source_lead_id)
+  VALUES
+    ('d3e00007-0000-0000-0000-000000000000', v_demo_org_id, 'David Black', 'Massive Dynamic', 'david@massive.com', '555-0100', 'New York', 'Enterprise', 120000, null)
+  ON CONFLICT (id) DO NOTHING;
+
+END $$;
 
 -- Security Definer function to allow any authenticated user to join the demo workspace as a viewer
 CREATE OR REPLACE FUNCTION public.join_demo_workspace()
@@ -36,14 +48,20 @@ SET search_path = public
 AS $$
 DECLARE
   v_user_id uuid;
+  v_demo_org_id uuid;
 BEGIN
   v_user_id := auth.uid();
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Not authenticated';
   END IF;
 
+  SELECT id INTO v_demo_org_id FROM public.organizations WHERE slug = 'flowsales-demo';
+  IF v_demo_org_id IS NULL THEN
+    RAISE EXCEPTION 'Demo workspace not found';
+  END IF;
+
   INSERT INTO public.organization_members (organization_id, user_id, role, created_at)
-  VALUES ('d3e00000-0000-0000-0000-000000000000', v_user_id, 'viewer', now())
+  VALUES (v_demo_org_id, v_user_id, 'viewer', now())
   ON CONFLICT (organization_id, user_id) 
   DO UPDATE SET role = 'viewer', created_at = now();
 END;

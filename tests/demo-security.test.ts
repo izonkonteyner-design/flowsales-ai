@@ -34,7 +34,7 @@ describe("Demo Security & Migration Verification", () => {
     const migrationPath = path.join(process.cwd(), "supabase/migrations/0017_demo_mode.sql");
     const sql = fs.readFileSync(migrationPath, "utf-8");
     
-    assert.ok(sql.includes("VALUES ('d3e00000-0000-0000-0000-000000000000', v_user_id, 'viewer', now())"));
+    assert.ok(sql.includes("VALUES (v_demo_org_id, v_user_id, 'viewer', now())"));
     assert.ok(sql.includes("DO UPDATE SET role = 'viewer'"));
     // It should not accept parameters
     assert.ok(sql.includes("CREATE OR REPLACE FUNCTION public.join_demo_workspace()"));

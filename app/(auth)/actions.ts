@@ -190,3 +190,35 @@ export async function signOutAction() {
   await signOutCurrentUser(client);
   redirect("/login");
 }
+
+export async function startDemoAction() {
+  const client = await createSupabaseServerClient();
+  if (!client) {
+    redirect("/login?toast=Authentication%20not%20configured&tone=danger");
+  }
+
+  const email = process.env.DEMO_USER_EMAIL;
+  const password = process.env.DEMO_USER_PASSWORD;
+
+  if (!email || !password) {
+    redirect("/login?toast=Demo%20mode%20is%20not%20configured&tone=danger");
+  }
+
+  const { error } = await client.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    console.error("[auth] demo login failed", error);
+    redirect("/login?toast=Invalid%20demo%20credentials&tone=danger");
+  }
+
+  const { error: rpcError } = await client.rpc("join_demo_workspace");
+  if (rpcError) {
+    console.error("[auth] join_demo_workspace failed", rpcError);
+    // Ignore rpc error as they might already be a viewer, but log it.
+  }
+
+  redirect("/dashboard");
+}

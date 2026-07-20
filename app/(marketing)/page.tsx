@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Bot, Sparkles, Users } from "lucide-react";
+import { startDemoAction } from "@/app/(auth)/actions";
 
 const highlights = [
   {
@@ -69,12 +70,14 @@ export default function HomePage() {
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
 
-            <Link
-              href="/leads"
-              className="inline-flex h-12 items-center justify-center rounded-full border border-slate-200 bg-white/80 px-6 text-sm font-medium text-slate-900 shadow-sm backdrop-blur transition hover:bg-white"
-            >
-              View leads
-            </Link>
+            <form action={startDemoAction}>
+              <button
+                type="submit"
+                className="inline-flex h-12 w-full items-center justify-center rounded-full border border-slate-200 bg-white/80 px-6 text-sm font-medium text-slate-900 shadow-sm backdrop-blur transition hover:bg-white sm:w-auto"
+              >
+                Try demo
+              </button>
+            </form>
           </div>
         </div>
 

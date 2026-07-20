@@ -10,6 +10,7 @@ import {
   loginAction,
   registerAction,
   resetPasswordAction,
+  startDemoAction,
 } from "@/app/(auth)/actions";
 import { hasSupabaseConfig } from "@/lib/supabase/env";
 import { cn } from "@/lib/utils";
@@ -224,6 +225,17 @@ export function AuthForm({ mode, next = "/dashboard" }: AuthFormProps) {
           {submitLabels[mode]}
         </button>
       </form>
+
+      {mode === "login" && (
+        <form action={startDemoAction}>
+          <button
+            type="submit"
+            className="mt-2 inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-900 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-white dark:hover:bg-white/10"
+          >
+            Start Demo
+          </button>
+        </form>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600 dark:text-slate-400">
         {mode === "login" ? (

@@ -1,6 +1,7 @@
 "use server";
 
 import crypto from "crypto";
+import net from "node:net";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -209,16 +210,31 @@ export async function startDemoAction() {
   }
 
   const headersList = await headers();
-  const rawIp = 
+  let rawIp = 
     headersList.get("x-vercel-forwarded-for")?.split(",")[0].trim() ||
     headersList.get("x-forwarded-for")?.split(",")[0].trim() ||
     headersList.get("x-real-ip")?.trim();
   
-  const identifier = rawIp
-    ? crypto.createHash("sha256").update(`${rawIp}:${pepper}`).digest("hex")
-    : "fallback-demo-bucket";
+  if (!rawIp || !net.isIP(rawIp)) {
+    rawIp = "fallback-demo-bucket";
+  }
 
-  const adminClient = createSupabaseAdminClient();
+  const identifier = crypto.createHash("sha256").update(`${rawIp}:${pepper}`).digest("hex");
+
+  let adminClient;
+  try {
+    adminClient = createSupabaseAdminClient();
+  } catch (error) {
+    console.error("[auth] admin client configuration failed", {
+      name: error instanceof Error ? error.name : "UnknownError",
+      message: error instanceof Error ? error.message : "Configuration failed",
+    });
+  }
+
+  if (!adminClient) {
+    redirect("/login?toast=Service%20temporarily%20unavailable.&tone=danger");
+  }
+
   const { data: allowed, error: rlError } = await adminClient.rpc("check_demo_rate_limit", {
     p_identifier: identifier,
   });

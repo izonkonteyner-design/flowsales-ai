@@ -15,7 +15,7 @@ Set these in both local `.env.local` and your Vercel production environment:
 - `NEXT_PUBLIC_SITE_URL` (e.g. https://flowsales.ai)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `GOOGLE_GEMINI_API_KEY` (Required for AI quote assistant features)
+- `GEMINI_API_KEY` (Required for AI quote assistant features)
 - `DEMO_USER_EMAIL` (Optional: used for the public demo login button)
 - `DEMO_USER_PASSWORD` (Optional: used for the public demo login button)
 - `DEMO_RATE_LIMIT_SECRET` (Optional: server-only secret pepper for hashing IPs in demo rate limits)

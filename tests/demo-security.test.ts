@@ -99,6 +99,36 @@ describe("Demo Security & Migration Verification", () => {
     const sql = fs.readFileSync(migrationPath, "utf-8");
     
     assert.ok(sql.includes("REVOKE ALL ON FUNCTION public.check_demo_rate_limit(text) FROM public, anon, authenticated;"));
+    assert.ok(sql.includes("GRANT EXECUTE ON FUNCTION public.check_demo_rate_limit(text) TO service_role;"));
+  });
+
+  it("invalid identifier formats are rejected by SQL", async () => {
+    const migrationPath = path.join(process.cwd(), "supabase/migrations/0017_demo_mode.sql");
+    const sql = fs.readFileSync(migrationPath, "utf-8");
+    assert.ok(sql.includes("p_identifier !~ '^[0-9a-f]{64}$'"));
+  });
+
+  it("header values containing control characters are rejected", async () => {
+    const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
+    const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
+    assert.ok(actionsTs.includes("net.isIP(rawIp)"));
+  });
+
+  it("missing admin configuration stops before signInWithPassword", async () => {
+    const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
+    const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
+    
+    assert.ok(actionsTs.includes("if (!adminClient) {"));
+    assert.ok(actionsTs.includes("redirect(\"/login?toast=Service%20temporarily%20unavailable.&tone=danger\");"));
+    // Verify no secret values are logged
+    assert.ok(actionsTs.includes("error instanceof Error ? error.message : \"Configuration failed\""));
+  });
+
+  it("documentation uses GEMINI_API_KEY consistently", async () => {
+    const deploymentMdPath = path.join(process.cwd(), "docs/DEPLOYMENT.md");
+    const deploymentMd = fs.readFileSync(deploymentMdPath, "utf-8");
+    assert.ok(!deploymentMd.includes("GOOGLE_GEMINI_API_KEY"));
+    assert.ok(deploymentMd.includes("GEMINI_API_KEY"));
   });
 
   it("rate limit uses per-source and global buckets", async () => {

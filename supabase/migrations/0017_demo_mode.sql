@@ -77,12 +77,8 @@ DECLARE
   v_max_global_requests int := 100;
   v_global_identifier text := 'global-demo-limit';
 BEGIN
-  IF p_identifier IS NULL OR length(p_identifier) = 0 THEN
+  IF p_identifier IS NULL OR p_identifier !~ '^[0-9a-f]{64}$' THEN
     RAISE EXCEPTION 'Invalid identifier';
-  END IF;
-
-  IF length(p_identifier) > 64 AND p_identifier != 'fallback-demo-bucket' THEN
-    RAISE EXCEPTION 'Invalid identifier length';
   END IF;
 
   -- 1. Check and update Global Limit
@@ -131,3 +127,4 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.check_demo_rate_limit(text) FROM public, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.check_demo_rate_limit(text) TO service_role;

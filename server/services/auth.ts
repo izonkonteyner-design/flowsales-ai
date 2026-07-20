@@ -243,6 +243,11 @@ export async function registerWithPassword(client: SupabaseServerClient, input: 
 }
 
 export async function requestPasswordReset(client: SupabaseServerClient, input: ForgotPasswordFormInput) {
+  if (input.email === process.env.DEMO_USER_EMAIL) {
+    // Act like it succeeded to avoid email enumeration, but don't actually send anything
+    return true;
+  }
+
   const { error } = await client.auth.resetPasswordForEmail(input.email, {
     redirectTo: `${getSupabaseOrigin()}/auth/callback?next=/reset-password`,
   });
@@ -266,6 +271,10 @@ export async function updatePassword(client: SupabaseServerClient, input: ResetP
       returnedAuthError: "This reset link is invalid or expired.",
     });
     throw new Error("This reset link is invalid or expired.");
+  }
+
+  if (userData.user.email === process.env.DEMO_USER_EMAIL) {
+    throw new Error("Password resets are disabled for the demo account.");
   }
 
   const { error } = await client.auth.updateUser({

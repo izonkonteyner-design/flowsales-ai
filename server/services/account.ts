@@ -12,6 +12,10 @@ export async function updateCurrentUserProfile(input: UpdateProfileFormInput) {
     throw new Error("You must be signed in to update your profile.");
   }
 
+  if (user.email === process.env.DEMO_USER_EMAIL) {
+    throw new Error("Profile updates are disabled for the demo account.");
+  }
+
   const { error } = await client.auth.updateUser({
     data: {
       full_name: input.full_name,

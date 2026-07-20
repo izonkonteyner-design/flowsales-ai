@@ -204,20 +204,32 @@ export async function startDemoAction() {
     redirect("/login?toast=Demo%20mode%20is%20not%20configured&tone=danger");
   }
 
+  // Rate limiting via anon RPC call
+  const { data: allowed, error: rlError } = await client.rpc("check_demo_rate_limit", {
+    p_identifier: "demo-login", // IP-based limits are tricky in edge without headers, we'll limit globally for the demo button
+  });
+  
+  if (rlError) {
+    console.error("[auth] check_demo_rate_limit failed", { name: rlError.name, message: rlError.message, code: rlError.code });
+  } else if (allowed === false) {
+    redirect("/login?toast=Too%20many%20requests.%20Please%20try%20again%20later.&tone=danger");
+  }
+
   const { error } = await client.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-    console.error("[auth] demo login failed", error);
-    redirect("/login?toast=Invalid%20demo%20credentials&tone=danger");
+    console.error("[auth] demo login failed", { name: error.name, message: error.message, code: error.code });
+    redirect("/login?toast=Unable%20to%20start%20demo&tone=danger");
   }
 
   const { error: rpcError } = await client.rpc("join_demo_workspace");
   if (rpcError) {
-    console.error("[auth] join_demo_workspace failed", rpcError);
-    // Ignore rpc error as they might already be a viewer, but log it.
+    console.error("[auth] join_demo_workspace failed", { name: rpcError.name, message: rpcError.message, code: rpcError.code });
+    await client.auth.signOut();
+    redirect("/login?toast=Demo%20workspace%20is%20unavailable&tone=danger");
   }
 
   redirect("/dashboard");

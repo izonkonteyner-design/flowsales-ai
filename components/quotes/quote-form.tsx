@@ -201,7 +201,7 @@ export function QuoteForm({
   }
 
   function addLine() {
-    setLines((current) => [...current, makeLine(`line-${current.length + 1}`, initialCurrency, initialTaxRate, { sort_order: current.length })]);
+    setLines((current) => [...current, makeLine(`line-${crypto.randomUUID()}`, initialCurrency, initialTaxRate, { sort_order: current.length })]);
   }
 
   function removeLine(index: number) {

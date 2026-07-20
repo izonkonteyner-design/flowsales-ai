@@ -153,7 +153,7 @@ export function QuoteAiAssistant({ formRef, canMutate, readOnlyMessage, onApplyD
         </div>
 
         {!isOpen ? (
-          <div className="flex flex-wrap items-center gap-3">
+          <div key="ai-closed" className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={() => setIsOpen(true)} variant="outline">
               <Sparkles className="h-4 w-4" />
               AI ile Taslak Oluştur
@@ -161,7 +161,7 @@ export function QuoteAiAssistant({ formRef, canMutate, readOnlyMessage, onApplyD
             {error ? <p className="text-sm text-rose-600 dark:text-rose-300">{error}</p> : null}
           </div>
         ) : (
-          <div className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
+          <div key="ai-open" className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950/40">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-slate-950 dark:text-white">Taslak oluşturma</h3>

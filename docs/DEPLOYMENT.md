@@ -12,7 +12,7 @@ FlowSales AI is designed for deployment on Vercel with a Supabase PostgreSQL bac
 
 Set these in both local `.env.local` and your Vercel production environment:
 
-- `NEXT_PUBLIC_SITE_URL` (e.g. https://flowsales.ai)
+- `NEXT_PUBLIC_APP_URL` or `NEXT_PUBLIC_SITE_URL` (e.g. https://flowsales.ai)
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `GEMINI_API_KEY` (Required for AI quote assistant features)

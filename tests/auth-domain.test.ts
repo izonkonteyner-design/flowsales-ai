@@ -7,6 +7,7 @@ import {
   flattenAuthValidationError,
   mapAuthProviderError,
 } from "@/server/services/auth-domain";
+import { getSupabaseOrigin } from "@/server/services/auth";
 import {
   bootstrapWorkspaceFormSchema,
   forgotPasswordFormSchema,
@@ -79,6 +80,30 @@ test("auth provider errors are mapped to safe messages", () => {
 test("auth redirect helpers block unsafe targets", () => {
   assert.equal(normalizeSafeRedirectPath("https://example.com", "/dashboard"), "/dashboard");
   assert.equal(buildAuthRedirectPath("//example.com", "/dashboard"), "/dashboard");
+});
+
+test("auth origin resolves NEXT_PUBLIC_SITE_URL when NEXT_PUBLIC_APP_URL is missing", () => {
+  const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+
+  try {
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    process.env.NEXT_PUBLIC_SITE_URL = "https://example.com";
+
+    assert.equal(getSupabaseOrigin(), "https://example.com");
+  } finally {
+    if (originalAppUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_APP_URL;
+    } else {
+      process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
+    }
+
+    if (originalSiteUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    } else {
+      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+    }
+  }
 });
 
 test("auth action state helper preserves message and success flags", () => {

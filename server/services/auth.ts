@@ -45,8 +45,8 @@ function normalizeSessionFullName(value: unknown) {
   return parsed.success ? parsed.data : null;
 }
 
-function getSupabaseOrigin() {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+export function getSupabaseOrigin() {
+  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 }
 
 function serializeAuthError(error: unknown) {

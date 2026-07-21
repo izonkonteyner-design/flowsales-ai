@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getRequiredSupabaseEnv } from "@/lib/supabase/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import {
   parseAuthBootstrapInput,
@@ -31,6 +32,15 @@ function configMissingState() {
     returnedAuthError: "Authentication is not configured.",
   });
   return createAuthActionState("Authentication is not configured.", {}, false);
+}
+
+type DemoActionStage = "admin_config" | "rate_limit" | "demo_auth" | "join_workspace" | "redirect";
+
+function logDemoActionStage(stage: DemoActionStage, details: Record<string, unknown>) {
+  console.error("[auth] startDemoAction stage", {
+    stage,
+    ...details,
+  });
 }
 
 export async function loginAction(_: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -201,8 +211,13 @@ export async function signOutAction() {
 }
 
 export async function startDemoAction() {
+  const env = getRequiredSupabaseEnv();
   const client = await createSupabaseServerClient();
   if (!client) {
+    logDemoActionStage("admin_config", {
+      returnedAuthError: "Authentication not configured.",
+      missingEnv: !env.configured ? env.missing : [],
+    });
     redirect("/login?toast=Authentication%20not%20configured&tone=danger");
   }
 
@@ -245,9 +260,17 @@ export async function startDemoAction() {
   });
   
   if (rlError) {
-    console.error("[auth] check_demo_rate_limit failed", { name: rlError.name, message: rlError.message, code: rlError.code });
+    logDemoActionStage("rate_limit", {
+      name: rlError.name,
+      message: rlError.message,
+      code: rlError.code,
+      returnedAuthError: "Service temporarily unavailable.",
+    });
     redirect("/login?toast=Service%20temporarily%20unavailable.&tone=danger");
   } else if (allowed === false) {
+    logDemoActionStage("rate_limit", {
+      returnedAuthError: "Too many requests. Please try again later.",
+    });
     redirect("/login?toast=Too%20many%20requests.%20Please%20try%20again%20later.&tone=danger");
   }
 
@@ -257,16 +280,29 @@ export async function startDemoAction() {
   });
 
   if (error) {
-    console.error("[auth] demo login failed", { name: error.name, message: error.message, code: error.code });
+    logDemoActionStage("demo_auth", {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      returnedAuthError: "Unable to start demo.",
+    });
     redirect("/login?toast=Unable%20to%20start%20demo&tone=danger");
   }
 
   const { error: rpcError } = await client.rpc("join_demo_workspace");
   if (rpcError) {
-    console.error("[auth] join_demo_workspace failed", { name: rpcError.name, message: rpcError.message, code: rpcError.code });
+    logDemoActionStage("join_workspace", {
+      name: rpcError.name,
+      message: rpcError.message,
+      code: rpcError.code,
+      returnedAuthError: "Demo workspace is unavailable.",
+    });
     await client.auth.signOut();
     redirect("/login?toast=Demo%20workspace%20is%20unavailable&tone=danger");
   }
 
+  logDemoActionStage("redirect", {
+    destination: "/dashboard",
+  });
   redirect("/dashboard");
 }

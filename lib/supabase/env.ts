@@ -7,7 +7,7 @@ export type SupabaseEnv = {
 export function getSupabaseEnv(): SupabaseEnv {
   return {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL ?? null,
-    anonKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? null,
+    anonKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? null,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? null,
   };
 }

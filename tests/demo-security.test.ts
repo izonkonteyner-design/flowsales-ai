@@ -73,7 +73,12 @@ describe("Demo Security & Migration Verification", () => {
     const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
     
     // Check safe logging
-    assert.ok(actionsTs.includes("{ name: error.name, message: error.message, code: error.code }"));
+    assert.ok(actionsTs.includes("type DemoActionStage = \"admin_config\" | \"rate_limit\" | \"demo_auth\" | \"join_workspace\" | \"redirect\";"));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"admin_config\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"rate_limit\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"demo_auth\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"join_workspace\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"redirect\""));
     assert.ok(!actionsTs.includes("console.error(\"[auth] demo login failed\", error)"));
     
     // Check sign out on rpc failure
@@ -112,6 +117,22 @@ describe("Demo Security & Migration Verification", () => {
     const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
     const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
     assert.ok(actionsTs.includes("net.isIP(rawIp)"));
+  });
+
+  it("demo start action emits stage-only diagnostics and never logs secrets", async () => {
+    const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
+    const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
+
+    assert.ok(actionsTs.includes("startDemoAction stage"));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"admin_config\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"rate_limit\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"demo_auth\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"join_workspace\""));
+    assert.ok(actionsTs.includes("logDemoActionStage(\"redirect\""));
+    assert.ok(actionsTs.includes("destination: \"/dashboard\""));
+    assert.ok(!/console\.error\("\[auth\] startDemoAction stage"[^\n]*email/.test(actionsTs));
+    assert.ok(!/console\.error\("\[auth\] startDemoAction stage"[^\n]*password/.test(actionsTs));
+    assert.ok(!/console\.error\("\[auth\] startDemoAction stage"[^\n]*pepper/.test(actionsTs));
   });
 
   it("missing admin configuration stops before signInWithPassword", async () => {

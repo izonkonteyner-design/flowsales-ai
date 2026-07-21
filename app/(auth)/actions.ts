@@ -51,7 +51,7 @@ export async function loginAction(_: AuthActionState, formData: FormData): Promi
     }
     const actionState = toAuthActionStateFromError(error, "Unable to sign in.");
     console.error("[auth] loginAction failure", {
-      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      errorInfo: error instanceof Error ? { name: error.name, message: error.message } : "Unknown error",
       returnedAuthError: actionState.message,
       fieldErrors: actionState.fieldErrors,
     });
@@ -84,7 +84,7 @@ export async function registerAction(_: AuthActionState, formData: FormData): Pr
     }
     const actionState = toAuthActionStateFromError(error, "Unable to create your account.");
     console.error("[auth] registerAction failure", {
-      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      errorInfo: error instanceof Error ? { name: error.name, message: error.message } : "Unknown error",
       returnedAuthError: actionState.message,
       fieldErrors: actionState.fieldErrors,
     });
@@ -116,7 +116,7 @@ export async function bootstrapWorkspaceAction(_: AuthActionState, formData: For
     }
     const actionState = toAuthActionStateFromError(error, "Unable to complete workspace setup.");
     console.error("[auth] bootstrapWorkspaceAction failure", {
-      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      errorInfo: error instanceof Error ? { name: error.name, message: error.message } : "Unknown error",
       returnedAuthError: actionState.message,
       fieldErrors: actionState.fieldErrors,
     });
@@ -134,6 +134,11 @@ export async function forgotPasswordAction(_: AuthActionState, formData: FormDat
 
   try {
     const input = parseAuthForgotPasswordInput(formData);
+    
+    if (process.env.DEMO_USER_EMAIL && input.email.toLowerCase() === process.env.DEMO_USER_EMAIL.toLowerCase()) {
+      return createAuthActionState("If that account exists, we sent a password reset email.", {}, true);
+    }
+
     const sent = await requestPasswordReset(client, input);
     if (!sent) {
       console.error("[auth] forgotPasswordAction failure", {
@@ -149,7 +154,7 @@ export async function forgotPasswordAction(_: AuthActionState, formData: FormDat
     }
     const actionState = toAuthActionStateFromError(error, "Unable to send the reset email.");
     console.error("[auth] forgotPasswordAction failure", {
-      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      errorInfo: error instanceof Error ? { name: error.name, message: error.message } : "Unknown error",
       returnedAuthError: actionState.message,
       fieldErrors: actionState.fieldErrors,
     });
@@ -175,7 +180,7 @@ export async function resetPasswordAction(_: AuthActionState, formData: FormData
     }
     const actionState = toAuthActionStateFromError(error, "Unable to update your password.");
     console.error("[auth] resetPasswordAction failure", {
-      rawError: error instanceof Error ? { name: error.name, message: error.message, stack: error.stack } : error,
+      errorInfo: error instanceof Error ? { name: error.name, message: error.message } : "Unknown error",
       returnedAuthError: actionState.message,
       fieldErrors: actionState.fieldErrors,
     });

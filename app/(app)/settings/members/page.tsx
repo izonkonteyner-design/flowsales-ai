@@ -167,7 +167,11 @@ function MemberRow({ member, canManage }: { member: WorkspaceMemberRecord; canMa
       </td>
       <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-300">{member.joined_label}</td>
       <td className="px-4 py-4">
-        {member.role === "owner" ? <StatusBadge tone="success">Protected</StatusBadge> : <StatusBadge tone="neutral">Active</StatusBadge>}
+        {member.role === "owner" ? (
+          <StatusBadge key="protected" tone="success">Protected</StatusBadge>
+        ) : (
+          <StatusBadge key="active" tone="neutral">Active</StatusBadge>
+        )}
       </td>
       <td className="px-4 py-4">
         {canManage ? (

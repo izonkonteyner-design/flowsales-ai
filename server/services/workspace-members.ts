@@ -5,6 +5,7 @@ import { normalizeMemberEmailValue, normalizeMemberSearchValue, type InviteMembe
 import { type InvitationAcceptanceInput, type InvitationLookupInput } from "@/lib/validations/workspace-invitation";
 import { getWorkspaceContext, type WorkspaceContext, type WorkspaceRole } from "@/server/services/workspace-context";
 import { demoTeam } from "@/server/services/workspace-data";
+import { getSiteUrl } from "@/server/env";
 
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
 
@@ -72,7 +73,7 @@ export type InviteWorkspaceMemberResult = {
 };
 
 export function getAppOrigin() {
-  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  return getSiteUrl();
 }
 
 function buildInvitationUrl(token: string) {

@@ -4,6 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasSupabaseConfig } from "@/lib/supabase/env";
 import { bootstrapWorkspaceFormSchema, forgotPasswordFormSchema, loginFormSchema, registerFormSchema, resetPasswordFormSchema, type BootstrapWorkspaceFormInput, type ForgotPasswordFormInput, type LoginFormInput, type RegisterFormInput, type ResetPasswordFormInput } from "@/lib/validations/auth";
 import { createAuthActionState, flattenAuthValidationError, getAuthPublicMessageFromError } from "@/server/services/auth-domain";
+import { getSiteUrl } from "@/server/env";
 import type { Organization } from "@/types/crm";
 import type { WorkspaceRole } from "@/server/services/workspace-context";
 
@@ -46,7 +47,7 @@ function normalizeSessionFullName(value: unknown) {
 }
 
 export function getSupabaseOrigin() {
-  return process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  return getSiteUrl();
 }
 
 function serializeAuthError(error: unknown) {

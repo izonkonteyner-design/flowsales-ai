@@ -29,6 +29,7 @@ export default async function AccountPage() {
   const workspace = await getWorkspaceContext();
   const fullName = user.user_metadata?.full_name ?? user.user_metadata?.name ?? user.user_metadata?.display_name ?? "";
   const email = user.email ?? "";
+  const isDemo = email === process.env.DEMO_USER_EMAIL;
 
   return (
     <div className="mx-auto max-w-4xl space-y-8">
@@ -52,6 +53,12 @@ export default async function AccountPage() {
               </div>
             </div>
 
+            {isDemo && (
+              <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-900/10 dark:text-amber-300">
+                Demo mode is read-only. Create your own account to edit profile information.
+              </div>
+            )}
+
             <form action={updateProfileAction} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="full_name" className="text-sm font-medium text-slate-900 dark:text-slate-300">
@@ -63,6 +70,7 @@ export default async function AccountPage() {
                   defaultValue={fullName}
                   placeholder="e.g. John Doe"
                   required
+                  disabled={isDemo}
                   minLength={2}
                   maxLength={64}
                 />
@@ -78,7 +86,7 @@ export default async function AccountPage() {
               </div>
 
               <div className="pt-4">
-                <Button type="submit">Save Changes</Button>
+                <Button type="submit" disabled={isDemo}>Save Changes</Button>
               </div>
             </form>
           </section>

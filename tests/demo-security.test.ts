@@ -168,4 +168,21 @@ describe("Demo Security & Migration Verification", () => {
     assert.ok(sql.includes("INSERT INTO public.contacts ("));
     assert.ok(sql.includes("full_name, company, email, phone, city"));
   });
+
+  it("demo user profile page disables form fields and shows a banner", async () => {
+    const pagePath = path.join(process.cwd(), "app/(app)/account/page.tsx");
+    const pageTsx = fs.readFileSync(pagePath, "utf-8");
+    
+    // Verify it detects the demo account
+    assert.ok(pageTsx.includes("const isDemo = email === process.env.DEMO_USER_EMAIL;"));
+    
+    // Verify it shows the read-only banner
+    assert.ok(pageTsx.includes("Demo mode is read-only. Create your own account to edit profile information."));
+    
+    // Verify it disables the input field
+    assert.ok(pageTsx.includes("disabled={isDemo}"));
+    
+    // Verify it disables the submit button
+    assert.ok(pageTsx.includes("<Button type=\"submit\" disabled={isDemo}>Save Changes</Button>"));
+  });
 });

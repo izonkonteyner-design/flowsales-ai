@@ -214,12 +214,11 @@ export async function startDemoAction() {
   const env = getRequiredSupabaseEnv();
   const client = await createSupabaseServerClient();
   if (!client) {
-    const missing = !env.configured ? env.missing.join(",") : "unknown";
     logDemoActionStage("admin_config", {
       returnedAuthError: "Authentication not configured.",
       missingEnv: !env.configured ? env.missing : [],
     });
-    redirect(`/login?toast=Authentication%20not%20configured:%20Missing%20${missing}&tone=danger`);
+    redirect("/login?toast=Authentication%20not%20configured&tone=danger");
   }
 
   const email = process.env.DEMO_USER_EMAIL;

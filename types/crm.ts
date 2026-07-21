@@ -4,6 +4,8 @@ export type Organization = {
   slug: string;
   currency: string;
   role: "owner" | "admin" | "sales" | "viewer";
+  onboarding_completed_at?: string | null;
+  industry?: string | null;
   logo_url?: string | null;
   logo_path?: string | null;
   legal_name?: string | null;

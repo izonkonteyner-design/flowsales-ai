@@ -8,8 +8,8 @@ export default function LeadsLoading() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, index) => (
-          <div key={index} className="h-28 animate-pulse rounded-3xl bg-slate-200 dark:bg-white/10" />
+        {['lead-skel-1', 'lead-skel-2', 'lead-skel-3', 'lead-skel-4'].map((id) => (
+          <div key={id} className="h-28 animate-pulse rounded-3xl bg-slate-200 dark:bg-white/10" />
         ))}
       </div>
 

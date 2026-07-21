@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Plus, Save, Sparkles, Trash2 } from "lucide-react";
 
 import { SectionCard } from "@/components/shared/section-card";
@@ -201,7 +202,7 @@ export function QuoteForm({
   }
 
   function addLine() {
-    setLines((current) => [...current, makeLine(`line-${current.length + 1}`, initialCurrency, initialTaxRate, { sort_order: current.length })]);
+    setLines((current) => [...current, makeLine(`line-${crypto.randomUUID()}`, initialCurrency, initialTaxRate, { sort_order: current.length })]);
   }
 
   function removeLine(index: number) {
@@ -234,7 +235,16 @@ export function QuoteForm({
       >
         {!canMutate ? (
           <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-            {readOnlyMessage ?? "This record is read-only."}
+            <p className="font-medium">Demo mode is read only.</p>
+            <p className="mt-1">{readOnlyMessage ?? "This record is read-only."}</p>
+            <div className="mt-3">
+              <Link
+                href="/register"
+                className="inline-flex h-9 items-center rounded-xl bg-amber-900 px-4 text-xs font-medium text-amber-50 transition hover:bg-amber-950 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-50"
+              >
+                Create your own account
+              </Link>
+            </div>
           </div>
         ) : null}
 
@@ -395,7 +405,11 @@ export function QuoteForm({
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <StatusBadge tone="neutral">Line {index + 1}</StatusBadge>
-                      {line.product_id ? <Badge variant="secondary">Product linked</Badge> : <Badge variant="secondary">Manual line</Badge>}
+                      {line.product_id ? (
+                        <Badge key="product-linked" variant="secondary">Product linked</Badge>
+                      ) : (
+                        <Badge key="manual-line" variant="secondary">Manual line</Badge>
+                      )}
                     </div>
                     <button
                       type="button"

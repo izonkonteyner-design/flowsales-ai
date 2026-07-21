@@ -48,8 +48,15 @@ function readQuoteFormInput(formData: FormData): QuoteFormInput {
 
 export async function createQuoteAction(formData: FormData) {
   const redirectTo = readRedirectTo(formData);
-  const input = readQuoteFormInput(formData);
-  const result = await createQuoteRecord(input);
+  let result;
+  try {
+    const input = readQuoteFormInput(formData);
+    result = await createQuoteRecord(input);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to create quote.";
+    redirect(`/quotes/new?toast=${encodeURIComponent(message)}&tone=danger&redirect_to=${encodeURIComponent(redirectTo)}`);
+  }
+
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
   redirect(`/quotes/${result.quote.id}?toast=Quote%20created&tone=success&redirect_to=${encodeURIComponent(redirectTo)}`);
@@ -62,8 +69,15 @@ export async function updateQuoteAction(formData: FormData) {
   }
 
   const redirectTo = readRedirectTo(formData);
-  const input = readQuoteFormInput(formData);
-  const result = await updateQuoteRecord(quoteId, input);
+  let result;
+  try {
+    const input = readQuoteFormInput(formData);
+    result = await updateQuoteRecord(quoteId, input);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to update quote.";
+    redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger&redirect_to=${encodeURIComponent(redirectTo)}`);
+  }
+
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
   revalidatePath(`/quotes/${quoteId}`);
@@ -81,7 +95,13 @@ export async function updateQuoteStatusAction(formData: FormData) {
     throw new Error("Invalid quote status.");
   }
 
-  await updateQuoteStatusRecord(quoteId, status);
+  try {
+    await updateQuoteStatusRecord(quoteId, status);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to update quote status.";
+    redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger`);
+  }
+
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
   revalidatePath(`/quotes/${quoteId}`);
@@ -94,7 +114,14 @@ export async function duplicateQuoteAction(formData: FormData) {
     throw new Error("Quote id is required.");
   }
 
-  const result = await duplicateQuoteRecord(quoteId);
+  let result;
+  try {
+    result = await duplicateQuoteRecord(quoteId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to duplicate quote.";
+    redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger`);
+  }
+
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
   redirect(`/quotes/${result.quote.id}?toast=Quote%20duplicated&tone=success`);
@@ -107,7 +134,13 @@ export async function deleteQuoteAction(formData: FormData) {
   }
 
   const redirectTo = readRedirectTo(formData);
-  await deleteQuoteRecord(quoteId);
+  try {
+    await deleteQuoteRecord(quoteId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to delete quote.";
+    redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger`);
+  }
+
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
   redirect(`${redirectTo}?toast=Quote%20deleted&tone=success`);

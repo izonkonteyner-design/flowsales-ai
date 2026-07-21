@@ -119,7 +119,7 @@ export async function getAuthRouteState(client?: SupabaseServerClient): Promise<
   const { data: organization, error: orgError } = await supabase
     .from("organizations")
     .select(
-      "id, name, slug, currency, logo_url, logo_path, legal_name, website, email, phone, secondary_phone, address_line_1, address_line_2, district, city, postal_code, country, tax_office, tax_number, trade_registry_number, mersis_number, bank_name, bank_branch, iban, account_holder, default_tax_rate, default_payment_terms, default_delivery_terms, default_quote_notes, default_quote_validity_days, quote_footer_text, signature_name, signature_title, company_slogan",
+      "id, name, slug, currency, onboarding_completed_at, industry, logo_url, logo_path, legal_name, website, email, phone, secondary_phone, address_line_1, address_line_2, district, city, postal_code, country, tax_office, tax_number, trade_registry_number, mersis_number, bank_name, bank_branch, iban, account_holder, default_tax_rate, default_payment_terms, default_delivery_terms, default_quote_notes, default_quote_validity_days, quote_footer_text, signature_name, signature_title, company_slogan",
     )
     .eq("id", membership.organization_id)
     .maybeSingle();
@@ -243,6 +243,11 @@ export async function registerWithPassword(client: SupabaseServerClient, input: 
 }
 
 export async function requestPasswordReset(client: SupabaseServerClient, input: ForgotPasswordFormInput) {
+  if (input.email === process.env.DEMO_USER_EMAIL) {
+    // Act like it succeeded to avoid email enumeration, but don't actually send anything
+    return true;
+  }
+
   const { error } = await client.auth.resetPasswordForEmail(input.email, {
     redirectTo: `${getSupabaseOrigin()}/auth/callback?next=/reset-password`,
   });
@@ -266,6 +271,10 @@ export async function updatePassword(client: SupabaseServerClient, input: ResetP
       returnedAuthError: "This reset link is invalid or expired.",
     });
     throw new Error("This reset link is invalid or expired.");
+  }
+
+  if (userData.user.email === process.env.DEMO_USER_EMAIL) {
+    throw new Error("Password resets are disabled for the demo account.");
   }
 
   const { error } = await client.auth.updateUser({

@@ -154,7 +154,7 @@ export function QuoteAiAssistant({ formRef, canMutate, readOnlyMessage, onApplyD
 
         {!isOpen ? (
           <div key="ai-closed" className="flex flex-wrap items-center gap-3">
-            <Button type="button" onClick={() => setIsOpen(true)} variant="outline">
+            <Button type="button" onClick={() => setIsOpen(true)} variant="outline" disabled={!canMutate}>
               <Sparkles className="h-4 w-4" />
               AI ile Taslak Oluştur
             </Button>

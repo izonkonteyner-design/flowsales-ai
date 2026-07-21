@@ -177,7 +177,7 @@ export function AuthForm({ mode, next = "/dashboard" }: AuthFormProps) {
           </>
         ) : null}
 
-        {mode === "login" || mode === "register" ? (
+        {mode === "login" || mode === "register" || mode === "forgot" ? (
           <AuthInput
             label="Email"
             name="email"

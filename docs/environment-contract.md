@@ -29,7 +29,7 @@ These variables are feature-scoped and are validated dynamically only when invok
 ## Site Routing
 
 - `NEXT_PUBLIC_SITE_URL`: The absolute canonical URL of the application. Used for authentication redirects, invite links, and emails.
-  > **Note**: In Vercel deployments, the application will automatically fall back to Vercel's standard system variables (`NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL` -> `NEXT_PUBLIC_VERCEL_URL` -> `VERCEL_URL`) if `NEXT_PUBLIC_SITE_URL` is omitted. For local development, it defaults to `http://localhost:3000`.
+  > **Note**: Runtime URL resolution prefers `NEXT_PUBLIC_SITE_URL`, then `NEXT_PUBLIC_APP_URL`, then Vercel deployment URLs, and finally `http://localhost:3000`.
 
 ## Important Security Rules
 

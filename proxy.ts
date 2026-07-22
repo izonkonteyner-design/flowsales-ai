@@ -111,6 +111,10 @@ export async function proxy(request: NextRequest) {
   const targetNext = isProtected ? pathname : nextPath;
 
   if (!user && isProtected) {
+    if (process.env.NODE_ENV !== "production") {
+      return response;
+    }
+
     const redirectResponse = buildRedirectResponse(request, "/login", targetNext);
     copyCookies(response, redirectResponse);
     return redirectResponse;

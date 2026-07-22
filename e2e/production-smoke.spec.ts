@@ -53,7 +53,7 @@ test.describe('Production Smoke & Security Tests', () => {
 
     // 4. Dashboard
     await page.waitForURL(/.*\/dashboard/);
-    await expect(page.locator('text=Total Revenue').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('text=Workspace snapshot').first()).toBeVisible({ timeout: 10000 });
 
     // 5. Leads
     await page.goto('/leads');
@@ -91,9 +91,8 @@ test.describe('Production Smoke & Security Tests', () => {
     }
 
     // 11. Logout
-    const profileBtn = page.getByRole('button', { name: /account/i }).or(page.locator('button:has-text("Profile")')).first();
-    await profileBtn.click();
-    await page.locator('text="Log out"').click();
+    const signOutBtn = page.locator('button:has-text("Sign Out")').first();
+    await signOutBtn.click();
     await page.waitForURL(/.*\/login/);
   });
 });

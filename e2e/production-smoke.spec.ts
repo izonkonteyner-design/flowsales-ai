@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { assertExactPath, waitAndAssertPath } from './test-utils';
 
 test.describe('Production Smoke & Security Tests', () => {
   let errors: string[] = [];
@@ -44,7 +45,7 @@ test.describe('Production Smoke & Security Tests', () => {
 
     // 2. Login Page
     await page.goto('/login');
-    await expect(page).toHaveURL(/.*\/login/);
+    await assertExactPath(page, '/login');
 
     // 3. Start Demo
     const demoButton = page.getByRole('button', { name: 'Start Demo' }).or(page.locator('button:has-text("Start Demo")')).first();
@@ -52,24 +53,24 @@ test.describe('Production Smoke & Security Tests', () => {
     await demoButton.click();
 
     // 4. Dashboard
-    await page.waitForURL(/.*\/dashboard/);
+    await waitAndAssertPath(page, '/dashboard');
     await expect(page.locator('text=Workspace snapshot').first()).toBeVisible({ timeout: 10000 });
 
     // 5. Leads
     await page.goto('/leads');
-    await expect(page).toHaveURL(/.*\/leads/);
+    await assertExactPath(page, '/leads');
 
     // 6. Customers
     await page.goto('/customers');
-    await expect(page).toHaveURL(/.*\/customers/);
+    await assertExactPath(page, '/customers');
 
     // 7. Products
     await page.goto('/products');
-    await expect(page).toHaveURL(/.*\/products/);
+    await assertExactPath(page, '/products');
 
     // 8. Quotes & Security Check
     await page.goto('/quotes');
-    await expect(page).toHaveURL(/.*\/quotes/);
+    await assertExactPath(page, '/quotes');
     await page.goto('/quotes/new');
     
     // In demo mode, quote creation should be disabled
@@ -80,11 +81,11 @@ test.describe('Production Smoke & Security Tests', () => {
 
     // 9. AI
     await page.goto('/ai');
-    await expect(page).toHaveURL(/.*\/ai/);
+    await assertExactPath(page, '/ai');
 
     // 10. Account & Security Check
     await page.goto('/account');
-    await expect(page).toHaveURL(/.*\/account/);
+    await assertExactPath(page, '/account');
     const firstNameInput = page.locator('input[name="firstName"]');
     if (await firstNameInput.isVisible()) {
       await expect(firstNameInput).toBeDisabled();
@@ -92,8 +93,9 @@ test.describe('Production Smoke & Security Tests', () => {
 
     // 11. Logout
     await page.goto('/account');
+    await assertExactPath(page, '/account'); // Ensure we are authenticated
     const signOutBtn = page.locator('button:has-text("Sign Out")').first();
     await signOutBtn.click();
-    await page.waitForURL(/.*\/login/);
+    await waitAndAssertPath(page, '/login');
   });
 });

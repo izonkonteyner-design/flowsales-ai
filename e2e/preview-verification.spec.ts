@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { assertExactPath } from './test-utils';
 
 type CapturedResponse = {
   url: string;
@@ -43,40 +44,31 @@ test("Verify Preview Deployment and Capture Evidence", async ({ page }) => {
   console.log(`Testing URL: ${process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000"}`);
 
   await page.goto("/login");
-  await expect(page).toHaveURL(/.*\/login/);
+  await assertExactPath(page, '/login');
 
   const demoButton = page.getByRole("button", { name: "Start Demo" });
   await expect(demoButton).toBeVisible();
   await Promise.all([
-    page.waitForURL(/.*\/(dashboard|login).*/),
+    page.waitForURL((url) => url.pathname === '/dashboard' || url.pathname === '/login', { timeout: 15000 }),
     demoButton.click(),
   ]);
 
   const finalUrl = page.url();
   console.log(`Final URL after demo click: ${finalUrl}`);
+  await assertExactPath(page, '/dashboard');
 
-  if (finalUrl.includes("/login")) {
-    const errorToast = await page
-      .locator('.toast, [role="alert"], .text-destructive, .bg-destructive')
-      .first()
-      .textContent()
-      .catch(() => null);
-    console.log(`Demo failed, redirected to login. Error message: ${errorToast ?? "unknown"}`);
-  } else {
-    await expect(page).toHaveURL(/.*\/dashboard/);
-    await expect(page.locator('text=Total Revenue').first()).toBeVisible({ timeout: 5000 });
+  await expect(page.locator('text=Total Revenue').first()).toBeVisible({ timeout: 5000 });
 
-    await page.goto("/account");
-    await expect(page).toHaveURL(/.*\/account/);
-    await expect(page.locator("input[name='full_name']").first()).toBeDisabled();
+  await page.goto("/account");
+  await assertExactPath(page, '/account');
+  await expect(page.locator("input[name='full_name']").first()).toBeDisabled();
 
-    await page.goto("/quotes/new");
-    await expect(page).toHaveURL(/.*\/quotes\/new/);
-    await expect(page.locator("button:has-text('Create quote'), button:has-text('Save changes')").first()).toBeDisabled();
+  await page.goto("/quotes/new");
+  await assertExactPath(page, '/quotes/new');
+  await expect(page.locator("button:has-text('Create quote'), button:has-text('Save changes')").first()).toBeDisabled();
 
-    await page.goto("/login");
-    await expect(page).toHaveURL(/.*\/login/);
-  }
+  await page.goto("/login");
+  await assertExactPath(page, '/login');
 
   console.log("=== TEST EVIDENCE ===");
   console.log("Browser Console Errors:", JSON.stringify(consoleErrors, null, 2));

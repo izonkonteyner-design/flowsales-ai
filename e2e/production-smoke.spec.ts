@@ -91,6 +91,7 @@ test.describe('Production Smoke & Security Tests', () => {
     }
 
     // 11. Logout
+    await page.goto('/account');
     const signOutBtn = page.locator('button:has-text("Sign Out")').first();
     await signOutBtn.click();
     await page.waitForURL(/.*\/login/);

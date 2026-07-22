@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
 export default defineConfig({
   testDir: './e2e',
@@ -13,7 +15,8 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     extraHTTPHeaders: {
-      'x-forwarded-for': `127.0.0.${Math.floor(Math.random() * 255)}`
+      'x-forwarded-for': `127.0.0.${Math.floor(Math.random() * 255)}`,
+      ...(process.env.E2E_RATE_LIMIT_BYPASS_SECRET ? { 'x-e2e-bypass': process.env.E2E_RATE_LIMIT_BYPASS_SECRET } : {})
     }
   },
   projects: [

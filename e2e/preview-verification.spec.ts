@@ -7,7 +7,7 @@ type CapturedResponse = {
   body: unknown;
 };
 
-test("Verify Preview Deployment and Capture Evidence", async ({ page }) => {
+test("Verify Preview Deployment and Capture Evidence @production", async ({ page }) => {
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
   const networkResponses: CapturedResponse[] = [];

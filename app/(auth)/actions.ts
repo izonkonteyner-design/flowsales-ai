@@ -281,27 +281,50 @@ export async function startDemoAction() {
     redirect("/login?toast=Service%20temporarily%20unavailable.&tone=danger");
   }
 
-  const { data: allowed, error: rlError } = await adminClient.rpc("check_demo_rate_limit", {
-    p_identifier: identifier,
+  let allowed = true;
+  let rlError = null;
+
+  // We are running E2E tests locally or in preview, we want a safe bypass.
+  // The 'x-e2e-force-fail' header allows the negative E2E test to simulate exhaustion.
+  const isForceFail = headersList.get("x-e2e-force-fail") === "true" && process.env.NODE_ENV !== "production";
+  const isE2EBypass = !!process.env.E2E_RATE_LIMIT_BYPASS_SECRET && process.env.NODE_ENV !== "production";
+  console.log("DEBUG E2E BYPASS:", { 
+    isForceFail, 
+    isE2EBypass, 
+    bypassSecret: !!process.env.E2E_RATE_LIMIT_BYPASS_SECRET,
+    nodeEnv: process.env.NODE_ENV 
   });
 
-  if (rlError) {
-    logDemoActionStage("rate_limit", {
-      name: rlError.name,
-      message: rlError.message,
-      code: rlError.code,
-      returnedAuthError: "Service temporarily unavailable.",
-    });
-    if (isProduction) {
-      redirect("/login?toast=Service%20temporarily%20unavailable.&tone=danger");
-    }
-  }
-
-  if (allowed === false) {
+  if (isForceFail) {
     logDemoActionStage("rate_limit", {
       returnedAuthError: "Too many requests. Please try again later.",
     });
     redirect("/login?toast=Too%20many%20requests.%20Please%20try%20again%20later.&tone=danger");
+  } else if (!isE2EBypass) {
+    const { data: dbAllowed, error: dbError } = await adminClient.rpc("check_demo_rate_limit", {
+      p_identifier: identifier,
+    });
+    allowed = dbAllowed;
+    rlError = dbError;
+
+    if (rlError) {
+      logDemoActionStage("rate_limit", {
+        name: rlError.name,
+        message: rlError.message,
+        code: rlError.code,
+        returnedAuthError: "Service temporarily unavailable.",
+      });
+      if (isProduction) {
+        redirect("/login?toast=Service%20temporarily%20unavailable.&tone=danger");
+      }
+    }
+
+    if (allowed === false) {
+      logDemoActionStage("rate_limit", {
+        returnedAuthError: "Too many requests. Please try again later.",
+      });
+      redirect("/login?toast=Too%20many%20requests.%20Please%20try%20again%20later.&tone=danger");
+    }
   }
 
   const { error } = await client.auth.signInWithPassword({
@@ -310,6 +333,7 @@ export async function startDemoAction() {
   });
 
   if (error) {
+    console.error("DEBUG E2E: signInWithPassword failed", error);
     logDemoActionStage("demo_auth", {
       name: error.name,
       message: error.message,

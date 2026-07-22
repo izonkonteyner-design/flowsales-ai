@@ -15,9 +15,11 @@ export async function assertExactPath(page: Page, expectedPath: string) {
 }
 
 export async function waitAndAssertPath(page: Page, expectedPath: string) {
-  // Wait for either the expected path or a fallback to login
+  // Wait for either the expected path or a fallback to login with an error toast
   await page.waitForURL((url) => {
-    return url.pathname === expectedPath || url.pathname === '/login';
+    if (url.pathname === expectedPath) return true;
+    if (expectedPath !== '/login' && url.pathname === '/login' && url.searchParams.has('toast')) return true;
+    return false;
   }, { timeout: 15000 });
   
   await assertExactPath(page, expectedPath);

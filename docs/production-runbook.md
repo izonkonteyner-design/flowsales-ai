@@ -4,7 +4,7 @@ This runbook contains operational guidelines for maintaining and troubleshooting
 
 ## 1. Environment Variables Configuration
 
-The application requires strict environment variable configuration. Missing critical variables will cause the Health Endpoint to return `status: error`.
+The application requires strict environment variable configuration for authenticated and protected features. The public health endpoint stays lightweight and cacheable, while the protected health probe requires the internal secret and Supabase admin access.
 
 ### Critical Variables
 * `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL.
@@ -26,7 +26,7 @@ The application requires strict environment variable configuration. Missing crit
 
 ## 2. Production Health Endpoint
 
-The application exposes a health check endpoint at `/api/health`.
+The application exposes a public liveness endpoint at `/api/health` and a protected database probe at `/api/health/internal`.
 
 ### Response Schema
 
@@ -36,9 +36,9 @@ The application exposes a health check endpoint at `/api/health`.
 }
 ```
 
-* `status`: `ok` (Fully healthy), `degraded` (Rate limited or partial availability), `error` (Core systems down).
-* The public endpoint intentionally returns only a minimal payload and includes `Cache-Control: no-store`.
-* Internal diagnostics should be captured through server logs or a protected health endpoint.
+* Public `/api/health` always returns `{"status":"ok"}` and is safe to cache at the edge.
+* Protected `/api/health/internal` returns `ok`, `degraded`, or `error` and requires `HEALTH_CHECK_SECRET`.
+* Both endpoints keep responses minimal and never expose raw database errors, stack traces, or secrets.
 
 ## 3. Playwright Smoke Tests
 
@@ -57,7 +57,7 @@ If `status: error` or users report issues:
 
 1. **Verify Environment Variables**: Use the Vercel Dashboard to ensure no environment variables were recently deleted.
 2. **Check Sentry**: Open Sentry to view structured error reports. `lib/logger.ts` ensures passwords and tokens are redacted.
-3. **Database Health**: Verify Supabase is responsive and the `health_check()` RPC exists.
+3. **Database Health**: Verify Supabase is responsive and the `health_check()` RPC exists for `/api/health/internal`.
    * *Resolution*: Run the idempotent migration `supabase db push`.
 4. **Demo Mode Failure**: If demo login is unavailable, verify `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_RATE_LIMIT_SECRET` in Vercel and review server logs for the logged stage only.
 

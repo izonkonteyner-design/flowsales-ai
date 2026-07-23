@@ -72,6 +72,9 @@ test.describe('Production Smoke & Security Tests', () => {
     await page.goto('/quotes');
     await assertExactPath(page, '/quotes');
     await page.goto('/quotes/new');
+    await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/\/quotes\/new$/);
+    await expect(page.getByRole('heading', { name: 'New quote' }).first()).toBeVisible();
     
     // In demo mode, quote creation should be disabled
     const saveQuoteBtn = page.locator('button:has-text("Save")').first();

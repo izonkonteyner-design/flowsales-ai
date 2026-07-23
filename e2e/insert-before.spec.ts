@@ -61,7 +61,9 @@ test('navigate routes and assert demo lock-downs and no insertBefore crashes', a
   // 3. /quotes/new
   console.log('Navigating to Quotes New...');
   await page.goto('/quotes/new');
-  await expect(page.locator('text=New quote').first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await expect(page).toHaveURL(/\/quotes\/new$/);
+  await expect(page.getByRole('heading', { name: 'New quote' }).first()).toBeVisible();
   // - read-only banner visible
   await expect(page.locator('text=Demo mode is read only').first()).toBeVisible();
   // - all text/select/number inputs disabled

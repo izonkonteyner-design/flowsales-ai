@@ -3,80 +3,223 @@ import assert from "node:assert/strict";
 
 import { NextRequest } from "next/server";
 
-import { GET } from "@/app/api/health/route";
+import { GET as publicHealthGET } from "@/app/api/health/route";
+import { GET as internalHealthGET } from "@/app/api/health/internal/route";
+import {
+  handleInternalHealthProbe,
+  resetInternalHealthRateLimitForTests,
+} from "@/server/services/health";
 
-function makeRequest(headersInit: HeadersInit = {}) {
+function makeRequest(
+  url: string,
+  headersInit: HeadersInit = {},
+) {
   const headers = new Headers(headersInit);
-  return new NextRequest("http://localhost/api/health", { headers });
+  return new NextRequest(url, { headers });
 }
 
-test("health endpoint returns a minimal public payload and no-store headers", async () => {
-  const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const originalSupabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+function snapshotEnv(keys: string[]) {
+  return Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+}
+
+function restoreEnv(snapshot: Record<string, string | undefined>) {
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+}
+
+test("public health endpoint returns a minimal cacheable liveness payload", async () => {
+  const envSnapshot = snapshotEnv([
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "HEALTH_CHECK_SECRET",
+  ]);
 
   try {
     delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.HEALTH_CHECK_SECRET;
 
-    const response = await GET(makeRequest());
-    const body = await response.json() as { status: string };
+    const response = await publicHealthGET();
+    const body = (await response.json()) as { status: string };
 
-    assert.equal(response.headers.get("cache-control"), "no-store, max-age=0, must-revalidate");
-    assert.equal(body.status, "error");
+    assert.equal(response.status, 200);
+    assert.equal(body.status, "ok");
     assert.equal(Object.keys(body).length, 1);
+    assert.match(response.headers.get("cache-control") ?? "", /public/);
+    assert.match(response.headers.get("cache-control") ?? "", /s-maxage=30/);
+    assert.match(response.headers.get("cache-control") ?? "", /stale-while-revalidate=300/);
+    assert.equal(response.headers.get("pragma"), "no-cache");
   } finally {
-    if (originalSupabaseUrl === undefined) {
-      delete process.env.NEXT_PUBLIC_SUPABASE_URL;
-    } else {
-      process.env.NEXT_PUBLIC_SUPABASE_URL = originalSupabaseUrl;
-    }
-
-    if (originalSupabaseKey === undefined) {
-      delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-    } else {
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalSupabaseKey;
-    }
-
-    delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    restoreEnv(envSnapshot);
   }
 });
 
-test("health endpoint performs DB probe only with valid HEALTH_CHECK_SECRET", async () => {
+test("internal health probe rejects wrong or replayed credentials before probing the database", async () => {
+  resetInternalHealthRateLimitForTests();
+
+  const request = makeRequest("http://localhost/api/health/internal", {
+    authorization: "Bearer wrong-secret",
+  });
+
+  let probeCalled = 0;
+  const response = await handleInternalHealthProbe(
+    request,
+    async () => {
+      probeCalled += 1;
+      return true;
+    },
+    "super-secret-health",
+  );
+
+  const body = (await response.json()) as { status: string };
+
+  assert.equal(response.status, 404);
+  assert.equal(body.status, "error");
+  assert.equal(probeCalled, 0);
+});
+
+test("service role credentials are not accepted as internal health auth", async () => {
+  resetInternalHealthRateLimitForTests();
+
+  const request = makeRequest("http://localhost/api/health/internal", {
+    authorization: "Bearer fake-service-role-key",
+  });
+
+  let probeCalled = 0;
+  const response = await handleInternalHealthProbe(
+    request,
+    async () => {
+      probeCalled += 1;
+      return true;
+    },
+    "super-secret-health",
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(probeCalled, 0);
+});
+
+test("internal health probe succeeds with the shared secret and fails closed on probe errors", async () => {
+  resetInternalHealthRateLimitForTests();
+
+  const successRequest = makeRequest("http://localhost/api/health/internal", {
+    "x-health-check-secret": "super-secret-health",
+    "x-forwarded-for": "203.0.113.15",
+  });
+
+  let successProbeCalled = 0;
+  const successResponse = await handleInternalHealthProbe(
+    successRequest,
+    async () => {
+      successProbeCalled += 1;
+      return true;
+    },
+    "super-secret-health",
+  );
+
+  const successBody = (await successResponse.json()) as { status: string };
+  assert.equal(successResponse.status, 200);
+  assert.equal(successBody.status, "ok");
+  assert.equal(successProbeCalled, 1);
+
+  const failureRequest = makeRequest("http://localhost/api/health/internal", {
+    "x-health-check-secret": "super-secret-health",
+    "x-forwarded-for": "203.0.113.16",
+  });
+
+  const failureResponse = await handleInternalHealthProbe(
+    failureRequest,
+    async () => {
+      throw new Error("database exploded");
+    },
+    "super-secret-health",
+  );
+
+  const failureBody = (await failureResponse.json()) as { status: string };
+  assert.equal(failureResponse.status, 503);
+  assert.equal(failureBody.status, "error");
+  assert.equal(Object.keys(failureBody).length, 1);
+  assert.equal(JSON.stringify(failureBody).includes("database exploded"), false);
+  assert.equal(JSON.stringify(failureBody).includes("super-secret-health"), false);
+});
+
+test("internal health probe rate limits repeated requests and reports retry-after", async () => {
+  resetInternalHealthRateLimitForTests();
+
+  const attempts: number[] = [];
+  const request = makeRequest("http://localhost/api/health/internal", {
+    "x-health-check-secret": "super-secret-health",
+    "x-forwarded-for": "198.51.100.11",
+  });
+
+  for (let index = 0; index < 5; index += 1) {
+    const response = await handleInternalHealthProbe(
+      request,
+      async () => {
+        attempts.push(index);
+        return true;
+      },
+      "super-secret-health",
+    );
+
+    assert.equal(response.status, 200);
+  }
+
+  const limitedResponse = await handleInternalHealthProbe(
+    request,
+    async () => {
+      attempts.push(99);
+      return true;
+    },
+    "super-secret-health",
+  );
+
+  const limitedBody = (await limitedResponse.json()) as { status: string };
+  assert.equal(limitedResponse.status, 429);
+  assert.equal(limitedBody.status, "degraded");
+  assert.ok((limitedResponse.headers.get("retry-after") ?? "").length > 0);
+  assert.equal(attempts.includes(99), false);
+});
+
+test("route wrapper still rejects invalid internal auth without surfacing details", async () => {
+  resetInternalHealthRateLimitForTests();
+
+  const originalSecret = process.env.HEALTH_CHECK_SECRET;
   const originalSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const originalSupabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  const originalServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const originalHealthSecret = process.env.HEALTH_CHECK_SECRET;
 
   try {
-    process.env.NEXT_PUBLIC_SUPABASE_URL = "http://fake-url.local";
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "fake-key";
-    process.env.SUPABASE_SERVICE_ROLE_KEY = "fake-service-key";
     process.env.HEALTH_CHECK_SECRET = "super-secret-health";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "fake-public-key";
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    // 1. Without secret, just liveness (200 OK)
-    const resPublic = await GET(makeRequest());
-    assert.equal(resPublic.status, 200);
-    const bodyPublic = (await resPublic.json()) as { status: string };
-    assert.equal(bodyPublic.status, "ok");
+    const response = await internalHealthGET(
+      makeRequest("http://localhost/api/health/internal", {
+        authorization: "Bearer wrong-secret",
+      }),
+    );
 
-    // 2. With wrong secret, just liveness (200 OK) - should not reveal failure
-    const resWrong = await GET(makeRequest({ authorization: "Bearer wrong-secret" }));
-    assert.equal(resWrong.status, 200);
-    
-    // 3. With SUPABASE_SERVICE_ROLE_KEY as auth header, just liveness (200 OK)
-    const resServiceRole = await GET(makeRequest({ authorization: "Bearer fake-service-key" }));
-    assert.equal(resServiceRole.status, 200);
-
-    // 4. With correct secret (authorization header), attempts DB probe
-    const resProtectedAuth = await GET(makeRequest({ authorization: "Bearer super-secret-health" }));
-    assert.equal(resProtectedAuth.status, 503); // Fails because URL is fake and RPC fails
-
-    // 5. With correct secret (x-health-check-secret header), attempts DB probe
-    const resProtectedCustom = await GET(makeRequest({ "x-health-check-secret": "super-secret-health" }));
-    assert.equal(resProtectedCustom.status, 503); // Fails because URL is fake and RPC fails
-    
+    const body = (await response.json()) as { status: string };
+    assert.equal(response.status, 404);
+    assert.equal(body.status, "error");
+    assert.equal(Object.keys(body).length, 1);
   } finally {
+    if (originalSecret === undefined) {
+      delete process.env.HEALTH_CHECK_SECRET;
+    } else {
+      process.env.HEALTH_CHECK_SECRET = originalSecret;
+    }
+
     if (originalSupabaseUrl === undefined) {
       delete process.env.NEXT_PUBLIC_SUPABASE_URL;
     } else {
@@ -87,18 +230,6 @@ test("health endpoint performs DB probe only with valid HEALTH_CHECK_SECRET", as
       delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
     } else {
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = originalSupabaseKey;
-    }
-
-    if (originalServiceRoleKey === undefined) {
-      delete process.env.SUPABASE_SERVICE_ROLE_KEY;
-    } else {
-      process.env.SUPABASE_SERVICE_ROLE_KEY = originalServiceRoleKey;
-    }
-
-    if (originalHealthSecret === undefined) {
-      delete process.env.HEALTH_CHECK_SECRET;
-    } else {
-      process.env.HEALTH_CHECK_SECRET = originalHealthSecret;
     }
   }
 });

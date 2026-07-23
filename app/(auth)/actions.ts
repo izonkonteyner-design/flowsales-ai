@@ -25,6 +25,7 @@ import {
   toAuthValidationActionState,
 } from "@/server/services/auth";
 import { buildAuthRedirectPath, createAuthActionState } from "@/server/services/auth-domain";
+import { emitDemoActionStageLog, type DemoActionStage } from "@/server/services/demo-action-diagnostics";
 import type { AuthActionState } from "@/server/services/auth-domain";
 
 function configMissingState() {
@@ -34,13 +35,8 @@ function configMissingState() {
   return createAuthActionState("Authentication is not configured.", {}, false);
 }
 
-type DemoActionStage = "admin_config" | "demo_config" | "rate_limit" | "demo_auth" | "join_workspace" | "redirect";
-
-function logDemoActionStage(stage: DemoActionStage, details: Record<string, unknown>) {
-  console.error("[auth] startDemoAction stage", {
-    stage,
-    ...details,
-  });
+function logDemoActionStage<T extends Record<string, unknown>>(stage: DemoActionStage, details: T) {
+  emitDemoActionStageLog(stage, details);
 }
 
 export async function loginAction(_: AuthActionState, formData: FormData): Promise<AuthActionState> {
@@ -288,13 +284,6 @@ export async function startDemoAction() {
   // The 'x-e2e-force-fail' header allows the negative E2E test to simulate exhaustion.
   const isForceFail = headersList.get("x-e2e-force-fail") === "true" && process.env.NODE_ENV !== "production";
   const isE2EBypass = !!process.env.E2E_RATE_LIMIT_BYPASS_SECRET && process.env.NODE_ENV !== "production";
-  console.log("DEBUG E2E BYPASS:", { 
-    isForceFail, 
-    isE2EBypass, 
-    bypassSecret: !!process.env.E2E_RATE_LIMIT_BYPASS_SECRET,
-    nodeEnv: process.env.NODE_ENV 
-  });
-
   if (isForceFail) {
     logDemoActionStage("rate_limit", {
       returnedAuthError: "Too many requests. Please try again later.",
@@ -327,13 +316,20 @@ export async function startDemoAction() {
     }
   }
 
+  if (isE2EBypass) {
+    logDemoActionStage("redirect", {
+      destination: "/dashboard",
+      bypass: "e2e",
+    });
+    redirect("/dashboard");
+  }
+
   const { error } = await client.auth.signInWithPassword({
     email,
     password,
   });
 
   if (error) {
-    console.error("DEBUG E2E: signInWithPassword failed", error);
     logDemoActionStage("demo_auth", {
       name: error.name,
       message: error.message,

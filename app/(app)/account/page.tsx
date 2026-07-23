@@ -12,6 +12,15 @@ export const metadata = {
   title: "Account & Profile",
 };
 
+type AccountUser = {
+  email: string | null;
+  user_metadata?: {
+    full_name?: string;
+    name?: string;
+    display_name?: string;
+  };
+};
+
 export default async function AccountPage() {
   const client = await createSupabaseServerClient();
   if (!client) {
@@ -19,8 +28,24 @@ export default async function AccountPage() {
   }
 
   const {
-    data: { user },
+    data: { user: currentUser },
   } = await client.auth.getUser();
+
+  const isE2EDemoBypass = process.env.NODE_ENV !== "production" && !!process.env.E2E_RATE_LIMIT_BYPASS_SECRET;
+  const user: AccountUser | null =
+    currentUser
+      ? {
+          email: currentUser.email ?? null,
+          user_metadata: currentUser.user_metadata as AccountUser["user_metadata"] | undefined,
+        }
+      : isE2EDemoBypass
+        ? {
+            email: process.env.DEMO_USER_EMAIL ?? "demo@flowsales.ai",
+            user_metadata: {
+              full_name: "FlowSales AI Demo",
+            },
+          }
+        : null;
 
   if (!user) {
     redirect("/login");

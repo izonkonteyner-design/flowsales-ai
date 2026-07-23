@@ -282,8 +282,13 @@ export async function startDemoAction() {
 
   // We are running E2E tests locally or in preview, we want a safe bypass.
   // The 'x-e2e-force-fail' header allows the negative E2E test to simulate exhaustion.
+  const requestBypassSecret = headersList.get("x-e2e-bypass");
   const isForceFail = headersList.get("x-e2e-force-fail") === "true" && process.env.NODE_ENV !== "production";
-  const isE2EBypass = !!process.env.E2E_RATE_LIMIT_BYPASS_SECRET && process.env.NODE_ENV !== "production";
+  const isE2EBypass =
+    !!requestBypassSecret &&
+    !!process.env.E2E_RATE_LIMIT_BYPASS_SECRET &&
+    requestBypassSecret === process.env.E2E_RATE_LIMIT_BYPASS_SECRET &&
+    process.env.NODE_ENV !== "production";
   if (isForceFail) {
     logDemoActionStage("rate_limit", {
       returnedAuthError: "Too many requests. Please try again later.",
@@ -316,12 +321,11 @@ export async function startDemoAction() {
     }
   }
 
+  // Bypass skips the rate limit check, but we MUST STILL authenticate the user below.
   if (isE2EBypass) {
-    logDemoActionStage("redirect", {
-      destination: "/dashboard",
+    logDemoActionStage("rate_limit_bypass", {
       bypass: "e2e",
     });
-    redirect("/dashboard");
   }
 
   const { error } = await client.auth.signInWithPassword({

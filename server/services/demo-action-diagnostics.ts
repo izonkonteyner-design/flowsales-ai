@@ -1,4 +1,11 @@
-export type DemoActionStage = "admin_config" | "demo_config" | "rate_limit" | "demo_auth" | "join_workspace" | "redirect";
+export type DemoActionStage =
+  | "admin_config"
+  | "demo_config"
+  | "rate_limit"
+  | "rate_limit_bypass"
+  | "demo_auth"
+  | "join_workspace"
+  | "redirect";
 
 export function buildDemoActionStagePayload<T extends Record<string, unknown>>(stage: DemoActionStage, details: T) {
   return {

@@ -47,14 +47,17 @@ npm run dev
 Required for auth and live Supabase data:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
 
 Optional:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `OPENAI_API_KEY`
-- `STRIPE_SECRET_KEY`
-- `NEXT_PUBLIC_APP_URL`
+- `GEMINI_API_KEY`
+- `NEXT_PUBLIC_SENTRY_DSN`
+- `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, `DEMO_RATE_LIMIT_SECRET`
+- `NEXT_PUBLIC_SITE_URL` (or `NEXT_PUBLIC_APP_URL`)
+
+See [docs/production-runbook.md](./docs/production-runbook.md) for detailed configuration rules.
 
 ## Database
 
@@ -67,11 +70,12 @@ npm run lint
 npm run typecheck
 npm run test
 npm run build
+npm run test:e2e
 ```
 
 ## Deployment
 
-Deploy to Vercel with the environment variables above. See [docs/deployment.md](./docs/deployment.md) for the checklist.
+Deploy to Vercel with the environment variables above. See [docs/production-runbook.md](./docs/production-runbook.md) for the operational checklist.
 
 ## Limitations
 

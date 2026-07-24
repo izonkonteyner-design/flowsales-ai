@@ -8,6 +8,7 @@ import {
   mapAuthProviderError,
 } from "@/server/services/auth-domain";
 import { getSupabaseOrigin } from "@/server/services/auth";
+import { getSiteUrl } from "@/server/env";
 import {
   bootstrapWorkspaceFormSchema,
   forgotPasswordFormSchema,
@@ -82,26 +83,66 @@ test("auth redirect helpers block unsafe targets", () => {
   assert.equal(buildAuthRedirectPath("//example.com", "/dashboard"), "/dashboard");
 });
 
-test("auth origin resolves NEXT_PUBLIC_SITE_URL when NEXT_PUBLIC_APP_URL is missing", () => {
-  const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+test("auth origin resolves site URL fallbacks in the documented order", () => {
   const originalSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const originalAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  const originalProjectUrl = process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL;
+  const originalVercelUrl = process.env.NEXT_PUBLIC_VERCEL_URL;
+  const originalRootVercelUrl = process.env.VERCEL_URL;
 
   try {
-    delete process.env.NEXT_PUBLIC_APP_URL;
-    process.env.NEXT_PUBLIC_SITE_URL = "https://example.com";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://site.example";
+    process.env.NEXT_PUBLIC_APP_URL = "https://app.example";
+    process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL = "project.example";
+    process.env.NEXT_PUBLIC_VERCEL_URL = "https://preview.example";
+    process.env.VERCEL_URL = "root.example";
 
-    assert.equal(getSupabaseOrigin(), "https://example.com");
+    assert.equal(getSiteUrl(), "https://site.example");
+    assert.equal(getSupabaseOrigin(), "https://site.example");
+
+    delete process.env.NEXT_PUBLIC_SITE_URL;
+    assert.equal(getSiteUrl(), "https://app.example");
+
+    delete process.env.NEXT_PUBLIC_APP_URL;
+    assert.equal(getSiteUrl(), "https://project.example");
+
+    delete process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL;
+    assert.equal(getSiteUrl(), "https://preview.example");
+
+    delete process.env.NEXT_PUBLIC_VERCEL_URL;
+    assert.equal(getSiteUrl(), "https://root.example");
+
+    delete process.env.VERCEL_URL;
+    assert.equal(getSiteUrl(), "http://localhost:3000");
   } finally {
+    if (originalSiteUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_SITE_URL;
+    } else {
+      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+    }
+
     if (originalAppUrl === undefined) {
       delete process.env.NEXT_PUBLIC_APP_URL;
     } else {
       process.env.NEXT_PUBLIC_APP_URL = originalAppUrl;
     }
 
-    if (originalSiteUrl === undefined) {
-      delete process.env.NEXT_PUBLIC_SITE_URL;
+    if (originalProjectUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL;
     } else {
-      process.env.NEXT_PUBLIC_SITE_URL = originalSiteUrl;
+      process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL = originalProjectUrl;
+    }
+
+    if (originalVercelUrl === undefined) {
+      delete process.env.NEXT_PUBLIC_VERCEL_URL;
+    } else {
+      process.env.NEXT_PUBLIC_VERCEL_URL = originalVercelUrl;
+    }
+
+    if (originalRootVercelUrl === undefined) {
+      delete process.env.VERCEL_URL;
+    } else {
+      process.env.VERCEL_URL = originalRootVercelUrl;
     }
   }
 });

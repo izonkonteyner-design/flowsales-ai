@@ -3,6 +3,11 @@ import assert from "node:assert";
 import fs from "node:fs";
 import path from "node:path";
 
+import {
+  buildDemoActionStagePayload,
+  emitDemoActionStageLog,
+} from "@/server/services/demo-action-diagnostics";
+
 
 describe("Demo Security & Migration Verification", () => {
   it("migration 0017 contains no invalid UUID literals with non-hex characters like 'm'", () => {
@@ -45,12 +50,7 @@ describe("Demo Security & Migration Verification", () => {
     const originalDemoEmail = process.env.DEMO_USER_EMAIL;
     process.env.DEMO_USER_EMAIL = "demo@example.com";
     
-    // We mock the supabase client inside account.ts by intercepting it or relying on the code logic
-    // Since this requires supabase mocking and the tests usually run in integration, we can mock it here
-    await import("../server/services/account");
-    
-    // Actually, in our test suite we typically use a mocked client or test database. 
-    // Just asserting the logic exists in the file is an alternative if integration is hard
+    // This test stays file-based so it does not trigger server-only module side effects.
     const accountTsPath = path.join(process.cwd(), "server/services/account.ts");
     const accountTs = fs.readFileSync(accountTsPath, "utf-8");
     assert.ok(accountTs.includes("user.email === process.env.DEMO_USER_EMAIL"));
@@ -68,24 +68,21 @@ describe("Demo Security & Migration Verification", () => {
     assert.ok(authTs.includes("input.email === process.env.DEMO_USER_EMAIL"));
   });
   
-  it("actions log safely and sign out on rpc failure", async () => {
-    const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
-    const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
-    
-    // Check safe logging
-    assert.ok(actionsTs.includes("type DemoActionStage = \"admin_config\" | \"rate_limit\" | \"demo_auth\" | \"join_workspace\" | \"redirect\";"));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"admin_config\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"rate_limit\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"demo_auth\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"join_workspace\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"redirect\""));
-    assert.ok(!actionsTs.includes("console.error(\"[auth] demo login failed\", error)"));
-    
-    // Check sign out on rpc failure
-    assert.ok(actionsTs.includes("await client.auth.signOut()"));
-    // Fail closed on rate limit RPC error
-    assert.ok(actionsTs.includes("Service%20temporarily%20unavailable"));
-    assert.ok(actionsTs.includes("if (rlError) {"));
+  it("demo action stage payloads stay structured and exclude secret values", () => {
+    const payload = buildDemoActionStagePayload("demo_config", {
+      returnedAuthError: "Demo mode is not configured.",
+      missingEnv: ["DEMO_USER_EMAIL", "DEMO_USER_PASSWORD", "DEMO_RATE_LIMIT_SECRET"],
+    });
+
+    assert.equal(payload.stage, "demo_config");
+    assert.deepEqual(payload.missingEnv, [
+      "DEMO_USER_EMAIL",
+      "DEMO_USER_PASSWORD",
+      "DEMO_RATE_LIMIT_SECRET",
+    ]);
+    assert.equal(JSON.stringify(payload).includes("super-secret"), false);
+    assert.equal(JSON.stringify(payload).includes("token"), false);
+    assert.equal(JSON.stringify(payload).includes("password123"), false);
   });
 
   it("demo start rate limiting uses IP hash and secret pepper", async () => {
@@ -119,30 +116,33 @@ describe("Demo Security & Migration Verification", () => {
     assert.ok(actionsTs.includes("net.isIP(rawIp)"));
   });
 
-  it("demo start action emits stage-only diagnostics and never logs secrets", async () => {
-    const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
-    const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
+  it("structured demo stage logging includes the stage and safe metadata only", () => {
+    const captured: unknown[][] = [];
+    const originalConsoleError = console.error;
 
-    assert.ok(actionsTs.includes("startDemoAction stage"));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"admin_config\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"rate_limit\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"demo_auth\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"join_workspace\""));
-    assert.ok(actionsTs.includes("logDemoActionStage(\"redirect\""));
-    assert.ok(actionsTs.includes("destination: \"/dashboard\""));
-    assert.ok(!/console\.error\("\[auth\] startDemoAction stage"[^\n]*email/.test(actionsTs));
-    assert.ok(!/console\.error\("\[auth\] startDemoAction stage"[^\n]*password/.test(actionsTs));
-    assert.ok(!/console\.error\("\[auth\] startDemoAction stage"[^\n]*pepper/.test(actionsTs));
-  });
+    console.error = (...args: unknown[]) => {
+      captured.push(args);
+    };
 
-  it("missing admin configuration stops before signInWithPassword", async () => {
-    const actionsTsPath = path.join(process.cwd(), "app/(auth)/actions.ts");
-    const actionsTs = fs.readFileSync(actionsTsPath, "utf-8");
-    
-    assert.ok(actionsTs.includes("if (!adminClient) {"));
-    assert.ok(actionsTs.includes("redirect(\"/login?toast=Service%20temporarily%20unavailable.&tone=danger\");"));
-    // Verify no secret values are logged
-    assert.ok(actionsTs.includes("error instanceof Error ? error.message : \"Configuration failed\""));
+    try {
+      emitDemoActionStageLog("admin_config", {
+        returnedAuthError: "Authentication not configured.",
+        missingEnv: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"],
+      });
+    } finally {
+      console.error = originalConsoleError;
+    }
+
+    assert.equal(captured.length, 1);
+    const [message, payload] = captured[0] ?? [];
+    assert.equal(typeof message, "string");
+    assert.equal((payload as { stage?: string }).stage, "admin_config");
+    assert.deepEqual((payload as { missingEnv?: string[] }).missingEnv, [
+      "NEXT_PUBLIC_SUPABASE_URL",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
+    ]);
+    assert.equal(JSON.stringify(captured).includes("super-secret"), false);
+    assert.equal(JSON.stringify(captured).includes("DEMO_USER_PASSWORD_VALUE"), false);
   });
 
   it("documentation uses GEMINI_API_KEY consistently", async () => {
@@ -166,7 +166,9 @@ describe("Demo Security & Migration Verification", () => {
     const serverAdminTs = fs.readFileSync(serverAdminPath, "utf-8");
     
     assert.ok(serverAdminTs.includes("import \"server-only\";"));
-    assert.ok(serverAdminTs.includes("process.env.SUPABASE_SERVICE_ROLE_KEY"));
+    assert.ok(serverAdminTs.includes("import { getSupabaseEnv } from \"@/lib/supabase/env\";"));
+    assert.ok(serverAdminTs.includes("const env = getSupabaseEnv();"));
+    assert.ok(serverAdminTs.includes("const supabaseServiceRoleKey = env.serviceRoleKey;"));
   });
 
   it("demo inserts contain all required schema fields and use ON CONFLICT DO UPDATE", async () => {

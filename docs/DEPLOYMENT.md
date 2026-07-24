@@ -30,7 +30,7 @@ Set these in both local `.env.local` and your Vercel production environment:
 4. Create the Vercel project from this repository.
 5. Add the required environment variables in Vercel.
 6. Deploy the main branch.
-7. Verify `/api/health`, `/login`, `/dashboard`, and the marketing pages.
+7. Verify `/api/health` for public liveness, `/api/health/internal` with `HEALTH_CHECK_SECRET`, `/login`, `/dashboard`, and the marketing pages.
 
 ## Production checks
 

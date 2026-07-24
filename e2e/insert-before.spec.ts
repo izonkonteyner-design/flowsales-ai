@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { assertExactPath, waitAndAssertPath } from './test-utils';
 
 test('navigate routes and assert demo lock-downs and no insertBefore crashes', async ({ page }) => {
   const errors: string[] = [];
@@ -19,7 +20,7 @@ test('navigate routes and assert demo lock-downs and no insertBefore crashes', a
 
   // 1. Demo login reaches /dashboard.
   console.log('Waiting for dashboard...');
-  await expect(page).toHaveURL(/.*\/dashboard/);
+  await waitAndAssertPath(page, '/dashboard');
 
   // 2. /account
   console.log('Navigating to Account...');
@@ -39,24 +40,30 @@ test('navigate routes and assert demo lock-downs and no insertBefore crashes', a
   // Navigation: leads, customers, products
   console.log('Navigating to Leads...');
   await page.goto('/leads');
+  await assertExactPath(page, '/leads');
   await expect(page.locator('text=Leads').first()).toBeVisible();
 
   console.log('Navigating to Customers...');
   await page.goto('/customers');
+  await assertExactPath(page, '/customers');
   await expect(page.locator('text=Customers').first()).toBeVisible();
 
   console.log('Navigating to Products...');
   await page.goto('/products');
+  await assertExactPath(page, '/products');
   await expect(page.locator('text=Products').first()).toBeVisible();
 
   console.log('Navigating to Quotes...');
   await page.goto('/quotes');
+  await assertExactPath(page, '/quotes');
   await expect(page.locator('text=Quotes').first()).toBeVisible();
   
   // 3. /quotes/new
   console.log('Navigating to Quotes New...');
   await page.goto('/quotes/new');
-  await expect(page.locator('text=New quote').first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await expect(page).toHaveURL(/\/quotes\/new$/);
+  await expect(page.getByRole('heading', { name: 'New quote' }).first()).toBeVisible();
   // - read-only banner visible
   await expect(page.locator('text=Demo mode is read only').first()).toBeVisible();
   // - all text/select/number inputs disabled
@@ -86,13 +93,14 @@ test('navigate routes and assert demo lock-downs and no insertBefore crashes', a
   // Navigation: ai
   console.log('Navigating to AI Usage Tracking...');
   await page.goto('/ai');
-  await expect(page).toHaveURL(/.*\/ai/);
+  await assertExactPath(page, '/ai');
 
   // Logout before going to forgot-password to ensure unauthenticated state
   console.log('Navigating to Logout...');
   await page.goto('/account');
+  await assertExactPath(page, '/account'); // ensure we are authenticated before logging out
   await page.locator('button:has-text("Sign Out")').first().click();
-  await expect(page).toHaveURL(/.*\/login/);
+  await waitAndAssertPath(page, '/login');
 
   // 4. /forgot-password
   console.log('Navigating to Forgot Password...');

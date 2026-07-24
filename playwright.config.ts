@@ -1,4 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
 
 export default defineConfig({
   testDir: './e2e',
@@ -11,8 +13,10 @@ export default defineConfig({
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
     extraHTTPHeaders: {
-      'x-forwarded-for': `127.0.0.${Math.floor(Math.random() * 255)}`
+      'x-forwarded-for': `127.0.0.${Math.floor(Math.random() * 255)}`,
+      ...(process.env.E2E_RATE_LIMIT_BYPASS_SECRET ? { 'x-e2e-bypass': process.env.E2E_RATE_LIMIT_BYPASS_SECRET } : {})
     }
   },
   projects: [
@@ -21,10 +25,12 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     }
   ],
-  webServer: {
-    command: 'npm.cmd run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  ...(process.env.PLAYWRIGHT_BASE_URL ? {} : {
+    webServer: {
+      command: 'npm run dev',
+      url: 'http://localhost:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120000,
+    }
+  }),
 });

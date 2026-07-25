@@ -13,7 +13,7 @@ const protectedRoutes = [
   "/tasks",
   "/calendar",
   "/notifications",
-  "/ai",
+  "/ai-workforce",
   "/reports",
   "/billing",
   "/team",

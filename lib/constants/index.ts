@@ -74,7 +74,7 @@ export const APP_NAVIGATION = [
   { label: "Tasks", href: "/tasks", icon: "check-circle-2" },
   { label: "Calendar", href: "/calendar", icon: "calendar" },
   { label: "Notifications", href: "/notifications", icon: "bell" },
-  { label: "AI", href: "/ai", icon: "bot" },
+  { label: "AI Workforce", href: "/ai-workforce", icon: "bot" },
   { label: "Reports", href: "/reports", icon: "bar-chart-3" },
   { label: "Billing", href: "/billing", icon: "credit-card" },
   { label: "Team", href: "/team", icon: "users-2" },

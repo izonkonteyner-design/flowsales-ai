@@ -4,6 +4,8 @@ import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { processAiMessage } from "@/server/ai-agents/sales-agent";
 import { executeAiAction } from "@/server/ai-agents/actions";
+import { AGENT_REGISTRY, isValidAgentType } from "@/server/ai-agents/agents/registry";
+import type { AgentType } from "@/server/ai-agents/schema";
 
 export async function sendChatMessage(conversationId: string, content: string) {
   const workspace = await getWorkspaceContext();
@@ -14,6 +16,33 @@ export async function sendChatMessage(conversationId: string, content: string) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("Not authenticated");
+
+  // Resolve the conversation's agent type so multi-agent workspaces route
+  // the LLM call to the correct agent definition/fallback.
+  const { data: conversation, error: convError } = await supabase
+    .from("ai_conversations")
+    .select("id, agent_id, organization_id")
+    .eq("id", conversationId)
+    .eq("organization_id", workspace.organization.id)
+    .maybeSingle();
+
+  if (convError) throw convError;
+  if (!conversation) {
+    throw new Error("Conversation not found or unauthorized.");
+  }
+
+  const { data: agent, error: agentError } = await supabase
+    .from("ai_agents")
+    .select("type")
+    .eq("id", conversation.agent_id)
+    .maybeSingle();
+
+  if (agentError) throw agentError;
+  if (!agent || !isValidAgentType(agent.type)) {
+    throw new Error("Conversation is bound to an unknown agent type.");
+  }
+
+  const agentType: AgentType = agent.type as AgentType;
 
   const { error: msgError } = await supabase
     .from("ai_messages")
@@ -32,7 +61,8 @@ export async function sendChatMessage(conversationId: string, content: string) {
     user.id,
     conversationId,
     content,
-    isDemo
+    isDemo,
+    agentType
   );
 
   if (aiResponse) {
@@ -41,7 +71,7 @@ export async function sendChatMessage(conversationId: string, content: string) {
       conversation_id: conversationId,
       role: "assistant",
       content: aiResponse.message,
-      metadata: { intent: aiResponse.intent, confidence: aiResponse.confidence }
+      metadata: { intent: aiResponse.intent, confidence: aiResponse.confidence, agent_type: agentType }
     });
 
     if (aiResponse.handoff_flag) {
@@ -92,31 +122,39 @@ export async function approveAiAction(actionRunId: string) {
   );
 }
 
-export async function startNewConversation() {
+export async function startNewConversation(agentType?: string) {
   const workspace = await getWorkspaceContext();
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
     throw new Error("AI features require Supabase to be configured.");
   }
 
-  const { data: agent } = await supabase
-    .from("ai_agents")
-    .select("id")
-    .eq("organization_id", workspace.organization.id)
-    .eq("type", "sales")
-    .limit(1)
-    .single();
+  const requestedType: AgentType =
+    agentType && isValidAgentType(agentType) ? (agentType as AgentType) : "sales";
 
+  const { data: agent, error: agentError } = await supabase
+    .from("ai_agents")
+    .select("id, type, name")
+    .eq("organization_id", workspace.organization.id)
+    .eq("type", requestedType)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (agentError) throw agentError;
   if (!agent) {
-    throw new Error("No active sales agent found.");
+    throw new Error(`No active "${requestedType}" agent found for this workspace.`);
   }
+
+  const definition = AGENT_REGISTRY[requestedType];
+  const visitorName = definition?.displayName ?? "Test User";
 
   const { data: conv, error } = await supabase
     .from("ai_conversations")
     .insert({
       organization_id: workspace.organization.id,
       agent_id: agent.id,
-      visitor_name: "Test User",
+      visitor_name: visitorName,
       status: "open"
     })
     .select("id")
@@ -124,5 +162,5 @@ export async function startNewConversation() {
 
   if (error) throw error;
 
-  return { conversationId: conv.id };
+  return { conversationId: conv.id, agentType: requestedType };
 }

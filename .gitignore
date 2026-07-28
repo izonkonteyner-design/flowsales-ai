@@ -44,4 +44,5 @@ supabase/.temp
 output.txt
 test-results/
 playwright-report/
+*.log
 

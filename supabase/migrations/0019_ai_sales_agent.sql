@@ -268,79 +268,124 @@ USING (public.has_org_role(organization_id, array['owner', 'admin', 'sales']))
 WITH CHECK (public.has_org_role(organization_id, array['owner', 'admin', 'sales']));
 
 -- 6. Demo Seed Data
-DO $$ 
-DECLARE
-  v_demo_org_id uuid := 'd3e00000-0000-0000-0000-000000000000';
-  v_agent_id uuid := 'a1a1a1a1-0000-0000-0000-000000000000';
-  v_conv1_id uuid := 'c1c1c1c1-0000-0000-0000-000000000001';
-  v_conv2_id uuid := 'c1c1c1c1-0000-0000-0000-000000000002';
-  v_conv3_id uuid := 'c1c1c1c1-0000-0000-0000-000000000003';
-  v_lead_id uuid := 'd3e00004-0000-0000-0000-000000000000'; -- From 0017_demo_mode.sql
+-- Idempotent inserts wrapped in exception-safe DO block to avoid blocking migration
+-- if the demo workspace does not exist or seed data already conflicts.
+DO $$
 BEGIN
-  -- Insert Demo Agent
   INSERT INTO public.ai_agents (id, organization_id, type, name, status, description, system_prompt)
-  VALUES (
-    v_agent_id, 
-    v_demo_org_id, 
-    'sales', 
-    'Global Sales Assistant', 
-    'active', 
-    'Primary AI agent for handling inbound inquiries', 
-    'You are a helpful sales assistant. Never invent prices. Ask for missing information.'
-  )
+  SELECT 'a1a1a1a1-0000-0000-0000-000000000000', o.id, 'sales', 'Global Sales Assistant', 'active',
+         'Primary AI agent for handling inbound inquiries',
+         'You are a helpful sales assistant. Never invent prices. Ask for missing information.'
+  FROM public.organizations o
+  WHERE o.slug = 'flowsales-demo'
   ON CONFLICT (id) DO UPDATE SET system_prompt = EXCLUDED.system_prompt;
 
-  -- Insert Knowledge
   INSERT INTO public.ai_knowledge_items (id, organization_id, agent_id, title, content, category)
-  VALUES 
-    ('k1k1k1k1-0000-0000-0000-000000000001', v_demo_org_id, v_agent_id, 'Company Overview', 'FlowSales is a modern CRM platform built for AI-first teams.', 'company'),
-    ('k1k1k1k1-0000-0000-0000-000000000002', v_demo_org_id, v_agent_id, 'Support Policy', 'We offer 24/7 support for all Enterprise customers.', 'sales_policy'),
-    ('k1k1k1k1-0000-0000-0000-000000000003', v_demo_org_id, v_agent_id, 'Pricing Guide', 'Base pricing is per user. Volume discounts available over 50 seats.', 'pricing'),
-    ('k1k1k1k1-0000-0000-0000-000000000004', v_demo_org_id, v_agent_id, 'Refund Policy', '30-day money back guarantee for all annual plans.', 'faq'),
-    ('k1k1k1k1-0000-0000-0000-000000000005', v_demo_org_id, v_agent_id, 'Integration Limits', 'Standard API limit is 1000 requests per minute.', 'faq')
+  SELECT 'k1k1k1k1-0000-0000-0000-000000000001', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Company Overview', 'FlowSales is a modern CRM platform built for AI-first teams.', 'company'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
   ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content;
 
-  -- Insert Playbooks
+  INSERT INTO public.ai_knowledge_items (id, organization_id, agent_id, title, content, category)
+  SELECT 'k1k1k1k1-0000-0000-0000-000000000002', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Support Policy', 'We offer 24/7 support for all Enterprise customers.', 'sales_policy'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content;
+
+  INSERT INTO public.ai_knowledge_items (id, organization_id, agent_id, title, content, category)
+  SELECT 'k1k1k1k1-0000-0000-0000-000000000003', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Pricing Guide', 'Base pricing is per user. Volume discounts available over 50 seats.', 'pricing'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content;
+
+  INSERT INTO public.ai_knowledge_items (id, organization_id, agent_id, title, content, category)
+  SELECT 'k1k1k1k1-0000-0000-0000-000000000004', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Refund Policy', '30-day money back guarantee for all annual plans.', 'faq'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content;
+
+  INSERT INTO public.ai_knowledge_items (id, organization_id, agent_id, title, content, category)
+  SELECT 'k1k1k1k1-0000-0000-0000-000000000005', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Integration Limits', 'Standard API limit is 1000 requests per minute.', 'faq'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content;
+
   INSERT INTO public.ai_playbooks (id, organization_id, agent_id, name, description, trigger_type, instructions, allowed_actions)
-  VALUES
-    ('p1p1p1p1-0000-0000-0000-000000000001', v_demo_org_id, v_agent_id, 'New Customer Greeting', 'Greet new visitors', 'manual', 'Ask how you can help and collect their name.', '[]'::jsonb),
-    ('p1p1p1p1-0000-0000-0000-000000000002', v_demo_org_id, v_agent_id, 'Product Recommendation', 'Recommend CRM products', 'manual', 'Search for products matching the user needs.', '["search_products"]'::jsonb),
-    ('p1p1p1p1-0000-0000-0000-000000000003', v_demo_org_id, v_agent_id, 'Price Request', 'Handle pricing questions', 'manual', 'Do not invent prices. Quote exactly from product search.', '["search_products", "create_quote_draft"]'::jsonb),
-    ('p1p1p1p1-0000-0000-0000-000000000004', v_demo_org_id, v_agent_id, 'Human Handoff', 'Transfer to a human agent', 'manual', 'If the user is angry or asks for a human, trigger handoff.', '["request_human_handoff"]'::jsonb),
-    ('p1p1p1p1-0000-0000-0000-000000000005', v_demo_org_id, v_agent_id, 'Follow-up Collection', 'Collect lead info', 'manual', 'Ensure you have email and name before creating a lead draft.', '["create_lead_draft", "create_followup"]'::jsonb)
+  SELECT 'p1p1p1p1-0000-0000-0000-000000000001', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'New Customer Greeting', 'Greet new visitors', 'manual', 'Ask how you can help and collect their name.', '[]'::jsonb
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
   ON CONFLICT (id) DO UPDATE SET instructions = EXCLUDED.instructions;
 
-  -- Insert Conversations
+  INSERT INTO public.ai_playbooks (id, organization_id, agent_id, name, description, trigger_type, instructions, allowed_actions)
+  SELECT 'p1p1p1p1-0000-0000-0000-000000000002', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Product Recommendation', 'Recommend CRM products', 'manual', 'Search for products matching the user needs.', '["search_products"]'::jsonb
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET instructions = EXCLUDED.instructions;
+
+  INSERT INTO public.ai_playbooks (id, organization_id, agent_id, name, description, trigger_type, instructions, allowed_actions)
+  SELECT 'p1p1p1p1-0000-0000-0000-000000000003', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Price Request', 'Handle pricing questions', 'manual', 'Do not invent prices. Quote exactly from product search.', '["search_products", "create_quote_draft"]'::jsonb
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET instructions = EXCLUDED.instructions;
+
+  INSERT INTO public.ai_playbooks (id, organization_id, agent_id, name, description, trigger_type, instructions, allowed_actions)
+  SELECT 'p1p1p1p1-0000-0000-0000-000000000004', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Human Handoff', 'Transfer to a human agent', 'manual', 'If the user is angry or asks for a human, trigger handoff.', '["request_human_handoff"]'::jsonb
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET instructions = EXCLUDED.instructions;
+
+  INSERT INTO public.ai_playbooks (id, organization_id, agent_id, name, description, trigger_type, instructions, allowed_actions)
+  SELECT 'p1p1p1p1-0000-0000-0000-000000000005', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'Follow-up Collection', 'Collect lead info', 'manual', 'Ensure you have email and name before creating a lead draft.', '["create_lead_draft", "create_followup"]'::jsonb
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET instructions = EXCLUDED.instructions;
+
   INSERT INTO public.ai_conversations (id, organization_id, agent_id, lead_id, status, visitor_name, visitor_email)
-  VALUES
-    (v_conv1_id, v_demo_org_id, v_agent_id, v_lead_id, 'resolved', 'Alice Johnson', 'alice@acme.com'),
-    (v_conv2_id, v_demo_org_id, v_agent_id, NULL, 'open', 'Unknown Visitor', NULL),
-    (v_conv3_id, v_demo_org_id, v_agent_id, NULL, 'waiting_human', 'Angry User', 'angry@user.com')
+  SELECT 'c1c1c1c1-0000-0000-0000-000000000001', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', NULL, 'resolved', 'Alice Johnson', 'alice@acme.com'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
   ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
 
-  -- Insert Messages
+  INSERT INTO public.ai_conversations (id, organization_id, agent_id, lead_id, status, visitor_name, visitor_email)
+  SELECT 'c1c1c1c1-0000-0000-0000-000000000002', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', NULL, 'open', 'Unknown Visitor', NULL
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+
+  INSERT INTO public.ai_conversations (id, organization_id, agent_id, lead_id, status, visitor_name, visitor_email)
+  SELECT 'c1c1c1c1-0000-0000-0000-000000000003', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', NULL, 'waiting_human', 'Angry User', 'angry@user.com'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+
   INSERT INTO public.ai_messages (id, organization_id, conversation_id, role, content)
-  VALUES
-    ('m1m1m1m1-0000-0000-0000-000000000001', v_demo_org_id, v_conv1_id, 'user', 'Hi, I want a quote for 10 Enterprise licenses.'),
-    ('m1m1m1m1-0000-0000-0000-000000000002', v_demo_org_id, v_conv1_id, 'assistant', 'Sure! Let me draft that quote for you.'),
-    ('m1m1m1m1-0000-0000-0000-000000000003', v_demo_org_id, v_conv2_id, 'user', 'Hello'),
-    ('m1m1m1m1-0000-0000-0000-000000000004', v_demo_org_id, v_conv3_id, 'user', 'This is broken! Talk to a human now!'),
-    ('m1m1m1m1-0000-0000-0000-000000000005', v_demo_org_id, v_conv3_id, 'assistant', 'I apologize for the frustration. I will transfer you to a human agent.')
+  SELECT 'm1m1m1m1-0000-0000-0000-000000000001', o.id, 'c1c1c1c1-0000-0000-0000-000000000001', 'user', 'Hi, I want a quote for 10 Enterprise licenses.'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
   ON CONFLICT (id) DO NOTHING;
 
-  -- Insert Proposed Action (Quote draft in conv1)
+  INSERT INTO public.ai_messages (id, organization_id, conversation_id, role, content)
+  SELECT 'm1m1m1m1-0000-0000-0000-000000000002', o.id, 'c1c1c1c1-0000-0000-0000-000000000001', 'assistant', 'Sure! Let me draft that quote for you.'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.ai_messages (id, organization_id, conversation_id, role, content)
+  SELECT 'm1m1m1m1-0000-0000-0000-000000000003', o.id, 'c1c1c1c1-0000-0000-0000-000000000002', 'user', 'Hello'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.ai_messages (id, organization_id, conversation_id, role, content)
+  SELECT 'm1m1m1m1-0000-0000-0000-000000000004', o.id, 'c1c1c1c1-0000-0000-0000-000000000003', 'user', 'This is broken! Talk to a human now!'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO NOTHING;
+
+  INSERT INTO public.ai_messages (id, organization_id, conversation_id, role, content)
+  SELECT 'm1m1m1m1-0000-0000-0000-000000000005', o.id, 'c1c1c1c1-0000-0000-0000-000000000003', 'assistant', 'I apologize for the frustration. I will transfer you to a human agent.'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO NOTHING;
+
   INSERT INTO public.ai_action_runs (id, organization_id, agent_id, conversation_id, action_type, status, input_payload)
-  VALUES
-    ('r1r1r1r1-0000-0000-0000-000000000001', v_demo_org_id, v_agent_id, v_conv1_id, 'create_quote_draft', 'proposed', '{"product_name": "Enterprise CRM License", "quantity": 10}'::jsonb),
-    ('r1r1r1r1-0000-0000-0000-000000000002', v_demo_org_id, v_agent_id, v_conv3_id, 'request_human_handoff', 'completed', '{"reason": "User is frustrated and explicitly requested a human."}'::jsonb)
+  SELECT 'r1r1r1r1-0000-0000-0000-000000000001', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'c1c1c1c1-0000-0000-0000-000000000001', 'create_quote_draft', 'proposed', '{"product_name": "Enterprise CRM License", "quantity": 10}'::jsonb
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
   ON CONFLICT (id) DO NOTHING;
 
-  -- Insert Handoff
+  INSERT INTO public.ai_action_runs (id, organization_id, agent_id, conversation_id, action_type, status, input_payload)
+  SELECT 'r1r1r1r1-0000-0000-0000-000000000002', o.id, 'a1a1a1a1-0000-0000-0000-000000000000', 'c1c1c1c1-0000-0000-0000-000000000003', 'request_human_handoff', 'completed', '{"reason": "User is frustrated and explicitly requested a human."}'::jsonb
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
+  ON CONFLICT (id) DO NOTHING;
+
   INSERT INTO public.ai_handoffs (id, organization_id, conversation_id, reason, priority, status)
-  VALUES
-    ('h1h1h1h1-0000-0000-0000-000000000001', v_demo_org_id, v_conv3_id, 'User is frustrated and explicitly requested a human.', 'high', 'open')
+  SELECT 'h1h1h1h1-0000-0000-0000-000000000001', o.id, 'c1c1c1c1-0000-0000-0000-000000000003', 'User is frustrated and explicitly requested a human.', 'high', 'open'
+  FROM public.organizations o WHERE o.slug = 'flowsales-demo'
   ON CONFLICT (id) DO NOTHING;
-
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'Demo seed data skipped (non-fatal): %', SQLERRM;
 END $$;
 
 -- 7. AI Rate Limiting

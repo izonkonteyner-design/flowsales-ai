@@ -19,6 +19,14 @@ export const serverEnvSchema = z.object({
   // Optional: Sentry
   NEXT_PUBLIC_SENTRY_DSN: z.string().url().optional(),
 
+  // Optional: Stripe
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: z.string().optional(),
+  STRIPE_PRICE_STARTER: z.string().optional(),
+  STRIPE_PRICE_PRO: z.string().optional(),
+  STRIPE_PRICE_BUSINESS: z.string().optional(),
+
   // URLs
   NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().optional(),
@@ -68,6 +76,12 @@ export function validateServerEnv() {
     DEMO_RATE_LIMIT_SECRET: process.env.DEMO_RATE_LIMIT_SECRET?.trim(),
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY?.trim(),
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN?.trim(),
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY?.trim(),
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET?.trim(),
+    NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY?.trim(),
+    STRIPE_PRICE_STARTER: process.env.STRIPE_PRICE_STARTER?.trim(),
+    STRIPE_PRICE_PRO: process.env.STRIPE_PRICE_PRO?.trim(),
+    STRIPE_PRICE_BUSINESS: process.env.STRIPE_PRICE_BUSINESS?.trim(),
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL?.trim(),
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL?.trim(),
     NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL: process.env.NEXT_PUBLIC_VERCEL_PROJECT_PRODUCTION_URL?.trim(),

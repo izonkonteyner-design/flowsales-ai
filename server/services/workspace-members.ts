@@ -1,10 +1,12 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { normalizeMemberEmailValue, normalizeMemberSearchValue, type InviteMemberInput, type RemoveMemberInput, type UpdateMemberRoleInput } from "@/lib/validations/workspace-member";
 import { type InvitationAcceptanceInput, type InvitationLookupInput } from "@/lib/validations/workspace-invitation";
 import { getWorkspaceContext, type WorkspaceContext, type WorkspaceRole } from "@/server/services/workspace-context";
 import { demoTeam } from "@/server/services/workspace-data";
+import { assertSeatAvailable } from "@/server/services/subscriptions";
 import { getSiteUrl } from "@/server/env";
 
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
@@ -422,6 +424,23 @@ export async function inviteWorkspaceMember(input: InviteMemberInput) {
 
   if (existingPending) {
     throw new Error("An invitation is already pending for that email address.");
+  }
+
+  // Enforce subscription seat limit before issuing a new invitation.
+  try {
+    const adminClient = createSupabaseAdminClient();
+    const { count, error: countError } = await adminClient
+      .from("organization_members")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", live.context.organization.id);
+
+    if (countError) {
+      throw new Error(countError.message || "Unable to verify seat capacity.");
+    }
+
+    await assertSeatAvailable(adminClient, live.context.organization.id, (count ?? 0) + 1);
+  } catch (err) {
+    throw err;
   }
 
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();

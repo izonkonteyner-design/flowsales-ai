@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
 type SectionCardProps = {
   title?: string;
   description?: string;
+  actions?: ReactNode;
   className?: string;
   children: ReactNode;
 };
@@ -12,6 +13,7 @@ type SectionCardProps = {
 export function SectionCard({
   title,
   description,
+  actions,
   className,
   children,
 }: SectionCardProps) {
@@ -22,17 +24,21 @@ export function SectionCard({
         className,
       )}
     >
-      {(title || description) && (
-        <div className="mb-4">
-          {title ? (
-            <h2 className="text-base font-semibold text-slate-950 dark:text-white">
-              {title}
-            </h2>
-          ) : null}
+      {(title || description || actions) && (
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            {title ? (
+              <h2 className="text-base font-semibold text-slate-950 dark:text-white">
+                {title}
+              </h2>
+            ) : null}
 
-          {description ? (
-            <p className="mt-1 text-sm text-slate-500">{description}</p>
-          ) : null}
+            {description ? (
+              <p className="mt-1 text-sm text-slate-500">{description}</p>
+            ) : null}
+          </div>
+
+          {actions ? <div className="shrink-0">{actions}</div> : null}
         </div>
       )}
 

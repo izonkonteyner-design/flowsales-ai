@@ -3,10 +3,12 @@ import { ArrowLeft } from "lucide-react";
 
 import { createLeadAction } from "@/app/(app)/leads/actions";
 import { LeadForm } from "@/components/leads/lead-form";
+import { EmptyState } from "@/components/shared/empty-state";
 import { FlashToast } from "@/components/shared/flash-toast";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { getLeadPageData } from "@/server/services/leads";
+import { canManageLeads, getLeadRecordRestrictionMessage } from "@/server/services/lead-domain";
 
 type LeadNewPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -23,6 +25,9 @@ export default async function LeadNewPage({ searchParams }: LeadNewPageProps) {
     rawSearchParams.tone === "danger" || rawSearchParams.tone === "warning" || rawSearchParams.tone === "info"
       ? rawSearchParams.tone
       : "success";
+
+  const canMutate = data.context.mode === "live" && canManageLeads(data.context.role);
+  const restrictionMessage = getLeadRecordRestrictionMessage(data.context.mode, data.context.role);
 
   return (
     <div className="space-y-6">
@@ -44,12 +49,16 @@ export default async function LeadNewPage({ searchParams }: LeadNewPageProps) {
       />
 
       <SectionCard title="Lead details" description="Use the validated form to capture a new opportunity.">
-        <LeadForm
-          action={createLeadAction}
-          redirectTo={redirectTo}
-          members={data.context.members}
-          submitLabel="Create lead"
-        />
+        {canMutate ? (
+          <LeadForm
+            action={createLeadAction}
+            redirectTo={redirectTo}
+            members={data.context.members}
+            submitLabel="Create lead"
+          />
+        ) : (
+          <EmptyState title="Read-only lead workspace" description={restrictionMessage} />
+        )}
       </SectionCard>
     </div>
   );

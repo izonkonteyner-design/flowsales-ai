@@ -17,6 +17,7 @@ import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { getLeadPageData } from "@/server/services/leads";
 import {
   formatLeadFollowUpState,
+  canManageLeads,
   canMutateLeadRecord,
   getLeadRecordBadge,
   getLeadRecordRestrictionMessage,
@@ -60,6 +61,7 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
       : "success";
   const currentHref = buildRedirectTo(data.filters);
   const createLeadHref = `/leads/new?redirect_to=${encodeURIComponent(currentHref)}`;
+  const canCreateLead = data.context.mode === "live" && canManageLeads(data.context.role);
   const toggleViewHref = buildLeadHref(data.filters, {
     view: data.filters.view === "table" ? "pipeline" : "table",
     page: 1,
@@ -87,13 +89,15 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
               {data.filters.view === "table" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
               {data.filters.view === "table" ? "Pipeline view" : "Table view"}
             </Link>
-            <Link
-              href={createLeadHref}
-              className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
-            >
-              <Plus className="h-4 w-4" />
-              New lead
-            </Link>
+            {canCreateLead ? (
+              <Link
+                href={createLeadHref}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
+              >
+                <Plus className="h-4 w-4" />
+                New lead
+              </Link>
+            ) : null}
           </>
         }
       />
@@ -250,8 +254,8 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
         <EmptyState
           title="No leads match these filters"
           description="Try a different search, clear filters, or create a new lead."
-          actionHref={createLeadHref}
-          actionLabel="New lead"
+          actionHref={canCreateLead ? createLeadHref : undefined}
+          actionLabel={canCreateLead ? "New lead" : undefined}
         />
       ) : null}
     </div>

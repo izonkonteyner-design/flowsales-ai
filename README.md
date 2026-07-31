@@ -82,3 +82,5 @@ Deploy to Vercel with the environment variables above. See [docs/production-runb
 - Live Supabase auth/data requires environment variables and a configured project.
 - AI and billing integrations are scaffolded but not connected to paid providers yet.
 - Demo data powers the product screens when live data is unavailable.
+- Demo/viewer sessions cannot mutate any record — see [docs/architecture.md](./docs/architecture.md) for the permission contract.
+- Read paths recompute quote totals from stored parts when a commercial column reads as `0`, as a defense-in-depth backstop for the historical 0007 back-fill defect (see [docs/database.md](./docs/database.md)).

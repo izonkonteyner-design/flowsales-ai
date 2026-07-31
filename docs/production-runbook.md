@@ -70,3 +70,38 @@ If a bad deployment occurs:
 3. Find the last known good deployment.
 4. Click the three dots (...) and select **Promote to Production** or **Redeploy**.
 5. Do NOT manually manipulate the Supabase database migrations unless instructed by a DBA, as migrations are idempotent and cumulative.
+
+## 6. Quote grand total migration (0019)
+
+`0019_fix_quote_grand_total_backfill.sql` repairs seeded quote rows whose `grand_total`, `taxable_subtotal`, and `line_discount_total` columns were locked to the literal `0` by the broken `0007` back-fill.
+
+### Expected impact on a fresh database
+
+- Three seeded quotes (`FSA-2026-0142`, `FSA-2026-0143`, `FSA-2026-0144`) get their `grand_total` set to the legacy `total` value.
+- Any row whose `grand_total = 0` but `total > 0` (e.g. older live data with the same historical defect) is repaired.
+- Idempotent: re-running 0019 produces no further changes because the guarded `WHERE col = 0` clauses no longer match.
+
+### Verification queries
+
+Run before applying 0019 to capture the affected row count:
+
+```sql
+select id, quote_number, subtotal, tax_total, total, grand_total
+from public.quotes
+where grand_total = 0 and total > 0;
+```
+
+Run after applying 0019 to confirm repair:
+
+```sql
+select id, quote_number, grand_total, total
+from public.quotes
+where grand_total <> total
+order by quote_number;
+```
+
+The expected result of the second query is empty (every row now has `grand_total = total`). Any remaining rows with a positive `tax_total` and a zero `grand_total` indicate a regression that the read-path defense in `normalizeQuoteRecord` (`server/services/quotes.ts`) will still mask, but should be reported for a data investigation.
+
+### Rollback
+
+0019 only writes `UPDATE`s scoped to `WHERE col = 0` clauses. It contains no schema changes, so it is a pure data repair — there is nothing to reverse structurally. If 0019 was applied in error, restore the previous snapshot with Vault/Point-in-Time Recovery (`docs/SUPABASE_PRODUCTION.md`); the migration itself isδιο_UPD-only and cannot tear down columns or rows.

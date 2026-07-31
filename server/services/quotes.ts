@@ -203,7 +203,7 @@ function normalizeQuoteItem(raw: any, fallbackCurrency: CurrencyCode): QuoteItem
   };
 }
 
-function normalizeQuoteRecord(
+export function normalizeQuoteRecord(
   raw: any,
   recordMode: QuoteRecordMode,
   relationships: {
@@ -217,14 +217,53 @@ function normalizeQuoteRecord(
   const issueDate = toStringValue(raw.issue_date, "");
   const validUntil = toStringValue(raw.valid_until ?? raw.expiry_date ?? issueDate, issueDate);
   const subtotal = Number(raw.subtotal ?? items.reduce((sum, item) => sum + Number(item.line_subtotal ?? 0), 0));
-  const lineDiscountTotal = Number(
-    raw.line_discount_total ?? raw.discount_total ?? items.reduce((sum, item) => sum + Number(item.line_discount ?? 0), 0),
-  );
+  // `line_discount_total` is a NOT NULL DEFAULT 0 column added in 0007. The
+  // 0007 back-fill did populate it from `coalesce(line_discount_total, discount_total, 0)`
+  // for seeded rows (because the legacy `discount_total` was non-null), but a
+  // defensive 0-sentinel keeps read paths consistent with `grand_total`/
+  // `taxable_subtotal` handling and protects against future regressions where
+  // `discount_total` exists but `line_discount_total` was reset to 0.
+  const storedLineDiscountTotal = Number(raw.line_discount_total ?? 0);
+  const legacyDiscountTotal = Number(raw.discount_total ?? 0);
   const orderDiscountTotal = Number(raw.order_discount_total ?? 0);
-  const taxableSubtotal = Number(raw.taxable_subtotal ?? subtotal - lineDiscountTotal - orderDiscountTotal);
+  const computedLineDiscountTotal = legacyDiscountTotal - orderDiscountTotal;
+  const lineDiscountTotal =
+    storedLineDiscountTotal > 0
+      ? storedLineDiscountTotal
+      : computedLineDiscountTotal > 0
+        ? computedLineDiscountTotal
+        : items.reduce((sum, item) => sum + Number(item.line_discount ?? 0), 0);
+  // Same defense as `grand_total` below: `taxable_subtotal` is a NOT NULL
+  // DEFAULT 0 column added in 0007, so a stored `0` is a legitimate value
+  // only when the row genuinely has a zero base. When the parts (`subtotal`
+  // and discounts) are positive the stored 0 is the broken-backfill artifact
+  // and we recompute `subtotal - line_discount_total - order_discount_total`.
+  const storedTaxableSubtotal = Number(raw.taxable_subtotal ?? 0);
+  const computedTaxableSubtotal = subtotal - lineDiscountTotal - orderDiscountTotal;
+  const taxableSubtotal =
+    storedTaxableSubtotal > 0
+      ? storedTaxableSubtotal
+      : computedTaxableSubtotal > 0
+        ? computedTaxableSubtotal
+        : 0;
   const taxTotal = Number(raw.tax_total ?? items.reduce((sum, item) => sum + Number(item.line_tax ?? 0), 0));
   const shippingTotal = Number(raw.shipping_total ?? 0);
-  const grandTotal = Number(raw.grand_total ?? raw.total ?? taxableSubtotal + taxTotal + shippingTotal);
+  // The DB column is `numeric(14,2) NOT NULL DEFAULT 0`, so a stored `0` is
+  // never `null` and the legacy `?? total` fallback cannot fire. Treat an
+  // arithmetic-positive `total` (the pre-0007 legacy column, always written
+  // alongside `grand_total` by `buildQuotePayload`) as the source of truth
+  // when `grand_total` reads as `0`. This guards against historical rows
+  // whose `grand_total` got locked to the literal default by the broken
+  // 0007 backfill (see 0019_fix_quote_grand_total_backfill.sql).
+  const storedGrandTotal = Number(raw.grand_total ?? 0);
+  const storedTotal = Number(raw.total ?? 0);
+  const computedGrandTotal = taxableSubtotal + taxTotal + shippingTotal;
+  const grandTotal =
+    storedGrandTotal > 0
+      ? storedGrandTotal
+      : storedTotal > 0
+        ? storedTotal
+        : computedGrandTotal;
   const status = raw.status as QuoteStatus;
 
   return {
@@ -251,7 +290,7 @@ function normalizeQuoteRecord(
     taxable_subtotal: taxableSubtotal,
     tax_total: taxTotal,
     grand_total: grandTotal,
-    total: Number(raw.total ?? grandTotal),
+    total: Number(raw.total ?? grandTotal) || grandTotal,
     items,
     created_by: toStringValue(raw.created_by, ""),
     created_at: toStringValue(raw.created_at, ""),

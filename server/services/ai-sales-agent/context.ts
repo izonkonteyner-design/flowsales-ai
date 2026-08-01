@@ -1,10 +1,12 @@
 import { z } from "zod";
 
+import { aiCapabilitySchema } from "./domain";
+
 export const aiContextRequestSchema = z.object({
   workspaceId: z.string().uuid(),
   actorId: z.string().uuid(),
   leadId: z.string().uuid(),
-  capability: z.enum(["lead_scoring", "next_best_action"]),
+  capability: aiCapabilitySchema,
 });
 
 export type AiContextRequest = z.infer<typeof aiContextRequestSchema>;

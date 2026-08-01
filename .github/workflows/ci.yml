@@ -5,7 +5,44 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
+  remediate-dependencies:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'security: run dependency remediation job')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/ai-sales-agent-foundation
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install patched framework packages
+        run: npm install --save-exact next@16.2.12 eslint-config-next@16.2.12
+
+      - name: Apply compatible transitive fixes
+        run: npm audit fix
+
+      - name: Verify high-severity audit gate
+        run: npm audit --audit-level=high
+
+      - name: Commit dependency updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "security: remediate npm dependency advisories"
+          git push origin HEAD:feat/ai-sales-agent-foundation
+
   verify:
     runs-on: ubuntu-latest
 

@@ -25,12 +25,14 @@ test("usage and notification writes are service-role isolated", async () => {
 
 test("notification actions scope updates to authenticated user", async () => {
   const code = await source("app/notifications/actions.ts");
+  const page = await source("app/(app)/notifications/page.tsx");
   assert.match(code, /auth\.getUser\(\)/);
   assert.match(code, /\.eq\("user_id", auth\.user\.id\)/);
+  assert.match(page, /notifications/);
 });
 
 test("pricing and upgrade flows disclose provider configuration boundary", async () => {
-  const pricing = await source("app/pricing/page.tsx");
+  const pricing = await source("app/(marketing)/pricing/page.tsx");
   const upgrade = await source("app/upgrade/page.tsx");
   assert.match(pricing, /production billing provider/i);
   assert.match(upgrade, /owner.*admin|owner", "admin/i);

@@ -17,7 +17,17 @@ const REQUIRED_ENV_GROUPS = [
 const FEATURE_ENV_GROUPS = [
   { feature: "demo", keys: ["DEMO_USER_EMAIL", "DEMO_USER_PASSWORD", "DEMO_RATE_LIMIT_SECRET"] },
   { feature: "ai", keys: ["GEMINI_API_KEY"] },
-  { feature: "billing-webhook", keys: ["BILLING_WEBHOOK_SECRET"] },
+  {
+    feature: "billing-lemonsqueezy",
+    keys: [
+      "LEMONSQUEEZY_API_KEY",
+      "LEMONSQUEEZY_STORE_ID",
+      "LEMONSQUEEZY_STARTER_VARIANT_ID",
+      "LEMONSQUEEZY_GROWTH_VARIANT_ID",
+      "LEMONSQUEEZY_PRO_VARIANT_ID",
+      "BILLING_WEBHOOK_SECRET",
+    ],
+  },
 ] as const;
 
 export type DeploymentDatabaseStatus = {

@@ -28,11 +28,10 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Install patched Next.js release
-        run: npm install --save-exact next@16.2.12 eslint-config-next@16.2.12
-
-      - name: Apply compatible transitive security fixes
-        run: npm audit fix
+      - name: Generate patched lockfile
+        run: |
+          npm install --save-exact next@16.2.12 eslint-config-next@16.2.12
+          npm audit fix || true
 
       - name: Verify high-severity audit gate
         run: npm audit --audit-level=high

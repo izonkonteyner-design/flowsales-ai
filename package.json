@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/all.test.ts",
+    "verify:rls": "node scripts/verify-rls-two-workspaces.mjs",
     "test:e2e": "playwright test --project=chromium --grep-invert \"@negative|@production\"",
     "test:e2e:negative": "playwright test --project=chromium --grep \"@negative\"",
     "test:e2e:production": "PLAYWRIGHT_BASE_URL=https://flowsales-ai-six.vercel.app playwright test --project=chromium --grep \"@production\""

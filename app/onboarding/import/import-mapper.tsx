@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 
+import { importLeadsAction } from "./actions";
+
 const targets = [
   ["full_name", "Full name *"],
   ["email", "Email"],
@@ -60,7 +62,7 @@ export function ImportMapper({ organizationId }: { organizationId: string }) {
   const duplicate = Object.values(mapping).filter(Boolean).some((value, index, all) => all.indexOf(value) !== index);
 
   return (
-    <form action="/onboarding/import" method="post" className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <form action={importLeadsAction} className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="mapping" value={JSON.stringify(mapping)} />
       <div>
@@ -86,11 +88,11 @@ export function ImportMapper({ organizationId }: { organizationId: string }) {
         </div>
       ) : null}
 
-      {!fullNameMapped && headers.length > 0 ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Choose the column containing the lead's full name.</p> : null}
+      {!fullNameMapped && headers.length > 0 ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Choose the column containing the lead&apos;s full name.</p> : null}
       {duplicate ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-800">Each CSV column can only be used once.</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" formAction={undefined} disabled={!fullNameMapped || duplicate} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">3. Validate and import</button>
+        <button type="submit" disabled={!fullNameMapped || duplicate} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">3. Validate and import</button>
         <span className="text-xs text-slate-500">Maximum 5,000 rows. Invalid rows are skipped and included in a downloadable report.</span>
       </div>
     </form>

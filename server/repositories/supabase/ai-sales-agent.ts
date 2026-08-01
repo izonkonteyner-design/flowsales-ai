@@ -140,6 +140,7 @@ export class SupabaseAiApprovalQueue implements AiApprovalQueue {
     return queueAiApproval({
       repository: new SupabaseAiApprovalRepository(this.client),
       authorization: new SupabaseAiApprovalAuthorization(this.client),
+      // create_ai_approval writes its own event atomically.
       auditSink: { write: async () => undefined },
     }, input);
   }

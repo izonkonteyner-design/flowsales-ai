@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { SupabaseAiHistoryRepository } from "@/server/repositories/supabase/ai-history";
+import { submitAiFeedbackAction } from "./actions";
 
 export const metadata: Metadata = {
   title: "AI History | FlowSales AI",
@@ -75,7 +76,7 @@ export default async function AiHistoryPage({ searchParams }: { searchParams: Se
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Traceability</p>
           <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">AI History & Timeline</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-            Review workspace-scoped AI runs, provider metadata, decisions, failures and approval events in chronological order.
+            Review workspace-scoped AI runs, prompt and model versions, decisions, failures, feedback and approval events.
           </p>
         </div>
         <div className="flex gap-4 text-sm font-semibold">
@@ -115,10 +116,36 @@ export default async function AiHistoryPage({ searchParams }: { searchParams: Se
               <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
                 <div><dt className="text-slate-500">Started</dt><dd className="font-medium text-slate-900">{formatDate(run.createdAt)}</dd></div>
                 <div><dt className="text-slate-500">Provider</dt><dd className="font-medium text-slate-900">{run.provider ?? "Not recorded"} {run.model ? `· ${run.model}` : ""}</dd></div>
+                <div><dt className="text-slate-500">Prompt version</dt><dd className="font-medium text-slate-900">{run.promptVersion ?? "Legacy run"}</dd></div>
+                <div><dt className="text-slate-500">Output schema</dt><dd className="font-medium text-slate-900">{run.outputSchemaVersion ?? "Legacy run"}</dd></div>
                 <div><dt className="text-slate-500">Tokens</dt><dd className="font-medium text-slate-900">{run.inputTokens + run.outputTokens}</dd></div>
                 <div><dt className="text-slate-500">Estimated cost</dt><dd className="font-medium text-slate-900">${run.estimatedCostUsd.toFixed(6)}</dd></div>
               </dl>
               {run.errorCode ? <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">Failure: {run.errorCode}</p> : null}
+              {run.status === "completed" ? (
+                <form action={submitAiFeedbackAction} className="mt-5 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <input type="hidden" name="runId" value={run.id} />
+                  <p className="text-sm font-semibold text-slate-900">Was this AI result useful?</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button name="rating" value="helpful" className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-800">Helpful</button>
+                    <button name="rating" value="not_helpful" className="rounded-lg border border-red-300 bg-white px-3 py-2 text-sm font-semibold text-red-800">Not helpful</button>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
+                    <select name="reasonCode" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" defaultValue="">
+                      <option value="">Optional reason</option>
+                      <option value="accurate">Accurate</option>
+                      <option value="actionable">Actionable</option>
+                      <option value="clear">Clear</option>
+                      <option value="incorrect">Incorrect</option>
+                      <option value="unsupported">Unsupported claim</option>
+                      <option value="unsafe">Unsafe suggestion</option>
+                      <option value="not_relevant">Not relevant</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <input name="comment" maxLength={1000} placeholder="Optional feedback note" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" />
+                  </div>
+                </form>
+              ) : null}
               <p className="mt-4 break-all text-xs text-slate-500">Run ID: {run.id}{run.leadId ? ` · Lead: ${run.leadId}` : ""}</p>
             </article>
           ))}

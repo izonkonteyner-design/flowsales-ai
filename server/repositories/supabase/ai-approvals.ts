@@ -25,7 +25,7 @@ export class SupabaseAiApprovalAuditSink implements AiApprovalAuditSink {
   constructor(private readonly client:SupabaseClient){}
   async write(event:Parameters<AiApprovalAuditSink["write"]>[0]):Promise<void>{
     // create_ai_approval and decide_ai_approval persist created/approved/rejected events atomically.
-    if(!["cancelled","expired"].includes(event.event))return;
+    if (!["cancelled", "expired"].includes(event.event)) return;
     const {error}=await this.client.from("ai_approval_events").insert({organization_id:event.workspaceId,approval_id:event.approvalId,actor_id:event.actorId,event_type:event.event,metadata:event.note?{note:event.note}:{},created_at:event.occurredAt});
     if(error)throwDatabaseError("Write approval audit event",error);
   }

@@ -21,7 +21,7 @@ const decisionFormSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
-function approvalRedirect(message: string, tone: "success" | "danger") {
+function approvalRedirect(message: string, tone: "success" | "danger"): never {
   redirect(`/approvals?toast=${encodeURIComponent(message)}&tone=${tone}`);
 }
 
@@ -37,6 +37,7 @@ export async function decideApprovalAction(formData: FormData): Promise<void> {
   if (!parsed.success) {
     approvalRedirect("Invalid approval request.", "danger");
   }
+  const input = parsed.data;
 
   const client = await createSupabaseServerClient();
   if (!client) {
@@ -54,12 +55,12 @@ export async function decideApprovalAction(formData: FormData): Promise<void> {
       authorization: new SupabaseAiApprovalAuthorization(client),
       auditSink: new SupabaseAiApprovalAuditSink(client),
     }, {
-      workspaceId: parsed.data.workspaceId,
-      approvalId: parsed.data.approvalId,
+      workspaceId: input.workspaceId,
+      approvalId: input.approvalId,
       actorId: authData.user.id,
-      decision: parsed.data.decision,
-      note: parsed.data.note,
-      expectedVersion: parsed.data.expectedVersion,
+      decision: input.decision,
+      note: input.note,
+      expectedVersion: input.expectedVersion,
     });
   } catch (error) {
     if (error instanceof AiApprovalError) {
@@ -70,7 +71,7 @@ export async function decideApprovalAction(formData: FormData): Promise<void> {
 
   revalidatePath("/approvals");
   approvalRedirect(
-    parsed.data.decision === "approve" ? "AI recommendation approved." : "AI recommendation rejected.",
+    input.decision === "approve" ? "AI recommendation approved." : "AI recommendation rejected.",
     "success",
   );
 }

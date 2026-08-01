@@ -6,18 +6,20 @@ Status date: 2026-08-01
 
 Task 18, real pilot customer validation, is intentionally paused. The product must not represent pilot validation as complete until real customer evidence satisfies `docs/pilot-customer-validation.md`.
 
-The repository has passed lint, typecheck, 187 automated tests, production build and public production Playwright smoke. The next development phase should prioritize launch-risk reduction and activation quality instead of adding broad new AI capabilities.
+The repository has passed lint, typecheck, automated tests, production build and public production Playwright smoke. The next development phase should prioritize launch-risk reduction and activation quality instead of adding broad new AI capabilities.
 
 ## Priority 0 — Production foundations
 
 These are blocking before a controlled external pilot or paid launch.
 
-1. Apply migrations 0018 and later to the intended production Supabase project with a recorded migration manifest.
+1. [Repository implementation complete] Migration `0022` adds an ordered migration manifest and service-role deployment probe. Production migrations `0018` and later still need to be applied and evidenced in the intended Supabase project.
 2. Verify RLS using at least two independent workspaces and multiple roles, including negative cross-workspace access attempts.
 3. Run a backup and restore drill and record recovery time, recovery point and responsible owner.
 4. Review the dependency audit findings and close or explicitly accept all critical/high-severity risks with evidence.
 5. Configure dedicated authenticated production E2E credentials and verify demo, account lock, approval and quote read-only scenarios.
-6. Add deployment verification that confirms database schema version, required RPC functions and required environment variables.
+6. [Complete] Secret-gated `/api/health/deployment` confirms core environment configuration, migration version, required RPC functions and required tables without exposing secret values.
+
+Deployment verification usage and evidence requirements are documented in `docs/deployment-verification.md`.
 
 ## Priority 1 — Billing and commercial operations
 
@@ -75,7 +77,7 @@ These are blocking before a controlled external pilot or paid launch.
 
 ## Recommended execution order
 
-1. Production migration manifest and deployment probe.
+1. [Complete in repository] Production migration manifest and deployment probe.
 2. Two-workspace RLS and role verification suite.
 3. Dependency vulnerability remediation.
 4. Backup and restore drill documentation.

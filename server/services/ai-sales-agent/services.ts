@@ -7,6 +7,8 @@ export type AiCapabilityServiceResult = {
   output: AiSalesAgentOutput;
   provider: string;
   model: string;
+  promptVersion: string;
+  outputSchemaVersion: string;
   usage?: { inputTokens?: number; outputTokens?: number };
 };
 
@@ -18,7 +20,8 @@ async function runCapability(
   const prompt = buildCapabilityPrompt(capability, context);
   const result = await provider.generate({
     capability,
-    ...prompt,
+    systemPrompt: prompt.systemPrompt,
+    userPrompt: prompt.userPrompt,
     temperature: capability === "lead_scoring" ? 0.1 : capability === "quote_recommendation" ? 0.1 : 0.2,
   });
 
@@ -26,6 +29,8 @@ async function runCapability(
     output: result.output,
     provider: result.provider,
     model: result.model,
+    promptVersion: prompt.promptVersion,
+    outputSchemaVersion: prompt.outputSchemaVersion,
     usage: result.usage,
   };
 }

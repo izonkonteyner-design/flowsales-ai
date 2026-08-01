@@ -8,7 +8,7 @@ A task is marked complete only when its implementation is committed and its veri
 1. [x] Supabase migration and RLS code
 2. [x] Supabase repository adapters
 3. [x] Approval Queue UI and server actions
-4. [ ] AI History and timeline
+4. [x] AI History and timeline
 5. [ ] Lead detail AI panel
 6. [ ] Follow-up Draft
 7. [ ] Product Recommendation
@@ -49,6 +49,15 @@ A task is marked complete only when its implementation is committed and its veri
 - Demo approval button disabled while database and service checks remain authoritative.
 - Duplicate audit insertion avoided for atomic RPC transitions.
 
+### Task 4 — AI History and timeline
+
+- Authenticated `/ai-history` page.
+- Workspace-scoped AI run and approval-event repository.
+- Capability, run status and lead filters.
+- Provider, model, token, cost, decision and failure metadata.
+- Chronological timeline combining AI runs with approval events.
+- Source-level tests for authentication, workspace scoping and bounded queries.
+
 ## Next task
 
-Task 4 — AI History and timeline.
+Task 5 — Lead detail AI panel.

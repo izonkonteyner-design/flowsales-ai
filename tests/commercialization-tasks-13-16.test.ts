@@ -31,12 +31,16 @@ test("notification actions scope updates to authenticated user", async () => {
   assert.match(page, /notifications/);
 });
 
-test("pricing and upgrade flows disclose provider configuration boundary", async () => {
+test("pricing and upgrade flows expose secure provider configuration boundaries", async () => {
   const pricing = await source("app/(marketing)/pricing/page.tsx");
   const upgrade = await source("app/upgrade/page.tsx");
+  const actions = await source("app/upgrade/actions.ts");
   assert.match(pricing, /production billing provider/i);
   assert.match(upgrade, /owner.*admin|owner", "admin/i);
-  assert.match(upgrade, /Live checkout remains disabled/i);
+  assert.match(upgrade, /Live billing is not configured/i);
+  assert.match(upgrade, /Continue to secure checkout/i);
+  assert.match(actions, /is_demo_organization/);
+  assert.match(actions, /createLemonSqueezyCheckout/);
 });
 
 test("account lifecycle is auditable and demo-safe", async () => {

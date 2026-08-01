@@ -32,7 +32,7 @@ function withEnv(values: Record<string, string | undefined>, run: () => void) {
 test("deployment migration records ordered commercial migrations and stays service-role only", async () => {
   const sql = await readFile(migration, "utf8");
   assert.match(sql, /deployment_migrations/i);
-  assert.match(sql, /'0018'.*'0019'.*'0020'.*'0021'.*'0022'/is);
+  assert.match(sql, /'0018'[\s\S]*'0019'[\s\S]*'0020'[\s\S]*'0021'[\s\S]*'0022'/i);
   assert.match(sql, /auth\.role\(\) <> 'service_role'/i);
   assert.match(sql, /revoke all on function public\.deployment_readiness\(\) from public, anon, authenticated/i);
   assert.match(sql, /grant execute on function public\.deployment_readiness\(\) to service_role/i);
@@ -111,5 +111,5 @@ test("deployment endpoint is secret-gated, no-store and service-role backed", as
   assert.match(route, /createSupabaseAdminClient/);
   assert.match(route, /client\.rpc\("deployment_readiness"\)/);
   assert.match(route, /no-store/);
-  assert.match(route, /status: "error".*404/s);
+  assert.match(route, /status: "error"[\s\S]*404/);
 });

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { buildAiSalesContext, type AiContextRepository, type AiContextRequest } from "./context";
 import { evaluateAiExecutionPolicy, type AiCapability, type AiExecutionPolicyResult, type AiSalesAgentOutput } from "./domain";
 import type { AiProvider } from "./provider";
-import { recommendNextBestAction, scoreLead } from "./services";
+import { runAiCapability } from "./services";
 import type { AiApprovalRequest, CreateAiApprovalInput } from "../ai-approvals/domain";
 
 export type AiAuditStatus = "started" | "completed" | "failed";
@@ -21,6 +21,9 @@ export type AiAuditEvent = {
   decision?: AiExecutionPolicyResult["decision"];
   approvalRequired?: boolean;
   approvalId?: string;
+  output?: AiSalesAgentOutput;
+  inputTokens?: number;
+  outputTokens?: number;
   errorCode?: string;
 };
 
@@ -72,9 +75,7 @@ export async function runAiSalesAgent(
 
   try {
     const context = await buildAiSalesContext(dependencies.contextRepository, request, now);
-    const result = request.capability === "lead_scoring"
-      ? await scoreLead(dependencies.provider, context)
-      : await recommendNextBestAction(dependencies.provider, context);
+    const result = await runAiCapability(dependencies.provider, request.capability, context);
 
     const policy = evaluateAiExecutionPolicy({
       isDemoWorkspace: context.isDemoWorkspace,
@@ -111,6 +112,9 @@ export async function runAiSalesAgent(
       decision: policy.decision,
       approvalRequired: policy.approvalRequired,
       approvalId: approval?.id,
+      output: result.output,
+      inputTokens: result.usage?.inputTokens,
+      outputTokens: result.usage?.outputTokens,
     });
 
     return {

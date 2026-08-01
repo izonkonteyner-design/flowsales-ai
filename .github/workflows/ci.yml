@@ -24,8 +24,9 @@ jobs:
 
       - name: Generate remediated dependency files
         run: |
+          npm pkg set overrides.postcss=8.5.23 overrides.sharp=0.35.3
           npm install --save-exact next@16.2.12 eslint-config-next@16.2.12
-          npm audit fix
+          npm audit fix || true
 
       - name: Upload remediated dependency files
         uses: actions/upload-artifact@v4

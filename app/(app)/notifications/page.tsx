@@ -1,71 +1,77 @@
-import { BellRing, CheckCheck, MailWarning, Sparkles, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 
+import { markAllNotificationsReadAction, markNotificationReadAction } from "@/app/notifications/actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { formatDateTime } from "@/lib/utils";
-import { getNotifications } from "@/server/services/workspace-data";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export default function NotificationsPage() {
-  const notifications = getNotifications();
+export default async function NotificationsPage() {
+  const client = await createSupabaseServerClient();
+  if (!client) redirect("/login");
+
+  const { data: auth, error: authError } = await client.auth.getUser();
+  if (authError || !auth.user) redirect("/login");
+
+  const { data, error } = await client
+    .from("notifications")
+    .select("id,type,title,body,href,read_at,created_at")
+    .eq("user_id", auth.user.id)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw new Error(`Unable to load notifications: ${error.message}`);
+  const notifications = data ?? [];
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Engagement"
         title="Notifications"
-        description="Surface the most important customer and workspace events without noise."
+        description="Workspace alerts, approvals and AI updates scoped to your account."
         actions={
-          <button className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950">
-            <BellRing className="h-4 w-4" />
-            Mark all read
-          </button>
+          <form action={markAllNotificationsReadAction}>
+            <button className="inline-flex h-10 items-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950">
+              Mark all read
+            </button>
+          </form>
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <SectionCard title="Inbox" description="Unread alerts and helpful updates.">
+      <SectionCard title="Inbox" description="The latest notifications for your signed-in user.">
+        {notifications.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-600">
+            No notifications yet.
+          </div>
+        ) : (
           <div className="space-y-3">
             {notifications.map((notification) => (
-              <div
+              <article
                 key={notification.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
+                className={`rounded-2xl border p-4 ${notification.read_at ? "border-slate-200 bg-white dark:border-white/10 dark:bg-white/5" : "border-violet-200 bg-violet-50 dark:border-violet-500/30 dark:bg-violet-500/10"}`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <p className="font-medium text-slate-950 dark:text-white">{notification.title}</p>
-                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{notification.detail}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{notification.type}</p>
+                    <h2 className="mt-1 font-semibold text-slate-950 dark:text-white">{notification.title}</h2>
+                    <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{notification.body}</p>
+                    <div className="mt-3 flex gap-3">
+                      {notification.href ? <Link href={notification.href} className="text-sm font-semibold underline">Open</Link> : null}
+                      {!notification.read_at ? (
+                        <form action={markNotificationReadAction}>
+                          <input type="hidden" name="notificationId" value={notification.id} />
+                          <button className="text-sm font-semibold underline">Mark read</button>
+                        </form>
+                      ) : null}
+                    </div>
                   </div>
-                  <StatusBadge tone={notification.level}>
-                    {notification.read ? "Read" : "New"}
-                  </StatusBadge>
+                  <time className="text-xs text-slate-500">{new Date(notification.created_at).toLocaleString()}</time>
                 </div>
-                <p className="mt-4 text-xs text-slate-500">{formatDateTime(notification.created_at)}</p>
-              </div>
+              </article>
             ))}
           </div>
-        </SectionCard>
-
-        <SectionCard title="Delivery policy" description="Only the signals that drive revenue or service quality.">
-          <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-            <Item icon={CheckCheck} title="Sales updates" detail="High priority events and quote changes are surfaced first." />
-            <Item icon={MailWarning} title="Follow-up alerts" detail="Leads without response are escalated before they stall." />
-            <Item icon={Sparkles} title="AI summaries" detail="Model outputs are grouped separately from customer alerts." />
-          </div>
-        </SectionCard>
-      </div>
-    </div>
-  );
-}
-
-function Item({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-slate-400" />
-        <p className="font-medium text-slate-950 dark:text-white">{title}</p>
-      </div>
-      <p className="mt-1">{detail}</p>
+        )}
+      </SectionCard>
     </div>
   );
 }

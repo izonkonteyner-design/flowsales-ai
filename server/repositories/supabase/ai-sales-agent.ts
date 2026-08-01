@@ -57,8 +57,6 @@ export class SupabaseAiContextRepository implements AiContextRepository {
   }
 
   async listLeadActivities() {
-    // Activity schemas differ across legacy workspaces. Timeline integration reads from ai_runs;
-    // CRM activity normalization will be added without weakening workspace isolation.
     return [];
   }
 
@@ -111,6 +109,8 @@ export class SupabaseAiAuditSink implements AiAuditSink {
           status: "completed",
           provider: event.provider ?? null,
           model: event.model ?? null,
+          prompt_version: event.promptVersion ?? null,
+          output_schema_version: event.outputSchemaVersion ?? null,
           decision: event.decision ?? null,
           approval_required: event.approvalRequired ?? false,
           output: event.output ?? null,
@@ -140,7 +140,6 @@ export class SupabaseAiApprovalQueue implements AiApprovalQueue {
     return queueAiApproval({
       repository: new SupabaseAiApprovalRepository(this.client),
       authorization: new SupabaseAiApprovalAuthorization(this.client),
-      // create_ai_approval writes its own event atomically.
       auditSink: { write: async () => undefined },
     }, input);
   }

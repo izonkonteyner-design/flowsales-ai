@@ -1,5 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 
 import { aiEvaluationCaseSchema, evaluateAiCase, summarizeAiEvaluation } from "../server/services/ai-sales-agent/evaluation";
 import { AI_PROMPT_VERSION } from "../server/services/ai-sales-agent/prompts";
@@ -22,7 +22,7 @@ const report = {
   results,
 };
 
-await import("node:fs/promises").then(({ mkdir }) => mkdir(resolve(reportPath, ".."), { recursive: true }));
+await mkdir(dirname(reportPath), { recursive: true });
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 console.log(JSON.stringify(report));
 if (summary.status !== "passed") process.exitCode = 1;

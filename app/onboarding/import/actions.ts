@@ -4,19 +4,35 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { parseLeadCsv } from "@/server/services/csv-import";
+import { leadImportFields, parseLeadCsv, type LeadColumnMapping } from "@/server/services/csv-import";
 
+const mappingSchema = z.record(z.enum(leadImportFields), z.string().max(500)).default({});
 const importSchema = z.object({
   organizationId: z.string().uuid(),
   csv: z.string().min(1).max(5_000_000),
+  mapping: z.string().max(10_000).transform((value, context) => {
+    try {
+      return mappingSchema.parse(JSON.parse(value)) as LeadColumnMapping;
+    } catch {
+      context.addIssue({ code: "custom", message: "Invalid column mapping." });
+      return z.NEVER;
+    }
+  }),
 });
+
+function importRedirect(message: string, tone: "success" | "danger", jobId?: string): never {
+  const params = new URLSearchParams({ toast: message, tone });
+  if (jobId) params.set("jobId", jobId);
+  redirect(`/onboarding/import?${params.toString()}`);
+}
 
 export async function importLeadsAction(formData: FormData) {
   const parsed = importSchema.safeParse({
     organizationId: formData.get("organizationId"),
     csv: formData.get("csv"),
+    mapping: formData.get("mapping"),
   });
-  if (!parsed.success) redirect("/onboarding/import?tone=danger&toast=Invalid+CSV+request");
+  if (!parsed.success) importRedirect("Invalid CSV or column mapping request.", "danger");
 
   const client = await createSupabaseServerClient();
   if (!client) redirect("/login");
@@ -27,12 +43,18 @@ export async function importLeadsAction(formData: FormData) {
     p_organization_id: parsed.data.organizationId,
     p_permission: "import_data",
   });
-  if (permissionError || allowed !== true) redirect("/onboarding/import?tone=danger&toast=Import+permission+required");
+  if (permissionError || allowed !== true) importRedirect("Import permission required.", "danger");
 
   const { data: isDemo } = await client.rpc("is_demo_organization", { p_organization_id: parsed.data.organizationId });
-  if (isDemo === true) redirect("/onboarding/import?tone=danger&toast=Demo+workspace+is+read-only");
+  if (isDemo === true) importRedirect("Demo workspace is read-only.", "danger");
 
-  const result = parseLeadCsv(parsed.data.csv);
+  let result: ReturnType<typeof parseLeadCsv>;
+  try {
+    result = parseLeadCsv(parsed.data.csv, parsed.data.mapping);
+  } catch (error) {
+    importRedirect(error instanceof Error ? error.message : "CSV validation failed.", "danger");
+  }
+
   const { data: job, error: jobError } = await client.from("import_jobs").insert({
     organization_id: parsed.data.organizationId,
     actor_id: auth.user.id,
@@ -58,9 +80,11 @@ export async function importLeadsAction(formData: FormData) {
     status: insertError ? "failed" : "completed",
     imported_rows: insertError ? 0 : rows.length,
     completed_at: new Date().toISOString(),
-    error_report: insertError ? [...result.rejected, { row: 0, errors: [insertError.message] }] : result.rejected,
+    error_report: insertError
+      ? [...result.rejected, { row: 0, errors: [insertError.message], values: {} }]
+      : result.rejected,
   }).eq("id", job.id).eq("organization_id", parsed.data.organizationId);
 
-  if (insertError) redirect("/onboarding/import?tone=danger&toast=Import+failed");
-  redirect(`/onboarding/import?tone=success&toast=${encodeURIComponent(`${rows.length} leads imported; ${result.rejected.length} rejected`)}`);
+  if (insertError) importRedirect("Import failed. Download the error report for details.", "danger", job.id);
+  importRedirect(`${rows.length} leads imported; ${result.rejected.length} rejected.`, "success", job.id);
 }

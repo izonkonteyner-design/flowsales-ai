@@ -4,9 +4,17 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { leadImportFields, parseLeadCsv, type LeadColumnMapping } from "@/server/services/csv-import";
+import { parseLeadCsv, type LeadColumnMapping } from "@/server/services/csv-import";
 
-const mappingSchema = z.record(z.enum(leadImportFields), z.string().max(500)).default({});
+const mappingSchema = z.object({
+  full_name: z.string().max(500).optional(),
+  email: z.string().max(500).optional(),
+  phone: z.string().max(500).optional(),
+  company: z.string().max(500).optional(),
+  source: z.string().max(500).optional(),
+  status: z.string().max(500).optional(),
+}).strict();
+
 const importSchema = z.object({
   organizationId: z.string().uuid(),
   csv: z.string().min(1).max(5_000_000),

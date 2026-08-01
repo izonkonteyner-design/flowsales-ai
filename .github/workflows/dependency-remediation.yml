@@ -48,3 +48,5 @@ jobs:
           git add package.json package-lock.json
           git commit -m "security: remediate npm dependency advisories"
           git push origin HEAD:feat/ai-sales-agent-foundation
+
+# This workflow is intentionally temporary and is removed after the generated lockfile is verified.

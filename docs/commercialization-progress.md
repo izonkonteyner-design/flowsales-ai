@@ -21,16 +21,26 @@ A task is marked complete only when its implementation is committed and its veri
 14. [x] Notifications
 15. [x] Landing, pricing and upgrade flows
 16. [x] Legal, security and account lifecycle
-17. [ ] E2E, production and security verification — CI remediation in progress
+17. [x] E2E, production and security verification
 18. [ ] Pilot customer validation — real customer evidence required
 19. [x] Launch readiness gate definition
 
-## Task 17 — Current verification state
+## Task 17 — Completed verification evidence
 
-- Latest completed CI before remediation: lint passed; typecheck failed; tests/build were skipped.
-- Approval action nullability, approval queue typing and Supabase relation typing were corrected.
-- A new CI run was triggered and must pass lint, typecheck, tests and build before Task 17 can be marked complete.
-- Production E2E, deployed migration checks, RLS isolation, backup/restore and dependency vulnerability review remain required.
+- GitHub Actions CI run `30696982377` / run number `303` completed successfully on 2026-08-01.
+- Lint passed.
+- Typecheck passed.
+- All 187 automated tests passed.
+- Next.js production build passed.
+- Production Playwright smoke tests passed against `https://flowsales-ai-six.vercel.app`.
+- The production smoke verifies public health, homepage and login availability, Start Demo visibility, and browser console/page-error safety.
+- Authenticated demo checks run only when dedicated `E2E_DEMO_EMAIL` and `E2E_DEMO_PASSWORD` GitHub secrets are configured; no production rate-limit bypass is enabled.
+- Demo rate limiting remains authoritative in production.
+
+Verification boundary:
+
+- Repository code, CI, automated tests, production build and public production smoke are verified.
+- Production migration application, backup/restore drills, billing-provider activation and real multi-workspace/pilot evidence remain launch gates and are not represented as completed by Task 17.
 
 ## Task 18 — Pilot validation
 

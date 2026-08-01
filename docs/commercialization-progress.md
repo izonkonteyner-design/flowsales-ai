@@ -17,51 +17,52 @@ A task is marked complete only when its implementation is committed and its veri
 10. [x] Onboarding and CSV import
 11. [x] Trial and plan limits
 12. [x] Billing and webhooks
-13. [ ] AI usage and cost measurement
-14. [ ] Notifications
-15. [ ] Landing, pricing and upgrade flows
-16. [ ] Legal, security and account lifecycle
+13. [x] AI usage and cost measurement
+14. [x] Notifications
+15. [x] Landing, pricing and upgrade flows
+16. [x] Legal, security and account lifecycle
 17. [ ] E2E, production and security verification
 18. [ ] Pilot customer validation
 
 ## Completed task notes
 
-### Tasks 1–8
+### Tasks 1–12
 
-AI agent, approval, history, lead panel and commercial recommendation capabilities are implemented as documented in the preceding commits.
+AI agent, approvals, history, commercial recommendations, access control, onboarding, trial limits and provider-neutral billing foundations are implemented in the preceding commits.
 
-### Task 9 — Roles and permissions expansion
+### Task 13 — AI usage and cost measurement
 
-- Canonical owner, admin, manager, sales manager, sales rep, member and viewer roles.
-- Shared permission matrix for member management, billing, workspace administration, AI review, pipeline management, AI execution, imports and CRM access.
-- Database `has_org_permission` and `current_org_role` functions.
-- Invitation table and RLS restricted to owners/admins.
+- Monthly capability-level run, token and estimated-cost reporting.
+- Authenticated `/usage` dashboard with plan quota consumption.
+- Deterministic provider-cost estimation helpers.
+- Service-role-only atomic monthly usage aggregation.
+- Existing quote-AI reservation safeguards remain intact.
 
-### Task 10 — Onboarding and CSV import
+### Task 14 — Notifications
 
-- Existing owner-only onboarding retained and extended with `/onboarding/import`.
-- Workspace-scoped lead CSV import action.
-- Required/optional column validation, quoted-value parsing, row and cell limits and rejected-row reporting.
-- Persistent import jobs with completion/failure state.
-- Permission and demo read-only checks before writes.
+- Authenticated `/notifications` inbox.
+- User-scoped unread/read state and mark-all-read action.
+- Service-role-only notification creation RPC.
+- Recipient workspace-membership validation.
+- RLS remains authoritative for browser reads and updates.
 
-### Task 11 — Trial and plan limits
+### Task 15 — Landing, pricing and upgrade flows
 
-- Workspace entitlement policy for subscription state, trial expiry, seat limits and monthly AI run limits.
-- Database `check_workspace_entitlement` and `initialize_workspace_trial` functions.
-- Starter, Growth, Pro and Enterprise limit mapping in the billing adapter.
-- Limits fail closed for inactive, expired or exhausted workspaces.
+- Existing production marketing entry remains the landing surface.
+- Public `/pricing` plan comparison for Starter, Growth and Pro.
+- Authenticated `/upgrade` flow with owner/admin billing authorization.
+- Plan limits aligned with entitlement definitions.
+- Live checkout is explicitly disabled until provider customer creation, price IDs and hosted checkout are configured.
 
-### Task 12 — Billing and webhooks
+### Task 16 — Legal, security and account lifecycle
 
-- Provider-neutral billing event contract.
-- HMAC SHA-256 signature verification with timing-safe comparison.
-- Idempotent billing event ledger.
-- Service-role-only billing event storage.
-- Signed `/api/billing/webhook` route.
-- Subscription events update organization entitlements without trusting browser input.
-- External provider account, checkout products, production webhook secret and webhook registration must still be configured and verified separately before live charging.
+- Existing Privacy and Terms routes retained.
+- Public `/security` responsible-AI and security control page.
+- Auditable `/account/data` export, workspace-deletion and account-deletion request flow.
+- Irreversible deletion is not executed directly from a browser request.
+- Demo lifecycle changes are blocked.
+- Production claims remain conditional on deployed migrations, backups, incident ownership and legal review.
 
 ## Next task
 
-Task 13 — AI usage and cost measurement.
+Task 17 — E2E, production and security verification.

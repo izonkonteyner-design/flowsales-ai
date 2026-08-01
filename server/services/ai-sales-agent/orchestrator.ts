@@ -4,6 +4,7 @@ import { buildAiSalesContext, type AiContextRepository, type AiContextRequest } 
 import { evaluateAiExecutionPolicy, type AiCapability, type AiExecutionPolicyResult, type AiSalesAgentOutput } from "./domain";
 import type { AiProvider } from "./provider";
 import { recommendNextBestAction, scoreLead } from "./services";
+import type { AiApprovalRequest, CreateAiApprovalInput } from "../ai-approvals/domain";
 
 export type AiAuditStatus = "started" | "completed" | "failed";
 
@@ -19,6 +20,7 @@ export type AiAuditEvent = {
   model?: string;
   decision?: AiExecutionPolicyResult["decision"];
   approvalRequired?: boolean;
+  approvalId?: string;
   errorCode?: string;
 };
 
@@ -26,10 +28,15 @@ export interface AiAuditSink {
   write(event: AiAuditEvent): Promise<void>;
 }
 
+export interface AiApprovalQueue {
+  queue(input: CreateAiApprovalInput): Promise<AiApprovalRequest>;
+}
+
 export type AiOrchestrationDependencies = {
   contextRepository: AiContextRepository;
   provider: AiProvider;
   auditSink: AiAuditSink;
+  approvalQueue?: AiApprovalQueue;
   now?: () => Date;
   createRunId?: () => string;
 };
@@ -40,6 +47,7 @@ export type AiOrchestrationResult = {
   policy: AiExecutionPolicyResult;
   provider: string;
   model: string;
+  approval?: AiApprovalRequest;
 };
 
 export async function runAiSalesAgent(
@@ -73,6 +81,27 @@ export async function runAiSalesAgent(
       output: result.output,
     });
 
+    let approval: AiApprovalRequest | undefined;
+    if (policy.approvalRequired) {
+      if (!dependencies.approvalQueue) {
+        throw new Error("ApprovalQueueNotConfigured");
+      }
+      approval = await dependencies.approvalQueue.queue({
+        workspaceId: request.workspaceId,
+        runId,
+        actorId: request.actorId,
+        leadId: request.leadId,
+        capability: request.capability,
+        summary: result.output.summary,
+        actions: result.output.actions,
+        evidence: result.output.evidence,
+        money: result.output.money,
+        reasons: policy.reasons,
+        provider: result.provider,
+        model: result.model,
+      });
+    }
+
     await dependencies.auditSink.write({
       ...baseAudit,
       status: "completed",
@@ -81,6 +110,7 @@ export async function runAiSalesAgent(
       model: result.model,
       decision: policy.decision,
       approvalRequired: policy.approvalRequired,
+      approvalId: approval?.id,
     });
 
     return {
@@ -89,6 +119,7 @@ export async function runAiSalesAgent(
       policy,
       provider: result.provider,
       model: result.model,
+      approval,
     };
   } catch (error) {
     const errorCode = error instanceof Error ? error.name : "UnknownError";

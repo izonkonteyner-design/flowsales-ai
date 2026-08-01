@@ -22,7 +22,7 @@ A task is marked complete only when its implementation is committed and its veri
 15. [x] Landing, pricing and upgrade flows
 16. [x] Legal, security and account lifecycle
 17. [x] E2E, production and security verification
-18. [ ] Pilot customer validation — real customer evidence required
+18. [ ] Pilot customer validation — intentionally paused; real customer evidence required
 19. [x] Launch readiness gate definition
 
 ## Task 17 — Completed verification evidence
@@ -42,10 +42,12 @@ Verification boundary:
 - Repository code, CI, automated tests, production build and public production smoke are verified.
 - Production migration application, backup/restore drills, billing-provider activation and real multi-workspace/pilot evidence remain launch gates and are not represented as completed by Task 17.
 
-## Task 18 — Pilot validation
+## Task 18 — Pilot validation paused
 
-- Measurable cohort, scenarios, success gates, evidence and stop conditions are defined in `docs/pilot-customer-validation.md`.
-- Task 18 remains open until real companies complete the pilot and the evidence satisfies those gates.
+- The product decision on 2026-08-01 is to pause real pilot execution while launch-risk reduction and activation improvements continue.
+- Measurable cohort, scenarios, success gates, evidence and stop conditions remain defined in `docs/pilot-customer-validation.md`.
+- Task 18 remains open and cannot be marked complete until real companies complete the pilot and the evidence satisfies those gates.
+- The next development priorities are documented in `docs/post-verification-development-roadmap.md`.
 
 ## Task 19 — Launch readiness gate
 

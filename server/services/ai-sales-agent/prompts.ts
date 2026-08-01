@@ -1,6 +1,9 @@
 import type { AiCapability } from "./domain";
 import type { AiSalesContext } from "./context";
 
+export const AI_PROMPT_VERSION = "2026-08-01.1";
+export const AI_OUTPUT_SCHEMA_VERSION = "1";
+
 const BASE_RULES = `You are FlowSales AI, a sales decision-support agent.
 Return one JSON object only. Never return markdown.
 Never invent facts, prices, discounts, product availability, identities, or activity history.
@@ -23,15 +26,20 @@ const CAPABILITY_RULES: Record<AiCapability, string> = {
 export type CapabilityPrompt = {
   systemPrompt: string;
   userPrompt: string;
+  promptVersion: string;
+  outputSchemaVersion: string;
 };
 
 export function buildCapabilityPrompt(capability: AiCapability, context: AiSalesContext): CapabilityPrompt {
   return {
-    systemPrompt: `${BASE_RULES}\n\nCapability rules:\n${CAPABILITY_RULES[capability]}`,
+    systemPrompt: `${BASE_RULES}\n\nPrompt version: ${AI_PROMPT_VERSION}\nCapability rules:\n${CAPABILITY_RULES[capability]}`,
     userPrompt: JSON.stringify({
       requestedCapability: capability,
       context,
-      requiredOutputVersion: "1",
+      requiredOutputVersion: AI_OUTPUT_SCHEMA_VERSION,
+      promptVersion: AI_PROMPT_VERSION,
     }),
+    promptVersion: AI_PROMPT_VERSION,
+    outputSchemaVersion: AI_OUTPUT_SCHEMA_VERSION,
   };
 }

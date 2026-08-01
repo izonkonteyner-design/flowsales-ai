@@ -18,6 +18,8 @@ export type AiAuditEvent = {
   occurredAt: string;
   provider?: string;
   model?: string;
+  promptVersion?: string;
+  outputSchemaVersion?: string;
   decision?: AiExecutionPolicyResult["decision"];
   approvalRequired?: boolean;
   approvalId?: string;
@@ -50,6 +52,8 @@ export type AiOrchestrationResult = {
   policy: AiExecutionPolicyResult;
   provider: string;
   model: string;
+  promptVersion: string;
+  outputSchemaVersion: string;
   approval?: AiApprovalRequest;
 };
 
@@ -109,6 +113,8 @@ export async function runAiSalesAgent(
       occurredAt: now().toISOString(),
       provider: result.provider,
       model: result.model,
+      promptVersion: result.promptVersion,
+      outputSchemaVersion: result.outputSchemaVersion,
       decision: policy.decision,
       approvalRequired: policy.approvalRequired,
       approvalId: approval?.id,
@@ -123,6 +129,8 @@ export async function runAiSalesAgent(
       policy,
       provider: result.provider,
       model: result.model,
+      promptVersion: result.promptVersion,
+      outputSchemaVersion: result.outputSchemaVersion,
       approval,
     };
   } catch (error) {

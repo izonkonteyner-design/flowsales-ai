@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { SupabaseBillingEventRepository } from "@/server/repositories/supabase/billing-events";
 import { processBillingEvent, verifyBillingWebhookSignature } from "@/server/services/billing-webhook";
+import { parseLemonSqueezyWebhook } from "@/server/services/lemonsqueezy-billing";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
   if (!secret) return NextResponse.json({ error: "Billing webhook is not configured." }, { status: 503 });
 
   const rawBody = await request.text();
-  const signature = request.headers.get("x-flowsales-signature");
+  const signature = request.headers.get("x-signature");
   if (!verifyBillingWebhookSignature({ rawBody, signature, secret })) {
     return NextResponse.json({ error: "Invalid signature." }, { status: 401 });
   }
@@ -24,8 +25,10 @@ export async function POST(request: Request) {
   }
 
   try {
+    const event = parseLemonSqueezyWebhook(payload);
+    if (!event) return NextResponse.json({ received: true, result: "ignored" });
     const repository = new SupabaseBillingEventRepository(createSupabaseAdminClient());
-    const result = await processBillingEvent(repository, "configured-provider", payload);
+    const result = await processBillingEvent(repository, "lemonsqueezy", event);
     return NextResponse.json({ received: true, result });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Billing webhook processing failed.";

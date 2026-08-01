@@ -13,10 +13,10 @@ A task is marked complete only when its implementation is committed and its veri
 6. [x] Follow-up Draft
 7. [x] Product Recommendation
 8. [x] Quote Recommendation
-9. [ ] Roles and permissions expansion
-10. [ ] Onboarding and CSV import
-11. [ ] Trial and plan limits
-12. [ ] Billing and webhooks
+9. [x] Roles and permissions expansion
+10. [x] Onboarding and CSV import
+11. [x] Trial and plan limits
+12. [x] Billing and webhooks
 13. [ ] AI usage and cost measurement
 14. [ ] Notifications
 15. [ ] Landing, pricing and upgrade flows
@@ -26,68 +26,42 @@ A task is marked complete only when its implementation is committed and its veri
 
 ## Completed task notes
 
-### Task 1 — Supabase migration and RLS code
+### Tasks 1–8
 
-- Persistent AI runs, approvals, events, entitlements, usage and notifications tables.
-- Workspace membership and reviewer RLS policies.
-- Demo read-only database checks.
-- Optimistic approval decisions with row locking and version checks.
-- Repository migrations are not considered applied to production until deployment is separately verified.
+AI agent, approval, history, lead panel and commercial recommendation capabilities are implemented as documented in the preceding commits.
 
-### Task 2 — Supabase repository adapters
+### Task 9 — Roles and permissions expansion
 
-- Approval repository, reviewer authorization and audit adapters.
-- Workspace-scoped reads and atomic RPC-backed create/decision operations.
+- Canonical owner, admin, manager, sales manager, sales rep, member and viewer roles.
+- Shared permission matrix for member management, billing, workspace administration, AI review, pipeline management, AI execution, imports and CRM access.
+- Database `has_org_permission` and `current_org_role` functions.
+- Invitation table and RLS restricted to owners/admins.
 
-### Task 3 — Approval Queue UI and server actions
+### Task 10 — Onboarding and CSV import
 
-- Authenticated `/approvals` queue page.
-- Workspace resolution through organization membership.
-- Reviewer-only pending queue.
-- Approve and reject server actions with Zod validation.
-- Optimistic version handling and service-layer authorization.
-- Demo approval button disabled while database and service checks remain authoritative.
-- Duplicate audit insertion avoided for atomic RPC transitions.
+- Existing owner-only onboarding retained and extended with `/onboarding/import`.
+- Workspace-scoped lead CSV import action.
+- Required/optional column validation, quoted-value parsing, row and cell limits and rejected-row reporting.
+- Persistent import jobs with completion/failure state.
+- Permission and demo read-only checks before writes.
 
-### Task 4 — AI History and timeline
+### Task 11 — Trial and plan limits
 
-- Authenticated `/ai-history` page.
-- Workspace-scoped AI run and approval-event repository.
-- Capability, run status and lead filters.
-- Provider, model, token, cost, decision and failure metadata.
-- Chronological timeline combining AI runs with approval events.
-- Source-level tests for authentication, workspace scoping and bounded queries.
+- Workspace entitlement policy for subscription state, trial expiry, seat limits and monthly AI run limits.
+- Database `check_workspace_entitlement` and `initialize_workspace_trial` functions.
+- Starter, Growth, Pro and Enterprise limit mapping in the billing adapter.
+- Limits fail closed for inactive, expired or exhausted workspaces.
 
-### Task 5 — Lead detail AI panel
+### Task 12 — Billing and webhooks
 
-- Authenticated `/leads/[leadId]/ai` panel.
-- Workspace-scoped lead resolution and recent AI history.
-- Lead Scoring, Next Best Action, Follow-up Draft, Product Recommendation and Quote Recommendation controls.
-- Structured summaries, confidence, actions, decisions and provider metadata displayed per run.
-- Demo Safe Mode messaging and server-side enforcement.
-
-### Task 6 — Follow-up Draft
-
-- Provider-neutral follow-up capability service.
-- Capability-specific prompt prohibits invented agreements, prices, dates and product details.
-- Draft creation remains advisory; sending is never automatic.
-- Protected send actions flow through execution policy and Approval Queue.
-
-### Task 7 — Product Recommendation
-
-- Product recommendation capability implemented in the shared service and orchestration path.
-- Context is restricted to active products in the current workspace.
-- Trusted catalog IDs are required for monetary claims.
-- Recommendations are persisted in AI history and remain advisory.
-
-### Task 8 — Quote Recommendation
-
-- Quote recommendation capability implemented with deterministic temperature.
-- Quote recommendations always require human approval.
-- Prices must originate from trusted catalog or workspace-rule records.
-- Demo workspace mutations remain blocked.
-- Approval Queue receives protected quote actions before any future execution handler can run.
+- Provider-neutral billing event contract.
+- HMAC SHA-256 signature verification with timing-safe comparison.
+- Idempotent billing event ledger.
+- Service-role-only billing event storage.
+- Signed `/api/billing/webhook` route.
+- Subscription events update organization entitlements without trusting browser input.
+- External provider account, checkout products, production webhook secret and webhook registration must still be configured and verified separately before live charging.
 
 ## Next task
 
-Task 9 — Roles and permissions expansion.
+Task 13 — AI usage and cost measurement.

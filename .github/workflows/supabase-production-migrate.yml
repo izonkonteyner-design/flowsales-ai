@@ -19,6 +19,8 @@ jobs:
     environment: production
     permissions:
       contents: read
+      issues: write
+      pull-requests: write
 
     env:
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
@@ -88,6 +90,7 @@ jobs:
           npx --yes supabase@latest db push --password "$SUPABASE_DB_PASSWORD"
 
       - name: Verify migration 0024 and required objects
+        id: verify
         shell: bash
         run: |
           set -euo pipefail
@@ -106,3 +109,18 @@ jobs:
             then 'ready' else 'not_ready' end;
           " | grep -qx ready
           echo "Production Supabase migration verified at 0024."
+
+      - name: Report migration result to PR 33
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$JOB_STATUS" == "success" ]]; then
+            body="✅ Production Supabase migration completed and verified at version 0024. Required AI feedback/evaluation tables and ai_runs version columns are present. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          else
+            body="❌ Production Supabase migration did not complete. Check the protected production environment approval, configured database secrets, and workflow logs. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/issues/33/comments" -f body="$body"

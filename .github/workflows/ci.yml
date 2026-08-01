@@ -18,27 +18,13 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: package.json
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Generate remediated dependency files
-        run: |
-          npm pkg set overrides.postcss=8.5.23 overrides.sharp=0.35.3
-          npm install --save-exact next@16.2.12 eslint-config-next@16.2.12
-          npm audit fix || true
-
-      - name: Upload remediated dependency files
-        uses: actions/upload-artifact@v4
-        with:
-          name: remediated-dependencies
-          path: |
-            package.json
-            package-lock.json
-          retention-days: 1
+        run: npm install --no-package-lock
 
       - name: Dependency audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --package-lock-only
 
       - name: Lint
         run: npm run lint
@@ -65,9 +51,13 @@ jobs:
         with:
           node-version: 24
           cache: npm
+          cache-dependency-path: package.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-package-lock
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high --package-lock-only
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium

@@ -24,7 +24,7 @@ jobs:
         run: npm install --no-package-lock
 
       - name: Dependency audit
-        run: npm audit --audit-level=high --package-lock-only
+        run: npm audit --audit-level=high
 
       - name: Lint
         run: npm run lint
@@ -57,7 +57,7 @@ jobs:
         run: npm install --no-package-lock
 
       - name: Dependency audit
-        run: npm audit --audit-level=high --package-lock-only
+        run: npm audit --audit-level=high
 
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium

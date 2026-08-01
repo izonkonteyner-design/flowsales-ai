@@ -1,0 +1,108 @@
+name: Supabase Production Migration
+
+on:
+  push:
+    branches:
+      - feat/ai-sales-agent-foundation
+    paths:
+      - .github/workflows/supabase-production-migrate.yml
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-production-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations through 0024
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - name: Checkout requested branch
+        uses: actions/checkout@v4
+
+      - name: Validate migration set
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=(0018 0019 0020 0021 0022 0023 0024)
+          for version in "${expected[@]}"; do
+            file=$(find supabase/migrations -maxdepth 1 -type f -name "${version}_*.sql" -print -quit)
+            if [[ -z "$file" ]]; then
+              echo "Missing migration ${version}" >&2
+              exit 1
+            fi
+            echo "Found $file"
+          done
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Resolve production connection method
+        id: connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
+          if [[ -n "$db_url" ]]; then
+            echo "mode=postgres" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -n "${SUPABASE_ACCESS_TOKEN:-}" && -n "${SUPABASE_PROJECT_REF:-}" && -n "${SUPABASE_DB_PASSWORD:-}" ]]; then
+            echo "mode=supabase-cli" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "No supported production database credentials are configured." >&2
+          echo "Configure SUPABASE_DB_URL, or SUPABASE_ACCESS_TOKEN + SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD in the production environment." >&2
+          exit 1
+
+      - name: Apply ordered SQL migrations with psql
+        if: steps.connection.outputs.mode == 'postgres'
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
+          for version in 0018 0019 0020 0021 0022 0023 0024; do
+            file=$(find supabase/migrations -maxdepth 1 -type f -name "${version}_*.sql" -print -quit)
+            echo "Applying ${version}"
+            psql "$db_url" -v ON_ERROR_STOP=1 -X -f "$file"
+          done
+
+      - name: Apply migrations with Supabase CLI
+        if: steps.connection.outputs.mode == 'supabase-cli'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          npx --yes supabase@latest db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Verify migration 0024 and required objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
+          if [[ -z "$db_url" ]]; then
+            db_url="postgresql://postgres.${SUPABASE_PROJECT_REF}:${SUPABASE_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+          fi
+          latest=$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")
+          test "$latest" = "0024"
+          psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
+            select case when
+              to_regclass('public.ai_run_feedback') is not null
+              and to_regclass('public.ai_evaluation_runs') is not null
+              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='ai_runs' and column_name='prompt_version')
+              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='ai_runs' and column_name='output_schema_version')
+            then 'ready' else 'not_ready' end;
+          " | grep -qx ready
+          echo "Production Supabase migration verified at 0024."

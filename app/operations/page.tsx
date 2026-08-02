@@ -30,14 +30,19 @@ export default async function OperationsPage() {
 
   return (
     <main className="mx-auto max-w-6xl space-y-8 px-4 py-10">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-700">Owner and admin only</p>
-        <h1 className="mt-2 text-3xl font-bold text-slate-950">Operations center</h1>
-        <p className="mt-2 text-slate-600">Prioritized failures, pending requests, entitlement mismatches and stale approvals for this workspace.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-700">Owner and admin only</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-950">Operations center</h1>
+          <p className="mt-2 text-slate-600">Prioritized failures, pending requests, entitlement mismatches and stale approvals for this workspace.</p>
+        </div>
+        <Link href="/operations/ai-quality" className="rounded-lg bg-violet-700 px-4 py-2 text-center text-sm font-semibold text-white shadow-sm">
+          Open AI quality
+        </Link>
       </div>
 
       <section className="grid gap-4 sm:grid-cols-4">
-        {[['Open alerts', summary.total], ['Critical', summary.critical], ['High', summary.high], ['Medium', summary.medium]].map(([label, value]) => (
+        {[["Open alerts", summary.total], ["Critical", summary.critical], ["High", summary.high], ["Medium", summary.medium]].map(([label, value]) => (
           <div key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-3xl font-bold text-slate-950">{value}</p></div>
         ))}
       </section>
@@ -47,7 +52,7 @@ export default async function OperationsPage() {
           <article key={alert.key} className={`rounded-2xl border p-5 ${severityClass[alert.severity]}`}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border px-2 py-1 text-xs font-bold uppercase">{alert.severity}</span><span className="text-xs uppercase tracking-wide opacity-70">{alert.category.replaceAll('_', ' ')}</span></div>
+                <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border px-2 py-1 text-xs font-bold uppercase">{alert.severity}</span><span className="text-xs uppercase tracking-wide opacity-70">{alert.category.replaceAll("_", " ")}</span></div>
                 <h2 className="mt-3 text-lg font-bold">{alert.title}</h2>
                 <p className="mt-1 text-sm">{alert.detail}</p>
                 <p className="mt-2 text-xs opacity-70">{new Date(alert.occurredAt).toLocaleString()}</p>

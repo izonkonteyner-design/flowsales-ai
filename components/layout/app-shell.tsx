@@ -22,6 +22,7 @@ import {
   Package,
   PanelLeftClose,
   PanelLeftOpen,
+  Plug,
   Search,
   Settings,
   ShieldCheck,
@@ -56,6 +57,7 @@ const iconMap = {
   "shield-check": ShieldCheck,
   "clipboard-list": ClipboardList,
   braces: Braces,
+  plug: Plug,
   settings: Settings,
 } as const;
 

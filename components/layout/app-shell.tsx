@@ -8,29 +8,31 @@ import {
   Bell,
   Bot,
   Braces,
+  CalendarDays,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Command,
-  CalendarDays,
   ClipboardList,
+  Command,
   CreditCard,
+  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
+  Moon,
   Package,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
   Settings,
   ShieldCheck,
+  Sparkles,
+  SunMedium,
   UserCircle2,
   UserRound,
-  Users2,
   Users,
-  FileText,
-  CheckCircle2,
-  Moon,
-  SunMedium,
+  Users2,
+  Zap,
 } from "lucide-react";
 
 import { BRAND, APP_NAVIGATION } from "@/lib/constants";
@@ -58,28 +60,33 @@ const iconMap = {
   settings: Settings,
 } as const;
 
+const navigationGroups = [
+  { label: "Workspace", matches: ["/dashboard", "/leads", "/customers", "/products", "/quotes"] },
+  { label: "Intelligence", matches: ["/ai", "/ai-history", "/approvals"] },
+  { label: "Operations", matches: ["/operations", "/notifications", "/usage", "/security"] },
+  { label: "Settings", matches: ["/account", "/upgrade"] },
+] as const;
+
+function groupFor(href: string) {
+  return navigationGroups.find((group) => group.matches.some((match) => href === match || href.startsWith(`${match}/`)))?.label ?? "Workspace";
+}
+
 function useThemeMode() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem("flowsales-theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const nextTheme = stored === "light" || stored === "dark" ? stored : prefersDark ? "dark" : "light";
-
+    const nextTheme = stored === "light" || stored === "dark" ? stored : "dark";
     const frame = window.requestAnimationFrame(() => {
       setTheme(nextTheme);
       setMounted(true);
     });
-
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
   useEffect(() => {
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     document.documentElement.classList.toggle("dark", theme === "dark");
     window.localStorage.setItem("flowsales-theme", theme);
   }, [mounted, theme]);
@@ -87,13 +94,54 @@ function useThemeMode() {
   return { theme, setTheme, mounted };
 }
 
-export function AppShell({
-  children,
-  workspace,
-}: {
-  children: React.ReactNode;
-  workspace: WorkspaceContext;
-}) {
+function Navigation({ pathname, collapsed = false, onNavigate }: { pathname: string; collapsed?: boolean; onNavigate?: () => void }) {
+  return (
+    <nav className="space-y-6">
+      {navigationGroups.map((group) => {
+        const items = APP_NAVIGATION.filter((item) => groupFor(item.href) === group.label);
+        if (!items.length) return null;
+
+        return (
+          <div key={group.label}>
+            {!collapsed ? (
+              <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500/80">
+                {group.label}
+              </p>
+            ) : null}
+            <div className="space-y-1">
+              {items.map((item) => {
+                const Icon = iconMap[item.icon];
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={onNavigate}
+                    title={collapsed ? item.label : undefined}
+                    className={cn(
+                      "group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                      active
+                        ? "bg-gradient-to-r from-violet-500/20 via-blue-500/15 to-cyan-500/10 text-white shadow-[inset_0_0_0_1px_rgba(139,92,246,.28),0_10px_28px_rgba(37,99,235,.12)]"
+                        : "text-slate-400 hover:bg-white/[0.06] hover:text-white",
+                      collapsed && "justify-center px-2",
+                    )}
+                    aria-current={active ? "page" : undefined}
+                  >
+                    {active ? <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-gradient-to-b from-violet-400 to-cyan-300" /> : null}
+                    <Icon className={cn("h-4 w-4 shrink-0 transition", active ? "text-violet-300" : "text-slate-500 group-hover:text-slate-200")} />
+                    {!collapsed ? <span>{item.label}</span> : null}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+export function AppShell({ children, workspace }: { children: React.ReactNode; workspace: WorkspaceContext }) {
   const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -105,229 +153,107 @@ export function AppShell({
     [pathname],
   );
 
-  if (isPrintRoute) {
-    return <div className="min-h-screen bg-white text-slate-950">{children}</div>;
-  }
+  if (isPrintRoute) return <div className="min-h-screen bg-white text-slate-950">{children}</div>;
+
+  const workspaceName = workspace.mode === "demo" ? "Demo workspace" : workspace.organization.name;
+  const workspaceMeta = `${workspace.role.toUpperCase()} · ${workspace.mode === "demo" ? "Read-only preview" : "Live workspace"}`;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.08),transparent_30%),linear-gradient(to_bottom,#f8fafc,#eef2ff_45%,#f8fafc)] text-slate-950 dark:bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.16),transparent_28%),linear-gradient(to_bottom,#020617,#0f172a_40%,#020617)] dark:text-white">
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside
-          className={cn(
-            "sticky top-0 hidden h-screen shrink-0 border-r border-slate-200/70 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-slate-950/80 xl:flex xl:flex-col",
-            isSidebarCollapsed ? "w-[92px]" : "w-[288px]",
-          )}
-        >
-          <div className="flex h-16 items-center justify-between border-b border-slate-200/70 px-4 dark:border-white/10">
-            <Link href="/dashboard" className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
+    <div className="min-h-screen bg-[#050816] text-white">
+      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(124,58,237,.18),transparent_26%),radial-gradient(circle_at_85%_15%,rgba(14,165,233,.12),transparent_24%),linear-gradient(180deg,#050816_0%,#070b18_46%,#050816_100%)]" />
 
+      <div className="relative mx-auto flex min-h-screen max-w-[1800px]">
+        <aside className={cn("sticky top-0 hidden h-screen shrink-0 border-r border-white/[0.08] bg-[#080c19]/92 backdrop-blur-2xl xl:flex xl:flex-col", isSidebarCollapsed ? "w-[88px]" : "w-[286px]")}> 
+          <div className="flex h-20 items-center justify-between border-b border-white/[0.08] px-4">
+            <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
+              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500 via-blue-500 to-cyan-400 shadow-[0_0_35px_rgba(99,102,241,.32)]">
+                <Sparkles className="h-5 w-5 text-white" />
+                <span className="absolute inset-0 bg-white/10" />
+              </div>
               {!isSidebarCollapsed ? (
-                <div>
-                  <p className="text-sm font-semibold">{BRAND.name}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{BRAND.tagline}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold tracking-tight text-white">{BRAND.name}</p>
+                  <p className="truncate text-[11px] text-slate-500">AI revenue workspace</p>
                 </div>
               ) : null}
             </Link>
-
-            <button
-              type="button"
-              onClick={() => setIsSidebarCollapsed((value) => !value)}
-              className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 dark:hover:bg-white/10"
-              aria-label="Toggle sidebar"
-            >
-              {isSidebarCollapsed ? (
-                <PanelLeftOpen className="h-4 w-4" />
-              ) : (
-                <PanelLeftClose className="h-4 w-4" />
-              )}
+            <button type="button" onClick={() => setIsSidebarCollapsed((value) => !value)} className="rounded-xl p-2 text-slate-500 transition hover:bg-white/[0.06] hover:text-white" aria-label="Toggle sidebar">
+              {isSidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-3 py-4">
-            <nav className="space-y-1">
-              {APP_NAVIGATION.map((item) => {
-                const Icon = iconMap[item.icon];
-                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          {!isSidebarCollapsed ? (
+            <div className="mx-3 mt-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500/20 to-blue-500/20 ring-1 ring-white/10">
+                  <ShieldCheck className="h-5 w-5 text-violet-300" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-white">{workspaceName}</p>
+                  <p className="truncate text-xs text-slate-500">{workspaceMeta}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-slate-600" />
+              </div>
+            </div>
+          ) : null}
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
-                      isActive
-                        ? "bg-slate-950 text-white shadow-lg shadow-slate-950/10 dark:bg-white dark:text-slate-950"
-                        : "text-slate-600 hover:bg-slate-100 hover:text-slate-950 dark:text-slate-300 dark:hover:bg-white/10 dark:hover:text-white",
-                      isSidebarCollapsed && "justify-center px-2",
-                    )}
-                    aria-current={isActive ? "page" : undefined}
-                  >
-                    <Icon className="h-4 w-4 shrink-0" />
-                    {!isSidebarCollapsed ? <span>{item.label}</span> : null}
-                  </Link>
-                );
-              })}
-            </nav>
+          <div className="flex-1 overflow-y-auto px-3 py-5">
+            <Navigation pathname={pathname} collapsed={isSidebarCollapsed} />
           </div>
 
-          <div className="border-t border-slate-200/70 p-4 dark:border-white/10">
-            <div
-              className={cn(
-                "flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-slate-50 p-3 dark:border-white/10 dark:bg-white/5",
-                isSidebarCollapsed && "justify-center",
-              )}
-            >
-              <UserCircle2 className="h-10 w-10 text-slate-500" />
-              {!isSidebarCollapsed ? (
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-slate-950 dark:text-white">
-                    {workspace.mode === "demo" ? "Demo workspace" : workspace.organization.name}
-                  </p>
-                  <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                    {workspace.role.toUpperCase()} · {workspace.mode === "demo" ? "Read-only demo data" : "Live workspace"}
-                  </p>
+          <div className="border-t border-white/[0.08] p-3">
+            {!isSidebarCollapsed ? (
+              <div className="mb-3 overflow-hidden rounded-2xl border border-violet-400/15 bg-gradient-to-br from-violet-500/10 via-blue-500/5 to-transparent p-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-medium text-violet-200"><Zap className="h-3.5 w-3.5" /> AI capacity</div>
+                  <span className="text-[11px] text-slate-500">72%</span>
                 </div>
-              ) : null}
-            </div>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full w-[72%] rounded-full bg-gradient-to-r from-violet-500 to-cyan-400" /></div>
+                <p className="mt-2 text-[11px] text-slate-500">Usage resets with your billing cycle.</p>
+              </div>
+            ) : null}
+            <Link href="/account" className={cn("flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-3 transition hover:bg-white/[0.06]", isSidebarCollapsed && "justify-center")}>
+              <UserCircle2 className="h-9 w-9 shrink-0 text-slate-400" />
+              {!isSidebarCollapsed ? <div className="min-w-0"><p className="truncate text-sm font-medium text-white">{workspace.mode === "demo" ? "Demo user" : workspaceName}</p><p className="truncate text-xs text-slate-500">View account</p></div> : null}
+            </Link>
           </div>
         </aside>
 
         {isMobileNavOpen ? (
-          <div className="fixed inset-0 z-40 bg-slate-950/50 xl:hidden" onClick={() => setIsMobileNavOpen(false)}>
-            <div
-              className="absolute inset-y-0 left-0 w-[86vw] max-w-sm border-r border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-950"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center justify-between pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-white dark:bg-white dark:text-slate-950">
-                    <ShieldCheck className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-semibold">{BRAND.name}</p>
-                    <p className="text-xs text-slate-500">{BRAND.tagline}</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="rounded-xl p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-white/10"
-                  onClick={() => setIsMobileNavOpen(false)}
-                  aria-label="Close navigation"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm xl:hidden" onClick={() => setIsMobileNavOpen(false)}>
+            <div className="absolute inset-y-0 left-0 w-[88vw] max-w-sm border-r border-white/[0.08] bg-[#080c19] p-4" onClick={(event) => event.stopPropagation()}>
+              <div className="mb-5 flex items-center justify-between">
+                <div className="flex items-center gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-400"><Sparkles className="h-5 w-5" /></div><div><p className="font-semibold">{BRAND.name}</p><p className="text-xs text-slate-500">AI revenue workspace</p></div></div>
+                <button type="button" className="rounded-xl p-2 text-slate-500 hover:bg-white/[0.06]" onClick={() => setIsMobileNavOpen(false)} aria-label="Close navigation"><ChevronLeft className="h-4 w-4" /></button>
               </div>
-
-              <nav className="space-y-1">
-                {APP_NAVIGATION.map((item) => {
-                  const Icon = iconMap[item.icon];
-                  const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setIsMobileNavOpen(false)}
-                      className={cn(
-                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
-                        isActive
-                          ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
-                          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10",
-                      )}
-                    >
-                      <Icon className="h-4 w-4" />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </nav>
+              <div className="mb-5 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-3"><p className="text-sm font-medium text-white">{workspaceName}</p><p className="mt-1 text-xs text-slate-500">{workspaceMeta}</p></div>
+              <Navigation pathname={pathname} onNavigate={() => setIsMobileNavOpen(false)} />
             </div>
           </div>
         ) : null}
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/75 backdrop-blur dark:border-white/10 dark:bg-slate-950/75">
-            <div className="flex items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
-              <button
-                type="button"
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 xl:hidden dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                onClick={() => setIsMobileNavOpen(true)}
-                aria-label="Open navigation"
-              >
-                <Menu className="h-4 w-4" />
-              </button>
+          <header className="sticky top-0 z-30 border-b border-white/[0.08] bg-[#060a16]/75 backdrop-blur-2xl">
+            <div className="flex h-20 items-center gap-3 px-4 sm:px-6 lg:px-8">
+              <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.04] text-slate-300 xl:hidden" onClick={() => setIsMobileNavOpen(true)} aria-label="Open navigation"><Menu className="h-4 w-4" /></button>
 
-              <div className="relative hidden max-w-lg flex-1 items-center lg:flex">
-                <Search className="pointer-events-none absolute left-4 h-4 w-4 text-slate-400" />
-                <input
-                  type="search"
-                  placeholder="Search leads, quotes, products..."
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-slate-300 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-white/20 dark:focus:ring-white/10"
-                />
+              <div className="relative hidden max-w-xl flex-1 lg:flex">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+                <input type="search" placeholder="Search leads, customers, quotes, products..." className="h-11 w-full rounded-2xl border border-white/[0.08] bg-white/[0.035] pl-10 pr-24 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-violet-400/40 focus:bg-white/[0.05] focus:ring-4 focus:ring-violet-500/10" />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rounded-lg border border-white/[0.08] bg-white/[0.04] px-2 py-1 text-[10px] text-slate-500">⌘ K</span>
               </div>
 
               <div className="ml-auto flex items-center gap-2">
-                <button
-                  type="button"
-                  className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                >
-                  <Command className="h-4 w-4" />
-                  <span className="hidden md:inline">Command</span>
-                </button>
-
-                <button
-                  type="button"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-4 w-4" />
-                </button>
-
-                <button
-                  type="button"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  aria-label="Toggle theme"
-                >
-                  {mounted && theme === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </button>
-
-                <div className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-white/10 dark:bg-white/5 lg:flex">
-                  <LayoutDashboard className="h-4 w-4 text-slate-500" />
-                  <span className="max-w-[180px] truncate text-slate-700 dark:text-slate-300">
-                    {activeSection?.label ?? "Workspace"}
-                  </span>
-                  <ChevronRight className="h-4 w-4 text-slate-400" />
-                </div>
-
-                <Link href="/account" className="hidden items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-sm transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:flex">
-                  <UserCircle2 className="h-5 w-5 text-slate-500" />
-                  <div className="leading-tight">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {workspace.mode === "demo" ? "Demo user" : "Signed in"}
-                    </p>
-                    <p className="font-medium text-slate-950 dark:text-white">
-                      {workspace.mode === "demo" ? "Workspace preview" : workspace.organization.name}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-slate-400" />
-                </Link>
-
-                <form action={signOutAction}>
-                  <Button variant="ghost" size="icon" aria-label="Log out" type="submit">
-                    <LogOut className="h-4 w-4" />
-                  </Button>
-                </form>
+                <button type="button" className="hidden h-10 items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm text-slate-300 transition hover:bg-white/[0.06] md:inline-flex"><Command className="h-4 w-4 text-violet-300" /><span>Command</span></button>
+                <Link href="/notifications" className="relative inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.035] text-slate-300 transition hover:bg-white/[0.06]" aria-label="Notifications"><Bell className="h-4 w-4" /><span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,.8)]" /></Link>
+                <button type="button" className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/[0.08] bg-white/[0.035] text-slate-300 transition hover:bg-white/[0.06]" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Toggle theme">{mounted && theme === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</button>
+                <div className="hidden items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-3 py-2 lg:flex"><LayoutDashboard className="h-4 w-4 text-violet-300" /><span className="max-w-[160px] truncate text-sm text-slate-300">{activeSection?.label ?? "Workspace"}</span></div>
+                <form action={signOutAction}><Button variant="ghost" size="icon" aria-label="Log out" type="submit"><LogOut className="h-4 w-4" /></Button></form>
               </div>
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
-            {children}
-          </main>
+          <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8 xl:px-10">{children}</main>
         </div>
       </div>
     </div>

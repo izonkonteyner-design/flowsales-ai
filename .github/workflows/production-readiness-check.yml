@@ -1,0 +1,59 @@
+name: Production Readiness Check
+
+on:
+  push:
+    branches:
+      - feat/ai-sales-agent-foundation
+    paths:
+      - .github/workflows/production-readiness-check.yml
+      - app/api/health/deployment/route.ts
+      - server/services/deployment-readiness.ts
+  workflow_dispatch:
+
+concurrency:
+  group: production-readiness-check
+  cancel-in-progress: false
+
+jobs:
+  readiness:
+    name: Verify production deployment readiness
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Call secret-gated readiness endpoint
+        shell: bash
+        env:
+          HEALTH_CHECK_SECRET: ${{ secrets.HEALTH_CHECK_SECRET }}
+          PRODUCTION_URL: https://flowsales-ai-six.vercel.app
+        run: |
+          set -euo pipefail
+          test -n "$HEALTH_CHECK_SECRET"
+          response_file=$(mktemp)
+          status=$(curl --silent --show-error --output "$response_file" --write-out '%{http_code}' \
+            --header "X-Health-Check-Secret: ${HEALTH_CHECK_SECRET}" \
+            "${PRODUCTION_URL}/api/health/deployment")
+
+          if [[ "$status" != "200" ]]; then
+            echo "Readiness endpoint returned HTTP ${status}." >&2
+            cat "$response_file" >&2
+            exit 1
+          fi
+
+          node - "$response_file" <<'NODE'
+          const fs = require('node:fs');
+          const payload = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+          const database = payload?.checks?.database;
+          if (payload?.status !== 'ok') throw new Error('Readiness status is not ok');
+          if (payload?.checks?.environment?.ready !== true) throw new Error('Environment readiness is false');
+          if (database?.ready !== true) throw new Error('Database readiness is false');
+          if (database?.latestMigration !== '0026') throw new Error('Latest migration is not 0026');
+          if (database?.requiredMigration !== '0026') throw new Error('Required migration is not 0026');
+          if (!Array.isArray(database?.missingFunctions) || database.missingFunctions.length !== 0) {
+            throw new Error('Missing functions are present');
+          }
+          if (!Array.isArray(database?.missingTables) || database.missingTables.length !== 0) {
+            throw new Error('Missing tables are present');
+          }
+          console.log('Production readiness verified: HTTP 200, ready=true, migration=0026.');
+          NODE

@@ -57,7 +57,7 @@ test.describe('Production Smoke & Security Tests', () => {
     await expect(page.getByRole('heading', { name: /your sales operation/i })).toBeVisible({ timeout: 15000 });
     await expect(page.getByRole('link', { name: /ask ai/i })).toBeVisible();
     await expect(page.getByRole('link', { name: /approvals/i }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: /new lead/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'New lead', exact: true })).toBeVisible();
 
     await page.getByRole('link', { name: /ask ai/i }).click();
     await waitAndAssertPath(page, '/ai');

@@ -61,7 +61,7 @@ export class WhatsAppEmbeddedSignupService {
       const tokenResp = await this.metaClient.exchangeCodeForToken(input.code);
 
       // 3. WABA and Phone Number Discovery
-      let targetWabaId = input.wabaId;
+      const targetWabaId = input.wabaId;
       if (!targetWabaId) {
         throw new MetaGraphError('WABA ID is required to complete WhatsApp setup.', 'missing_waba_id', 400);
       }
@@ -161,9 +161,9 @@ export class WhatsAppEmbeddedSignupService {
         verifiedName: primaryPhone.verified_name,
         webhookSubscribed,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorCode = err instanceof MetaGraphError ? err.code : 'connection_failed';
-      const errorMessage = err.message || 'WhatsApp connection failed.';
+      const errorMessage = err instanceof Error ? err.message : 'WhatsApp connection failed.';
 
       // Record error on connection row if possible
       try {

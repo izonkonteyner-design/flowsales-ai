@@ -6,6 +6,7 @@ on:
       - feat/ai-sales-agent-foundation
     paths:
       - .github/workflows/supabase-production-migrate.yml
+      - supabase/migrations/**
   workflow_dispatch:
 
 concurrency:

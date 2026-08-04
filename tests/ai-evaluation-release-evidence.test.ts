@@ -39,6 +39,7 @@ test("production migration workflow and TypeScript readiness target 0026", async
   const workflow = await source(".github/workflows/supabase-production-migrate.yml");
   const readiness = await source("server/services/deployment-readiness.ts");
   assert.match(workflow, /Apply migrations through 0026/);
+  assert.match(workflow, /supabase\/migrations\/\*\*/);
   assert.match(workflow, /test "\$latest" = "0026"/);
   assert.match(workflow, /ai_evaluation_runs_run_key_uidx/);
   assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0026"/);

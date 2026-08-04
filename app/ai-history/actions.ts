@@ -44,7 +44,7 @@ export async function submitAiFeedbackAction(formData: FormData) {
   if (!membership) return;
 
   const { data: isDemo } = await client.rpc("is_demo_organization", {
-    p_organization_id: run.organization_id,
+    target_org: run.organization_id,
   });
   if (isDemo === true) return;
 

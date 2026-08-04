@@ -20,7 +20,7 @@ export async function createAccountLifecycleRequestAction(formData: FormData) {
   const membership = memberships?.[0];
   if (!membership) redirect("/onboarding");
   if (input.requestType === "delete_workspace" && !["owner", "admin"].includes(String(membership.role))) throw new Error("Workspace deletion requires owner or admin permission.");
-  const { data: isDemo } = await client.rpc("is_demo_organization", { p_organization_id: membership.organization_id });
+  const { data: isDemo } = await client.rpc("is_demo_organization", { target_org: membership.organization_id });
   if (isDemo) throw new Error("Demo workspace lifecycle changes are blocked.");
   const { error } = await client.from("account_lifecycle_requests").insert({ organization_id: membership.organization_id, requested_by: auth.user.id, request_type: input.requestType, reason: input.reason ?? null });
   if (error) throw new Error(`Unable to create lifecycle request: ${error.message}`);

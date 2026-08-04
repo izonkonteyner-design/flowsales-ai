@@ -35,3 +35,9 @@ test("atomic RPC audit events are not inserted a second time by the adapter", as
   assert.match(source, /create_ai_approval and decide_ai_approval persist/);
   assert.match(source, /if \(!\["cancelled", "expired"\]\.includes\(event\.event\)\)/);
 });
+
+test("approval authorization adapter uses the target_org RPC signature", async () => {
+  const source = await readFile(adapterPath, "utf8");
+  assert.match(source, /rpc\("can_review_ai_approvals",\{target_org:workspaceId\}\)/);
+  assert.match(source, /rpc\("is_demo_organization",\{target_org:workspaceId\}\)/);
+});

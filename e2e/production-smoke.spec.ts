@@ -14,7 +14,6 @@ test.describe('Production Smoke & Security Tests', () => {
     page.on('console', msg => {
       if (msg.type() === 'error') {
         const text = msg.text();
-        // Ignore known third-party extension noise
         if (!text.includes('favicon') && !text.includes('extension') && !text.includes('chrome-extension')) {
           errors.push(text);
         }
@@ -38,55 +37,71 @@ test.describe('Production Smoke & Security Tests', () => {
     expect(failedRequests, `500 Server errors found: ${failedRequests.join(', ')}`).toHaveLength(0);
   });
 
-  test('Complete flow: Navigation, Demo Security and Logout', async ({ page }) => {
-    // 1. Homepage
+  test('Complete production flow: auth, navigation, AI, security and logout @production', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/FlowSales AI/);
+    await expect(page.getByRole('link', { name: /sign in/i })).toBeVisible();
 
-    // 2. Login Page
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/login\?next=%2Fdashboard$/);
+
     await page.goto('/login');
     await assertExactPath(page, '/login');
+    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 
-    // 3. Start Demo
-    const demoButton = page.getByRole('button', { name: 'Start Demo' }).or(page.locator('button:has-text("Start Demo")')).first();
+    const demoButton = page.getByRole('button', { name: 'Start Demo' });
     await expect(demoButton).toBeVisible();
     await demoButton.click();
 
-    // 4. Dashboard
     await waitAndAssertPath(page, '/dashboard');
-    await expect(page.locator('text=Workspace snapshot').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /your sales operation/i })).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole('link', { name: /ask ai/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: /approvals/i }).first()).toBeVisible();
+    await expect(page.getByRole('link', { name: /new lead/i })).toBeVisible();
 
-    // 5. Leads
+    await page.getByRole('link', { name: /ask ai/i }).click();
+    await waitAndAssertPath(page, '/ai');
+    await expect(page.getByRole('heading', { name: 'AI sales workspace' })).toBeVisible();
+    await expect(page.getByText('Select a lead')).toBeVisible();
+    const aiLeadLinks = page.locator('a[href^="/leads/"][href$="/ai"]');
+    await expect(aiLeadLinks.first()).toBeVisible();
+
     await page.goto('/leads');
     await assertExactPath(page, '/leads');
 
-    // 6. Customers
     await page.goto('/customers');
     await assertExactPath(page, '/customers');
 
-    // 7. Products
     await page.goto('/products');
     await assertExactPath(page, '/products');
 
-    // 8. Quotes & Security Check
     await page.goto('/quotes');
     await assertExactPath(page, '/quotes');
+
     await page.goto('/quotes/new');
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/quotes\/new$/);
     await expect(page.getByRole('heading', { name: 'New quote' }).first()).toBeVisible();
-    
-    // In demo mode, quote creation should be disabled
     const saveQuoteBtn = page.locator('button:has-text("Save")').first();
     if (await saveQuoteBtn.isVisible()) {
       await expect(saveQuoteBtn).toBeDisabled();
     }
 
-    // 9. AI
-    await page.goto('/ai');
-    await assertExactPath(page, '/ai');
+    await page.goto('/approvals');
+    await assertExactPath(page, '/approvals');
 
-    // 10. Account & Security Check
+    await page.goto('/ai-history');
+    await assertExactPath(page, '/ai-history');
+
+    await page.goto('/notifications');
+    await assertExactPath(page, '/notifications');
+
+    await page.goto('/operations');
+    await assertExactPath(page, '/operations');
+
+    await page.goto('/operations/ai-quality');
+    await assertExactPath(page, '/operations/ai-quality');
+
     await page.goto('/account');
     await assertExactPath(page, '/account');
     const firstNameInput = page.locator('input[name="firstName"]');
@@ -94,11 +109,7 @@ test.describe('Production Smoke & Security Tests', () => {
       await expect(firstNameInput).toBeDisabled();
     }
 
-    // 11. Logout
-    await page.goto('/account');
-    await assertExactPath(page, '/account'); // Ensure we are authenticated
-    const signOutBtn = page.locator('button:has-text("Sign Out")').first();
-    await signOutBtn.click();
+    await page.getByRole('button', { name: 'Log out' }).click();
     await waitAndAssertPath(page, '/login');
   });
 });

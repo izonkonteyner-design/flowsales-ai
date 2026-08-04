@@ -112,4 +112,5 @@ test("deployment endpoint is secret-gated, no-store and service-role backed", as
   assert.match(route, /client\.rpc\("deployment_readiness"\)/);
   assert.match(route, /no-store/);
   assert.match(route, /status: "error"[\s\S]*404/);
+  assert.match(route, /requiredMigration: REQUIRED_DEPLOYMENT_MIGRATION/);
 });

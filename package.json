@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/all.test.ts",
     "eval:ai": "tsx scripts/evaluate-ai-fixtures.ts",
+    "eval:ai:persist": "tsx scripts/persist-ai-evaluation.ts",
     "verify:rls": "node scripts/verify-rls-two-workspaces.mjs",
     "verify:backup-restore": "node scripts/verify-backup-restore.mjs",
     "test:e2e": "playwright test --project=chromium --grep-invert \"@negative|@production\"",

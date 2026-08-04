@@ -62,7 +62,7 @@ test.describe('Production Smoke & Security Tests', () => {
     await page.getByRole('link', { name: /ask ai/i }).click();
     await waitAndAssertPath(page, '/ai');
     await expect(page.getByRole('heading', { name: 'AI sales workspace' })).toBeVisible();
-    await expect(page.getByText('Select a lead')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Select a lead', exact: true })).toBeVisible();
     const aiLeadLinks = page.locator('a[href^="/leads/"][href$="/ai"]');
     await expect(aiLeadLinks.first()).toBeVisible();
 

@@ -50,6 +50,40 @@ jobs:
       - name: Build
         run: npm run build
 
+  persist-ai-evaluation:
+    name: Persist AI evaluation release evidence
+    runs-on: ubuntu-latest
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Download AI evaluation report
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-evaluation-report
+          path: artifacts
+
+      - name: Persist evaluation evidence
+        run: npm run eval:ai:persist
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GITHUB_SHA: ${{ github.sha }}
+
   e2e-production:
     runs-on: ubuntu-latest
     needs: verify

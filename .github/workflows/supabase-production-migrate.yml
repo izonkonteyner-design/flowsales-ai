@@ -38,11 +38,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          expected=(0018 0019 0020 0021 0022 0023 0024 0025 0026)
-          for version in "${expected[@]}"; do
-            file=$(find supabase/migrations -maxdepth 1 -type f -name "${version}_*.sql" -print -quit)
-            if [[ -z "$file" ]]; then
-              echo "Missing migration ${version}" >&2
+          files=(
+            supabase/migrations/0018_health_check.sql
+            supabase/migrations/0018_ai_commercial_foundation.sql
+            supabase/migrations/0019_ai_approval_payload_alignment.sql
+            supabase/migrations/0020_commercial_access_onboarding_billing.sql
+            supabase/migrations/0021_usage_notifications_account_lifecycle.sql
+            supabase/migrations/0022_deployment_manifest_probe.sql
+            supabase/migrations/0023_operator_dashboard_alerts.sql
+            supabase/migrations/0024_ai_feedback_prompt_evaluations.sql
+            supabase/migrations/0025_ai_quality_dashboard.sql
+            supabase/migrations/0026_ai_evaluation_release_evidence.sql
+          )
+          for file in "${files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Missing migration file: $file" >&2
               exit 1
             fi
             echo "Found $file"
@@ -78,9 +88,20 @@ jobs:
         run: |
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
-          for version in 0018 0019 0020 0021 0022 0023 0024 0025 0026; do
-            file=$(find supabase/migrations -maxdepth 1 -type f -name "${version}_*.sql" -print -quit)
-            echo "Applying ${version}"
+          files=(
+            supabase/migrations/0018_health_check.sql
+            supabase/migrations/0018_ai_commercial_foundation.sql
+            supabase/migrations/0019_ai_approval_payload_alignment.sql
+            supabase/migrations/0020_commercial_access_onboarding_billing.sql
+            supabase/migrations/0021_usage_notifications_account_lifecycle.sql
+            supabase/migrations/0022_deployment_manifest_probe.sql
+            supabase/migrations/0023_operator_dashboard_alerts.sql
+            supabase/migrations/0024_ai_feedback_prompt_evaluations.sql
+            supabase/migrations/0025_ai_quality_dashboard.sql
+            supabase/migrations/0026_ai_evaluation_release_evidence.sql
+          )
+          for file in "${files[@]}"; do
+            echo "Applying $file"
             psql "$db_url" -v ON_ERROR_STOP=1 -X -f "$file"
           done
 
@@ -104,7 +125,8 @@ jobs:
           test "$latest" = "0026"
           psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
             select case when
-              to_regclass('public.ai_evaluation_runs') is not null
+              to_regclass('public.ai_approval_requests') is not null
+              and to_regclass('public.ai_evaluation_runs') is not null
               and exists (select 1 from information_schema.columns where table_schema='public' and table_name='ai_evaluation_runs' and column_name='run_key' and is_nullable='NO')
               and exists (select 1 from pg_indexes where schemaname='public' and tablename='ai_evaluation_runs' and indexname='ai_evaluation_runs_run_key_uidx')
               and exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='get_ai_quality_dashboard')

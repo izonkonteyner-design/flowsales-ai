@@ -1,6 +1,11 @@
 name: Supabase Production Migration
 
 on:
+  push:
+    branches:
+      - feat/ai-sales-agent-foundation
+    paths:
+      - .github/workflows/supabase-production-migrate.yml
   workflow_dispatch:
 
 concurrency:

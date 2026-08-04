@@ -81,6 +81,7 @@ export const APP_NAVIGATION = [
   { label: "Permissions", href: "/permissions", icon: "shield-check" },
   { label: "Audit Logs", href: "/audit-logs", icon: "clipboard-list" },
   { label: "API", href: "/api-layer", icon: "braces" },
+  { label: "Integrations", href: "/settings/integrations", icon: "plug" },
   { label: "Settings", href: "/settings", icon: "settings" },
 ] as const;
 

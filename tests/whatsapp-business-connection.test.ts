@@ -6,7 +6,6 @@ import * as path from "node:path";
 const WORKTREE = process.cwd();
 
 describe("WhatsApp Business Connection Security & Architecture Tests", () => {
-  const originalEnv = { ...process.env };
 
   it("0029_whatsapp_business_connection.sql migration exists and contains required WABA columns", () => {
     const migrationPath = path.join(WORKTREE, "supabase/migrations/0029_whatsapp_business_connection.sql");

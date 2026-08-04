@@ -71,20 +71,22 @@ export async function POST(request: NextRequest) {
   }
 
   // Parse JSON payload safely
-  let payload: any;
+  let payload: Record<string, unknown>;
   try {
-    payload = JSON.parse(rawBody);
+    payload = JSON.parse(rawBody) as Record<string, unknown>;
   } catch {
     return Response.json({ error: "invalid_json", message: "Failed to parse webhook JSON payload." }, { status: 400 });
   }
 
   // Extract external event ID for duplicate detection
-  const entry = Array.isArray(payload.entry) ? payload.entry[0] : null;
-  const change = entry?.changes?.[0];
-  const value = change?.value;
-  const messageId = value?.messages?.[0]?.id || value?.statuses?.[0]?.id;
-  const externalEventId = messageId || entry?.id || `evt_${crypto.randomUUID()}`;
-  const eventType = change?.field || payload.object || "whatsapp_business_account";
+  const entry = Array.isArray(payload.entry) ? (payload.entry[0] as Record<string, unknown> | undefined) : null;
+  const changes = Array.isArray(entry?.changes) ? (entry.changes[0] as Record<string, unknown> | undefined) : null;
+  const value = changes?.value as Record<string, unknown> | undefined;
+  const messages = Array.isArray(value?.messages) ? (value.messages[0] as Record<string, unknown> | undefined) : null;
+  const statuses = Array.isArray(value?.statuses) ? (value.statuses[0] as Record<string, unknown> | undefined) : null;
+  const messageId = (messages?.id as string) || (statuses?.id as string);
+  const externalEventId = messageId || (entry?.id as string) || `evt_${crypto.randomUUID()}`;
+  const eventType = (changes?.field as string) || (payload.object as string) || "whatsapp_business_account";
 
   const supabase = createSupabaseAdminClient();
 

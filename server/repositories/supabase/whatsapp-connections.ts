@@ -235,7 +235,7 @@ export class WhatsAppConnectionsRepository {
     const supabase = createSupabaseAdminClient();
     const now = new Date().toISOString();
 
-    const updates: any = {
+    const updates: Record<string, unknown> = {
       status,
       last_health_check_at: now,
       connection_error_code: errorCode || null,

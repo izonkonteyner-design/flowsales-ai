@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
   }
 
   // 3. Body validation
-  let body: any;
+  let body: unknown;
   try {
     body = await request.json();
   } catch {

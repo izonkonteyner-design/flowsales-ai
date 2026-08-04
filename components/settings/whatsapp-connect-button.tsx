@@ -4,18 +4,26 @@ import { useState } from "react";
 import { Loader2, RefreshCw, Unplug, Zap, CheckCircle2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+export interface MetaLoginResponse {
+  authResponse?: {
+    code?: string;
+    waba_id?: string;
+    phone_number_id?: string;
+  };
+}
+
 declare global {
   interface Window {
     fbAsyncInit?: () => void;
     FB?: {
       init: (params: { appId: string; cookie?: boolean; xfbml?: boolean; version: string }) => void;
       login: (
-        callback: (response: any) => void,
+        callback: (response: MetaLoginResponse) => void,
         options?: {
           config_id?: string;
           response_type?: string;
           override_default_response_type?: boolean;
-          extras?: any;
+          extras?: Record<string, unknown>;
           scope?: string;
         }
       ) => void;
@@ -32,7 +40,6 @@ export type WhatsAppConnectButtonProps = {
   isConnected: boolean;
   isExpired: boolean;
   isRevoked: boolean;
-  hasConnection: boolean;
   onStatusChange?: () => void;
 };
 
@@ -45,7 +52,6 @@ export function WhatsAppConnectButton({
   isConnected,
   isExpired,
   isRevoked,
-  hasConnection,
   onStatusChange,
 }: WhatsAppConnectButtonProps) {
   const [loading, setLoading] = useState(false);
@@ -100,7 +106,7 @@ export function WhatsAppConnectButton({
       setStatusMessage("Opening WhatsApp Embedded Signup...");
 
       window.FB.login(
-        async (response: any) => {
+        async (response: MetaLoginResponse) => {
           if (!response || !response.authResponse) {
             setLoading(false);
             setStatusMessage(null);
@@ -143,8 +149,9 @@ export function WhatsAppConnectButton({
             setLoading(false);
             if (onStatusChange) onStatusChange();
             window.location.reload();
-          } catch (err: any) {
-            setErrorMessage(err.message || "Network error while completing WhatsApp connection.");
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : "Network error while completing WhatsApp connection.";
+            setErrorMessage(msg);
             setLoading(false);
             setStatusMessage(null);
           }
@@ -158,10 +165,11 @@ export function WhatsAppConnectButton({
           },
         }
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to launch Meta Embedded Signup.";
       setLoading(false);
       setStatusMessage(null);
-      setErrorMessage(err.message || "Failed to launch Meta Embedded Signup.");
+      setErrorMessage(msg);
     }
   };
 
@@ -186,8 +194,9 @@ export function WhatsAppConnectButton({
       setLoading(false);
       if (onStatusChange) onStatusChange();
       window.location.reload();
-    } catch (err: any) {
-      setErrorMessage(err.message || "Network error while disconnecting.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error while disconnecting.";
+      setErrorMessage(msg);
       setLoading(false);
       setStatusMessage(null);
     }
@@ -214,8 +223,9 @@ export function WhatsAppConnectButton({
       setStatusMessage(`Status: ${data.status.toUpperCase()}`);
       setLoading(false);
       if (onStatusChange) onStatusChange();
-    } catch (err: any) {
-      setErrorMessage(err.message || "Network error during health check.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error during health check.";
+      setErrorMessage(msg);
       setLoading(false);
       setStatusMessage(null);
     }

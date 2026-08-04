@@ -5,7 +5,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('Meta Webhook Security & Verification Unit Tests', () => {
-  const originalEnv = { ...process.env };
 
   test('Webhook verify challenge returns hub.challenge on matching verify token', () => {
     const mode = 'subscribe';

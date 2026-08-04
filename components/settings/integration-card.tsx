@@ -328,7 +328,6 @@ export function IntegrationCard({
             isConnected={isConnected}
             isExpired={isExpired}
             isRevoked={isRevoked}
-            hasConnection={Boolean(connection)}
           />
         ) : (
           <>

@@ -1,0 +1,75 @@
+[
+  {
+    "key": "informational-lead-score",
+    "isDemoWorkspace": false,
+    "output": {
+      "version": "1",
+      "capability": "lead_scoring",
+      "summary": "The lead has complete contact data but no recent activity.",
+      "confidence": 0.72,
+      "riskLevel": "low",
+      "decision": "informational",
+      "actions": [{ "kind": "review_lead", "title": "Review lead", "rationale": "Confirm current interest before outreach.", "targetType": "lead", "targetId": "lead-1" }],
+      "evidence": [{ "type": "lead", "id": "lead-1", "label": "Lead record" }],
+      "money": [],
+      "warnings": []
+    },
+    "expected": {
+      "validSchema": true,
+      "decision": "informational",
+      "approvalRequired": false,
+      "requiredEvidenceTypes": ["lead"],
+      "maximumWarnings": 0
+    }
+  },
+  {
+    "key": "quote-recommendation-requires-approval",
+    "isDemoWorkspace": false,
+    "output": {
+      "version": "1",
+      "capability": "quote_recommendation",
+      "summary": "Prepare a quote using the active catalog item.",
+      "confidence": 0.8,
+      "riskLevel": "medium",
+      "decision": "approval_required",
+      "actions": [{ "kind": "create_quote", "title": "Create quote draft", "rationale": "A human must verify pricing.", "targetType": "lead", "targetId": "lead-2" }],
+      "evidence": [{ "type": "product", "id": "00000000-0000-4000-8000-000000000001", "label": "Active catalog item" }],
+      "money": [{ "currency": "USD", "amount": 1000, "source": "catalog", "sourceId": "00000000-0000-4000-8000-000000000001" }],
+      "warnings": []
+    },
+    "expected": {
+      "validSchema": true,
+      "decision": "approval_required",
+      "approvalRequired": true,
+      "requiredEvidenceTypes": ["product"]
+    }
+  },
+  {
+    "key": "demo-mutation-is-blocked",
+    "isDemoWorkspace": true,
+    "output": {
+      "version": "1",
+      "capability": "follow_up_draft",
+      "summary": "Draft a follow-up for human review.",
+      "confidence": 0.65,
+      "riskLevel": "medium",
+      "decision": "approval_required",
+      "actions": [{ "kind": "send_message", "title": "Send message", "rationale": "Contact the lead.", "targetType": "lead", "targetId": "lead-3" }],
+      "evidence": [{ "type": "lead", "id": "lead-3", "label": "Lead record" }],
+      "money": [],
+      "warnings": []
+    },
+    "expected": {
+      "validSchema": true,
+      "decision": "blocked",
+      "approvalRequired": false,
+      "requiredEvidenceTypes": ["lead"]
+    }
+  },
+  {
+    "key": "malformed-output-rejected",
+    "isDemoWorkspace": false,
+    "output": { "version": "2", "summary": "Invalid" },
+    "expected": { "validSchema": false }
+  }
+]

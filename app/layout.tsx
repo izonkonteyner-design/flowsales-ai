@@ -26,21 +26,25 @@ export const metadata: Metadata = {
     description:
       "A premium AI CRM and sales workspace for SMEs selling modular and prefabricated products.",
   },
-  icons: [
-    { rel: "icon", url: "/favicon.ico" },
-  ],
+  icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+const initializeTheme = `
+  try {
+    const stored = localStorage.getItem("flowsales-theme");
+    const theme = stored === "light" || stored === "dark" ? stored : "dark";
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("flowsales-theme", theme);
+  } catch {}
+`;
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-background text-foreground">
-        {children}
-      </body>
+    <html lang="en" className="dark h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: initializeTheme }} />
+      </head>
+      <body className="min-h-full bg-background text-foreground">{children}</body>
     </html>
   );
 }

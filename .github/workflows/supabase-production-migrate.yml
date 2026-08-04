@@ -1,0 +1,151 @@
+name: Supabase Production Migration
+
+on:
+  push:
+    branches:
+      - feat/ai-sales-agent-foundation
+    paths:
+      - .github/workflows/supabase-production-migrate.yml
+      - supabase/migrations/**
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-production-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations through 0026
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      SUPABASE_DATABASE_URL: ${{ secrets.SUPABASE_DATABASE_URL }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+    steps:
+      - name: Checkout requested branch
+        uses: actions/checkout@v4
+
+      - name: Validate migration set
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            supabase/migrations/0018_health_check.sql
+            supabase/migrations/0018_ai_commercial_foundation.sql
+            supabase/migrations/0019_ai_approval_payload_alignment.sql
+            supabase/migrations/0020_commercial_access_onboarding_billing.sql
+            supabase/migrations/0021_usage_notifications_account_lifecycle.sql
+            supabase/migrations/0022_deployment_manifest_probe.sql
+            supabase/migrations/0023_operator_dashboard_alerts.sql
+            supabase/migrations/0024_ai_feedback_prompt_evaluations.sql
+            supabase/migrations/0025_ai_quality_dashboard.sql
+            supabase/migrations/0026_ai_evaluation_release_evidence.sql
+          )
+          for file in "${files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Missing migration file: $file" >&2
+              exit 1
+            fi
+            echo "Found $file"
+          done
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Resolve production connection method
+        id: connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
+          if [[ -n "$db_url" ]]; then
+            if [[ "$db_url" != postgresql://* && "$db_url" != postgres://* ]]; then
+              echo "SUPABASE_DB_URL must be a single PostgreSQL URI beginning with postgresql:// or postgres://." >&2
+              exit 1
+            fi
+            echo "mode=postgres" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ -n "${SUPABASE_ACCESS_TOKEN:-}" && -n "${SUPABASE_PROJECT_REF:-}" && -n "${SUPABASE_DB_PASSWORD:-}" ]]; then
+            echo "mode=supabase-cli" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "No supported production database credentials are configured." >&2
+          exit 1
+
+      - name: Apply ordered SQL migrations with psql
+        if: steps.connection.outputs.mode == 'postgres'
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
+          files=(
+            supabase/migrations/0018_health_check.sql
+            supabase/migrations/0018_ai_commercial_foundation.sql
+            supabase/migrations/0019_ai_approval_payload_alignment.sql
+            supabase/migrations/0020_commercial_access_onboarding_billing.sql
+            supabase/migrations/0021_usage_notifications_account_lifecycle.sql
+            supabase/migrations/0022_deployment_manifest_probe.sql
+            supabase/migrations/0023_operator_dashboard_alerts.sql
+            supabase/migrations/0024_ai_feedback_prompt_evaluations.sql
+            supabase/migrations/0025_ai_quality_dashboard.sql
+            supabase/migrations/0026_ai_evaluation_release_evidence.sql
+          )
+          for file in "${files[@]}"; do
+            echo "Applying $file"
+            psql "$db_url" -v ON_ERROR_STOP=1 -X -f "$file"
+          done
+
+      - name: Apply migrations with Supabase CLI
+        if: steps.connection.outputs.mode == 'supabase-cli'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes supabase@latest link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          npx --yes supabase@latest db push --password "$SUPABASE_DB_PASSWORD"
+
+      - name: Verify migration 0026 and required objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
+          if [[ -z "$db_url" ]]; then
+            db_url="postgresql://postgres.${SUPABASE_PROJECT_REF}:${SUPABASE_DB_PASSWORD}@aws-0-us-east-1.pooler.supabase.com:6543/postgres"
+          fi
+          latest=$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")
+          test "$latest" = "0026"
+          psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
+            select case when
+              to_regclass('public.ai_approval_requests') is not null
+              and to_regclass('public.ai_evaluation_runs') is not null
+              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='ai_evaluation_runs' and column_name='run_key' and is_nullable='NO')
+              and exists (select 1 from pg_indexes where schemaname='public' and tablename='ai_evaluation_runs' and indexname='ai_evaluation_runs_run_key_uidx')
+              and exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='get_ai_quality_dashboard')
+            then 'ready' else 'not_ready' end;
+          " | grep -qx ready
+          echo "Production Supabase migration verified at 0026."
+
+      - name: Report migration result to PR 33
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$JOB_STATUS" == "success" ]]; then
+            body="✅ Production Supabase migration completed and verified at version 0026. Idempotent AI evaluation release evidence is ready. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          else
+            body="❌ Production Supabase migration through 0026 did not complete. Check the protected production environment, PostgreSQL URI and logs. Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          fi
+          gh api "repos/${GITHUB_REPOSITORY}/issues/33/comments" -f body="$body"

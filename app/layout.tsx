@@ -29,9 +29,21 @@ export const metadata: Metadata = {
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
 
+const initializeTheme = `
+  try {
+    const stored = localStorage.getItem("flowsales-theme");
+    const theme = stored === "light" || stored === "dark" ? stored : "dark";
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    localStorage.setItem("flowsales-theme", theme);
+  } catch {}
+`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className="dark h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: initializeTheme }} />
+      </head>
       <body className="min-h-full bg-background text-foreground">{children}</body>
     </html>
   );

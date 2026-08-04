@@ -72,8 +72,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Consume state (validates hash, expiry, single-use, org isolation)
-    const stateRecord = await consumeOAuthState(rawStateToken, provider, ctx.organizationId);
+    // Consume state (validates hash, expiry, single-use, org isolation, user binding)
+    const stateRecord = await consumeOAuthState(rawStateToken, provider, ctx.organizationId, ctx.userId);
 
     // Provider config check
     const configCheck = process.env.META_CLIENT_ID?.trim();

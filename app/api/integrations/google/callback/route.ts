@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stateRecord = await consumeOAuthState(rawStateToken, "google", ctx.organizationId);
+    const stateRecord = await consumeOAuthState(rawStateToken, "google", ctx.organizationId, ctx.userId);
 
     const configCheck = process.env.GOOGLE_CLIENT_ID?.trim();
     if (!configCheck) {

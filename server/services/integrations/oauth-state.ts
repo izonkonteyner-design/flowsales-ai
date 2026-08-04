@@ -7,6 +7,7 @@ import {
   OAuthStateConsumedError,
   OAuthStateInvalidError,
   OAuthOpenRedirectError,
+  OAuthTokenEncryptionNotConfiguredError,
   validateReturnPath,
   type ChannelProvider,
 } from "@/server/services/integrations/provider-adapter";
@@ -23,11 +24,11 @@ import { logger } from "@/lib/logger";
 //   - The raw state token is returned to the caller once and embedded in the
 //     OAuth redirect URL; it is never stored plaintext server-side.
 //   - PKCE code_verifier is encrypted (ciphertext stored). If encryption is
-//     not configured, code_verifier is stored as null (PKCE disabled).
+//     not configured for a PKCE flow, throws OAuthTokenEncryptionNotConfiguredError (fail closed).
 //   - consumed_at is set atomically on first use; replayed states are rejected.
+//   - user_id is strictly bound; different users cannot consume each other's states.
 //   - return_path is validated for open redirect before storage.
-//   - All DB operations use service_role client (RLS bypassed on oauth_states
-//     table which has no authenticated policies).
+//   - All DB operations use service_role client.
 // ============================================================================
 
 export type CreatedOAuthState = {
@@ -126,21 +127,20 @@ export async function createOAuthState(
   const rawStateToken = crypto.randomBytes(32).toString("hex");
   const stateHash = hashStateToken(rawStateToken);
 
-  // Generate PKCE code verifier if requested
+  // Generate PKCE code verifier if requested (FAIL CLOSED if encryption key missing)
   let rawCodeVerifier: string | null = null;
   let codeVerifierCiphertext: string | null = null;
 
   if (usePkce) {
     rawCodeVerifier = generateCodeVerifier();
     codeVerifierCiphertext = encryptValue(rawCodeVerifier);
-    // If encryption not configured: codeVerifier stored as null (PKCE disabled for this flow).
-    // This is safe: PKCE is defense-in-depth; CSRF protection still applies via state token.
     if (!codeVerifierCiphertext) {
-      rawCodeVerifier = null;
-      logger.warn("oauth.pkce_encryption_unavailable", {
+      logger.warn("oauth.pkce_encryption_missing", {
         provider,
-        note: "TOKEN_ENCRYPTION_KEY not set; PKCE code_verifier will not be stored.",
+        organizationId,
+        note: "TOKEN_ENCRYPTION_KEY required for PKCE OAuth flow.",
       });
+      throw new OAuthTokenEncryptionNotConfiguredError();
     }
   }
 
@@ -164,101 +164,128 @@ export async function createOAuthState(
 }
 
 /**
- * Consume an OAuth state token.
+ * Consume an OAuth state token atomically.
  *
- * - Validates the raw state token (hash lookup).
- * - Checks expiry.
- * - Atomically marks consumed_at.
- * - Rejects already-consumed states.
- * - Returns the stored state record with decrypted codeVerifier.
+ * - Binds state_hash, provider, organization_id, AND user_id.
+ * - Atomically checks consumed_at IS NULL and expires_at > NOW.
+ * - Sets consumed_at = NOW() in a single atomic update.
+ * - If 0 rows updated, inspects reason to throw exact typed error.
+ * - Decrypts PKCE codeVerifier if present.
  *
  * @param rawStateToken - Raw state token received in callback
- * @param provider - Expected provider (must match stored value)
- * @param organizationId - Active org (must match stored value for workspace isolation)
+ * @param provider - Expected provider
+ * @param organizationId - Expected org ID
+ * @param userId - Current authenticated user ID (binds state to initiator)
  */
 export async function consumeOAuthState(
   rawStateToken: string,
   provider: ChannelProvider,
   organizationId: string,
+  userId: string,
 ): Promise<OAuthStateRecord> {
   if (!rawStateToken || typeof rawStateToken !== "string" || rawStateToken.length !== 64) {
     throw new OAuthStateInvalidError();
   }
 
+  if (!userId || typeof userId !== "string") {
+    throw new OAuthStateInvalidError();
+  }
+
   const stateHash = hashStateToken(rawStateToken);
   const admin = createSupabaseAdminClient();
+  const nowIso = new Date().toISOString();
 
-  const { data: row, error } = await admin
+  // Primary: Attempt atomic RPC `consume_oauth_state`
+  try {
+    const { data: rpcData, error: rpcError } = await admin.rpc("consume_oauth_state", {
+      p_state_hash: stateHash,
+      p_provider: provider,
+      p_organization_id: organizationId,
+      p_user_id: userId,
+    });
+
+    if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+      const row = rpcData[0];
+      let codeVerifier: string | null = null;
+      if (row.code_verifier_ciphertext) {
+        codeVerifier = decryptValue(row.code_verifier_ciphertext);
+      }
+      return {
+        id: row.id,
+        organizationId: row.organization_id,
+        userId: row.user_id,
+        provider: row.provider as ChannelProvider,
+        returnPath: row.return_path,
+        codeVerifier,
+      };
+    }
+  } catch {
+    // Fall back to atomic query below if RPC is not present in mock DB / environment
+  }
+
+  // Fallback: Atomic PostgreSQL UPDATE ... RETURNING query
+  const { data: updatedRow } = await admin
     .from("oauth_states")
-    .select(
-      "id, organization_id, user_id, provider, state_hash, code_verifier_ciphertext, return_path, expires_at, consumed_at",
-    )
+    .update({ consumed_at: nowIso })
+    .eq("state_hash", stateHash)
+    .eq("provider", provider)
+    .eq("organization_id", organizationId)
+    .eq("user_id", userId)
+    .is("consumed_at", null)
+    .gt("expires_at", nowIso)
+    .select("id, organization_id, user_id, provider, code_verifier_ciphertext, return_path")
+    .maybeSingle();
+
+  if (updatedRow) {
+    let codeVerifier: string | null = null;
+    if (updatedRow.code_verifier_ciphertext) {
+      codeVerifier = decryptValue(updatedRow.code_verifier_ciphertext);
+    }
+    return {
+      id: updatedRow.id,
+      organizationId: updatedRow.organization_id,
+      userId: updatedRow.user_id,
+      provider: updatedRow.provider as ChannelProvider,
+      returnPath: updatedRow.return_path,
+      codeVerifier,
+    };
+  }
+
+  // Atomic update affected 0 rows -> diagnose root cause for precise security error
+  const { data: existing } = await admin
+    .from("oauth_states")
+    .select("id, organization_id, user_id, provider, expires_at, consumed_at")
     .eq("state_hash", stateHash)
     .maybeSingle();
 
-  if (error || !row) {
+  if (!existing) {
     throw new OAuthStateInvalidError();
   }
 
-  // Cross-workspace isolation: state must belong to the active org
-  if (row.organization_id !== organizationId) {
+  if (
+    existing.organization_id !== organizationId ||
+    existing.provider !== provider ||
+    existing.user_id !== userId
+  ) {
     throw new OAuthStateInvalidError();
   }
 
-  // Provider must match
-  if (row.provider !== provider) {
-    throw new OAuthStateInvalidError();
-  }
-
-  // Already consumed?
-  if (row.consumed_at !== null) {
+  if (existing.consumed_at !== null) {
     logger.warn("oauth.state_replay_attempt", {
-      stateId: row.id,
+      stateId: existing.id,
       provider,
       organizationId,
-      consumedAt: row.consumed_at,
+      userId,
+      consumedAt: existing.consumed_at,
     });
     throw new OAuthStateConsumedError();
   }
 
-  // Expired?
-  if (new Date(row.expires_at) < new Date()) {
+  if (new Date(existing.expires_at) <= new Date()) {
     throw new OAuthStateExpiredError();
   }
 
-  // Atomically mark consumed
-  const { error: updateError } = await admin
-    .from("oauth_states")
-    .update({ consumed_at: new Date().toISOString() })
-    .eq("id", row.id)
-    .is("consumed_at", null); // atomic: only update if not yet consumed
-
-  if (updateError) {
-    logger.error("oauth.state_consume_failed", updateError, { stateId: row.id });
-    throw new Error("Failed to consume OAuth state. Please try again.");
-  }
-
-  // Decrypt code verifier if present
-  let codeVerifier: string | null = null;
-  if (row.code_verifier_ciphertext) {
-    codeVerifier = decryptValue(row.code_verifier_ciphertext);
-    if (!codeVerifier) {
-      logger.warn("oauth.pkce_decrypt_failed", {
-        stateId: row.id,
-        provider,
-        note: "Could not decrypt code_verifier; PKCE will be omitted for token exchange.",
-      });
-    }
-  }
-
-  return {
-    id: row.id,
-    organizationId: row.organization_id,
-    userId: row.user_id,
-    provider: row.provider as ChannelProvider,
-    returnPath: row.return_path,
-    codeVerifier,
-  };
+  throw new OAuthStateInvalidError();
 }
 
 /**

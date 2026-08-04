@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stateRecord = await consumeOAuthState(rawStateToken, "tiktok", ctx.organizationId);
+    const stateRecord = await consumeOAuthState(rawStateToken, "tiktok", ctx.organizationId, ctx.userId);
 
     const configCheck = process.env.TIKTOK_CLIENT_KEY?.trim();
     if (!configCheck) {

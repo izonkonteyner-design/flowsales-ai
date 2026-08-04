@@ -1,5 +1,5 @@
 import { validateWhatsAppServerConfig } from './whatsapp-config';
-import { MetaGraphClient } from './meta-graph-client';
+import { MetaGraphClient, MetaGraphError } from './meta-graph-client';
 import { WhatsAppConnectionsRepository } from '@/server/repositories/supabase/whatsapp-connections';
 import { decryptToken } from './encryption';
 
@@ -114,13 +114,14 @@ export class WhatsAppHealthCheckService {
         webhookSubscribed,
         checkedAt,
       };
-    } catch (err: any) {
-      const isExpired = err.code === 'code_already_used' || err.message?.includes('expired') || err.message?.includes('OAuth');
+    } catch (err: unknown) {
+      const isMetaErr = err instanceof MetaGraphError;
+      const errCode = isMetaErr ? err.code : 'health_check_failed';
+      const errMsg = err instanceof Error ? err.message : 'WhatsApp health check failed.';
+      const isExpired = errCode === 'code_already_used' || errMsg.includes('expired') || errMsg.includes('OAuth');
       const status = isExpired ? 'expired' : 'error';
-      const errorCode = err.code || 'health_check_failed';
-      const errorMessage = err.message || 'WhatsApp health check failed.';
 
-      await this.repository.updateHealthCheckStatus(connection.id, isExpired ? 'expired' : 'error', errorCode, errorMessage);
+      await this.repository.updateHealthCheckStatus(connection.id, isExpired ? 'expired' : 'error', errCode, errMsg);
 
       return {
         status,
@@ -128,8 +129,8 @@ export class WhatsAppHealthCheckService {
         phoneNumberAccess: false,
         webhookSubscribed: false,
         checkedAt,
-        errorCode,
-        errorMessage,
+        errorCode: errCode,
+        errorMessage: errMsg,
       };
     }
   }

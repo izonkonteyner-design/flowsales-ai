@@ -172,6 +172,8 @@ function formatRelativeTime(isoString: string | null): string | null {
 // Main IntegrationCard
 // ============================================================================
 
+import { WhatsAppConnectButton } from "./whatsapp-connect-button";
+
 export type IntegrationCardProps = {
   provider: ChannelProvider;
   /** null means no DB row exists yet (never connected). */
@@ -182,6 +184,10 @@ export type IntegrationCardProps = {
   isDemo: boolean;
   /** Whether provider credentials are configured server-side. */
   isProviderConfigured: boolean;
+  /** Meta App ID for Embedded Signup */
+  metaAppId?: string;
+  /** Meta Embedded Signup Config ID */
+  metaConfigId?: string;
 };
 
 export function IntegrationCard({
@@ -190,6 +196,8 @@ export function IntegrationCard({
   canManage,
   isDemo,
   isProviderConfigured,
+  metaAppId = "",
+  metaConfigId = "",
 }: IntegrationCardProps) {
   const meta = PROVIDER_META[provider];
   const status = connection?.status ?? "not_connected";
@@ -310,84 +318,100 @@ export function IntegrationCard({
 
       {/* Actions */}
       <div className="flex items-center gap-2 border-t border-slate-100 px-6 py-4 dark:border-white/10">
-        {/* Connect button */}
-        {(!isConnected && !isRevoked) && (
-          <a
-            href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
-            id={`connect-${provider}`}
-            aria-label={`Connect ${meta.label}`}
-            aria-disabled={!isManageable || !isProviderConfigured}
-            tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
-            title={disabledReason ?? `Connect ${meta.label}`}
-            className={cn(
-              "inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
-              isManageable && isProviderConfigured
-                ? "bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-                : "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-600",
+        {provider === "whatsapp" ? (
+          <WhatsAppConnectButton
+            appId={metaAppId}
+            configId={metaConfigId}
+            canManage={canManage}
+            isDemo={isDemo}
+            isConfigured={isProviderConfigured}
+            isConnected={isConnected}
+            isExpired={isExpired}
+            isRevoked={isRevoked}
+            hasConnection={Boolean(connection)}
+          />
+        ) : (
+          <>
+            {/* Connect button */}
+            {!isConnected && !isRevoked && (
+              <a
+                href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
+                id={`connect-${provider}`}
+                aria-label={`Connect ${meta.label}`}
+                aria-disabled={!isManageable || !isProviderConfigured}
+                tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
+                title={disabledReason ?? `Connect ${meta.label}`}
+                className={cn(
+                  "inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
+                  isManageable && isProviderConfigured
+                    ? "bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                    : "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-600",
+                )}
+                onClick={
+                  !isManageable || !isProviderConfigured
+                    ? (e) => e.preventDefault()
+                    : undefined
+                }
+              >
+                <Zap className="h-4 w-4" />
+                {showConfigRequired ? "Configuration required" : "Connect"}
+              </a>
             )}
-            onClick={
-              !isManageable || !isProviderConfigured
-                ? (e) => e.preventDefault()
-                : undefined
-            }
-          >
-            <Zap className="h-4 w-4" />
-            {showConfigRequired ? "Configuration required" : "Connect"}
-          </a>
-        )}
 
-        {/* Reconnect button */}
-        {(isConnected || isExpired || isRevoked) && (
-          <a
-            href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
-            id={`reconnect-${provider}`}
-            aria-label={`Reconnect ${meta.label}`}
-            aria-disabled={!isManageable || !isProviderConfigured}
-            tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
-            title={disabledReason ?? `Reconnect ${meta.label}`}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
-              isManageable && isProviderConfigured
-                ? "border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
-                : "cursor-not-allowed border border-slate-100 text-slate-400 dark:border-white/5 dark:text-slate-600",
+            {/* Reconnect button */}
+            {(isConnected || isExpired || isRevoked) && (
+              <a
+                href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
+                id={`reconnect-${provider}`}
+                aria-label={`Reconnect ${meta.label}`}
+                aria-disabled={!isManageable || !isProviderConfigured}
+                tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
+                title={disabledReason ?? `Reconnect ${meta.label}`}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
+                  isManageable && isProviderConfigured
+                    ? "border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                    : "cursor-not-allowed border border-slate-100 text-slate-400 dark:border-white/5 dark:text-slate-600",
+                )}
+                onClick={
+                  !isManageable || !isProviderConfigured
+                    ? (e) => e.preventDefault()
+                    : undefined
+                }
+              >
+                <RefreshCw className="h-4 w-4" />
+                {isExpired ? "Renew" : "Reconnect"}
+              </a>
             )}
-            onClick={
-              !isManageable || !isProviderConfigured
-                ? (e) => e.preventDefault()
-                : undefined
-            }
-          >
-            <RefreshCw className="h-4 w-4" />
-            {isExpired ? "Renew" : "Reconnect"}
-          </a>
-        )}
 
-        {/* Disconnect button */}
-        {isConnected && connection && (
-          <form
-            action={`/api/integrations/${provider}/disconnect`}
-            method="POST"
-            className="ml-auto"
-            onSubmit={!isManageable ? (e) => e.preventDefault() : undefined}
-          >
-            <input type="hidden" name="connectionId" value={connection.id} />
-            <button
-              id={`disconnect-${provider}`}
-              type="submit"
-              disabled={!isManageable}
-              aria-label={`Disconnect ${meta.label}`}
-              title={disabledReason ?? `Disconnect ${meta.label}`}
-              className={cn(
-                "inline-flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all",
-                isManageable
-                  ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
-                  : "cursor-not-allowed text-slate-400",
-              )}
-            >
-              <Unplug className="h-4 w-4" />
-              Disconnect
-            </button>
-          </form>
+            {/* Disconnect button */}
+            {isConnected && connection && (
+              <form
+                action={`/api/integrations/${provider}/disconnect`}
+                method="POST"
+                className="ml-auto"
+                onSubmit={!isManageable ? (e) => e.preventDefault() : undefined}
+              >
+                <input type="hidden" name="connectionId" value={connection.id} />
+                <button
+                  id={`disconnect-${provider}`}
+                  type="submit"
+                  disabled={!isManageable}
+                  aria-label={`Disconnect ${meta.label}`}
+                  title={disabledReason ?? `Disconnect ${meta.label}`}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all",
+                    isManageable
+                      ? "text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/20"
+                      : "cursor-not-allowed text-slate-400",
+                  )}
+                >
+                  <Unplug className="h-4 w-4" />
+                  Disconnect
+                </button>
+              </form>
+            )}
+          </>
         )}
       </div>
     </div>

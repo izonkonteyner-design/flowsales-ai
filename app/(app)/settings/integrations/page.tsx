@@ -142,12 +142,13 @@ export default async function IntegrationsPage() {
                 scopes: raw.scopes ?? [],
                 lastSyncedAt: raw.last_synced_at,
                 lastConnectedAt: raw.last_connected_at,
-                // errorMessage intentionally excluded from client payload
-                // to avoid leaking provider error details; use generic message
                 errorMessage:
                   raw.status === "error" ? "Connection error. Please reconnect." : null,
               }
             : null;
+
+          const metaAppId = process.env.META_APP_ID || process.env.NEXT_PUBLIC_META_APP_ID || "";
+          const metaConfigId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
 
           return (
             <IntegrationCard
@@ -157,6 +158,8 @@ export default async function IntegrationsPage() {
               canManage={canManage}
               isDemo={isDemo}
               isProviderConfigured={providerConfigured.get(provider) ?? false}
+              metaAppId={metaAppId}
+              metaConfigId={metaConfigId}
             />
           );
         })}

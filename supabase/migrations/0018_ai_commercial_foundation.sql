@@ -99,7 +99,7 @@ alter table public.organization_entitlements enable row level security;
 alter table public.ai_usage_monthly enable row level security;
 alter table public.notifications enable row level security;
 
-create or replace function public.is_org_member(p_organization_id uuid)
+create or replace function public.is_org_member(target_org uuid)
 returns boolean
 language sql
 stable
@@ -108,11 +108,11 @@ set search_path = public
 as $$
   select exists (
     select 1 from public.organization_members m
-    where m.organization_id = p_organization_id and m.user_id = auth.uid()
+    where m.organization_id = target_org and m.user_id = auth.uid()
   );
 $$;
 
-create or replace function public.can_review_ai_approvals(p_organization_id uuid)
+create or replace function public.can_review_ai_approvals(target_org uuid)
 returns boolean
 language sql
 stable
@@ -121,7 +121,7 @@ set search_path = public
 as $$
   select exists (
     select 1 from public.organization_members m
-    where m.organization_id = p_organization_id
+    where m.organization_id = target_org
       and m.user_id = auth.uid()
       and m.role in ('owner','admin','manager','sales_manager')
   );
@@ -132,45 +132,56 @@ revoke all on function public.can_review_ai_approvals(uuid) from public;
 grant execute on function public.is_org_member(uuid) to authenticated;
 grant execute on function public.can_review_ai_approvals(uuid) to authenticated;
 
+drop policy if exists ai_runs_select_member on public.ai_runs;
 create policy ai_runs_select_member on public.ai_runs for select to authenticated
 using (public.is_org_member(organization_id));
+drop policy if exists ai_runs_insert_actor on public.ai_runs;
 create policy ai_runs_insert_actor on public.ai_runs for insert to authenticated
 with check (public.is_org_member(organization_id) and actor_id = auth.uid());
 
+drop policy if exists approvals_select_reviewer on public.ai_approval_requests;
 create policy approvals_select_reviewer on public.ai_approval_requests for select to authenticated
 using (public.can_review_ai_approvals(organization_id) or requested_by = auth.uid());
+drop policy if exists approvals_insert_requester on public.ai_approval_requests;
 create policy approvals_insert_requester on public.ai_approval_requests for insert to authenticated
 with check (public.is_org_member(organization_id) and requested_by = auth.uid());
+drop policy if exists approvals_update_reviewer on public.ai_approval_requests;
 create policy approvals_update_reviewer on public.ai_approval_requests for update to authenticated
 using (public.can_review_ai_approvals(organization_id))
 with check (public.can_review_ai_approvals(organization_id));
 
+drop policy if exists approval_events_select_member on public.ai_approval_events;
 create policy approval_events_select_member on public.ai_approval_events for select to authenticated
 using (public.is_org_member(organization_id));
+drop policy if exists approval_events_insert_actor on public.ai_approval_events;
 create policy approval_events_insert_actor on public.ai_approval_events for insert to authenticated
 with check (public.is_org_member(organization_id) and actor_id = auth.uid());
 
+drop policy if exists entitlements_select_member on public.organization_entitlements;
 create policy entitlements_select_member on public.organization_entitlements for select to authenticated
 using (public.is_org_member(organization_id));
 
+drop policy if exists usage_select_member on public.ai_usage_monthly;
 create policy usage_select_member on public.ai_usage_monthly for select to authenticated
 using (public.is_org_member(organization_id));
 
+drop policy if exists notifications_select_owner on public.notifications;
 create policy notifications_select_owner on public.notifications for select to authenticated
 using (public.is_org_member(organization_id) and user_id = auth.uid());
+drop policy if exists notifications_update_owner on public.notifications;
 create policy notifications_update_owner on public.notifications for update to authenticated
 using (public.is_org_member(organization_id) and user_id = auth.uid())
 with check (public.is_org_member(organization_id) and user_id = auth.uid());
 
 -- Demo workspace is read-only even for members. Service code must also enforce this boundary.
-create or replace function public.is_demo_organization(p_organization_id uuid)
+create or replace function public.is_demo_organization(target_org uuid)
 returns boolean
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select exists (select 1 from public.organizations o where o.id = p_organization_id and o.slug = 'flowsales-demo');
+  select exists (select 1 from public.organizations o where o.id = target_org and o.slug = 'flowsales-demo');
 $$;
 
 revoke all on function public.is_demo_organization(uuid) from public;

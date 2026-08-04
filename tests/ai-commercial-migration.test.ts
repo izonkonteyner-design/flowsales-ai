@@ -17,6 +17,8 @@ test("AI commercial tables enable RLS and scope reads by organization membership
   ]) {
     assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, "i"));
   }
+  assert.match(sql, /create or replace function public\.is_org_member\(target_org uuid\)/i);
+  assert.match(sql, /create or replace function public\.can_review_ai_approvals\(target_org uuid\)/i);
   assert.match(sql, /public\.is_org_member\(organization_id\)/i);
   assert.match(sql, /public\.can_review_ai_approvals\(organization_id\)/i);
 });
@@ -24,7 +26,7 @@ test("AI commercial tables enable RLS and scope reads by organization membership
 test("approval decisions enforce authorization, demo safety, expiry and version checks", async () => {
   const sql = await readFile(migrationPath, "utf8");
   assert.match(sql, /not public\.can_review_ai_approvals/i);
-  assert.match(sql, /public\.is_demo_organization/i);
+  assert.match(sql, /create or replace function public\.is_demo_organization\(target_org uuid\)/i);
   assert.match(sql, /v_row\.version <> p_expected_version/i);
   assert.match(sql, /v_row\.expires_at <= now\(\)/i);
   assert.match(sql, /where id = p_approval_id for update/i);

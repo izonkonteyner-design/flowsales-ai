@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import {
   getDeploymentEnvironmentStatus,
   normalizeDeploymentDatabaseStatus,
+  REQUIRED_DEPLOYMENT_MIGRATION,
 } from "@/server/services/deployment-readiness";
 import {
   allowInternalHealthProbe,
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
           database ?? {
             ready: false,
             latestMigration: null,
-            requiredMigration: "0022",
+            requiredMigration: REQUIRED_DEPLOYMENT_MIGRATION,
             missingFunctions: [],
             missingTables: [],
             unavailable: true,

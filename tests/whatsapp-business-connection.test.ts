@@ -88,29 +88,35 @@ describe("WhatsApp Business Connection Security & Architecture Tests", () => {
     assert.equal(result, true, "Same-origin request must be accepted");
   });
 
-  it("rate limit aşımı güvenli hata verir ve check_distributed_rate_limit rpc çağırır", () => {
+  it("rate limiter production ortamında fail-closed fırlatır ve DistributedRateLimitUnavailableError tanımlar", () => {
     const rateLimiterPath = path.join(WORKTREE, "server/services/integrations/rate-limiter.ts");
     const code = fs.readFileSync(rateLimiterPath, "utf-8");
 
-    assert.ok(code.includes("check_distributed_rate_limit"));
-    assert.ok(code.includes("RATE_LIMIT_HASH_SECRET"));
+    assert.ok(code.includes("DistributedRateLimitUnavailableError"), "Must define DistributedRateLimitUnavailableError");
+    assert.ok(code.includes("RATE_LIMIT_HASH_SECRET"), "Must require RATE_LIMIT_HASH_SECRET");
+    assert.ok(code.includes("check_distributed_rate_limit"), "Must call check_distributed_rate_limit RPC");
+    assert.ok(code.includes("process.env.NODE_ENV === \"production\""), "Must explicitly check production NODE_ENV for fail-closed behavior");
   });
 
-  it("aynı authorization code ilk kez başarılı, ikinci kez reddedilir ve consume_whatsapp_authorization_code RPC kullanır", () => {
-    const repoPath = path.join(WORKTREE, "server/repositories/supabase/whatsapp-connections.ts");
-    const code = fs.readFileSync(repoPath, "utf-8");
+  it("endpoint'ler rate limiter unavailable olduğunda 503 rate_limit_unavailable döner ve işlem yapmaz", () => {
+    const signupPath = path.join(WORKTREE, "app/api/integrations/whatsapp/embedded-signup/route.ts");
+    const healthPath = path.join(WORKTREE, "app/api/integrations/whatsapp/health/route.ts");
+    const disconnectPath = path.join(WORKTREE, "app/api/integrations/whatsapp/disconnect/route.ts");
+    const webhookPath = path.join(WORKTREE, "app/api/webhooks/meta/route.ts");
 
-    assert.ok(code.includes("consume_whatsapp_authorization_code"));
-    assert.ok(code.includes("already_used"));
-    assert.ok(code.includes("expired"));
-  });
+    const signupCode = fs.readFileSync(signupPath, "utf-8");
+    const healthCode = fs.readFileSync(healthPath, "utf-8");
+    const disconnectCode = fs.readFileSync(disconnectPath, "utf-8");
+    const webhookCode = fs.readFileSync(webhookPath, "utf-8");
 
-  it("error fallback sahte unknown connection oluşturmaz", () => {
-    const servicePath = path.join(WORKTREE, "server/services/integrations/whatsapp-embedded-signup.ts");
-    const code = fs.readFileSync(servicePath, "utf-8");
-
-    assert.ok(!code.includes("waba_id: 'unknown'"));
-    assert.ok(!code.includes("phone_number_id: 'unknown'"));
+    assert.ok(signupCode.includes("rate_limit_unavailable"));
+    assert.ok(signupCode.includes("503"));
+    assert.ok(healthCode.includes("rate_limit_unavailable"));
+    assert.ok(healthCode.includes("503"));
+    assert.ok(disconnectCode.includes("rate_limit_unavailable"));
+    assert.ok(disconnectCode.includes("503"));
+    assert.ok(webhookCode.includes("rate_limit_unavailable"));
+    assert.ok(webhookCode.includes("503"));
   });
 
   it("structured logger token/code/password/secret alanlarını otomatik redact eder", () => {

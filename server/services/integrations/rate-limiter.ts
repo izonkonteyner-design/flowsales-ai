@@ -2,6 +2,14 @@ import * as crypto from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { logger } from "@/lib/logger";
 
+export class DistributedRateLimitUnavailableError extends Error {
+  readonly code = "rate_limit_unavailable";
+  constructor(message = "Request protection is temporarily unavailable.") {
+    super(message);
+    this.name = "DistributedRateLimitUnavailableError";
+  }
+}
+
 interface RateLimitRecord {
   timestamps: number[];
 }
@@ -15,7 +23,7 @@ function getRateLimitHashSecret(): string {
   }
 
   if (process.env.NODE_ENV === "production") {
-    throw new Error("RATE_LIMIT_HASH_SECRET is required in production environment.");
+    throw new DistributedRateLimitUnavailableError("RATE_LIMIT_HASH_SECRET is missing.");
   }
 
   return "dev_rate_limit_hash_secret_key_32bytes_min";
@@ -32,7 +40,8 @@ export function hashIp(ip: string, action = "general"): string {
 
 /**
  * Distributed Serverless Rate Limiter backed by PostgreSQL RPC `check_distributed_rate_limit`.
- * Fallback to in-memory sliding window for unit testing and local development.
+ * Fail-closed in production: throws DistributedRateLimitUnavailableError if RPC fails.
+ * In development/testing (NODE_ENV !== "production"), falls back to in-memory sliding window.
  */
 export async function checkRateLimit(
   rawIpOrKey: string,
@@ -40,31 +49,60 @@ export async function checkRateLimit(
   maxRequests: number,
   windowMs: number
 ): Promise<{ allowed: boolean; remaining: number; resetMs: number }> {
+  const isProd = process.env.NODE_ENV === "production";
   const keyHash = hashIp(rawIpOrKey, action);
   const windowSeconds = Math.max(1, Math.ceil(windowMs / 1000));
 
+  let supabase;
   try {
-    const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase.rpc("check_distributed_rate_limit", {
-      p_key_hash: keyHash,
-      p_action: action,
-      p_max_requests: maxRequests,
-      p_window_seconds: windowSeconds,
-    });
-
-    if (!error && Array.isArray(data) && data.length > 0) {
-      const row = data[0];
-      return {
-        allowed: Boolean(row.allowed),
-        remaining: Number(row.remaining ?? 0),
-        resetMs: Number(row.reset_ms ?? windowMs),
-      };
-    }
+    supabase = createSupabaseAdminClient();
   } catch (err) {
-    logger.warn("rate_limiter.distributed_check_fallback", { action, error: err instanceof Error ? err.message : String(err) });
+    logger.error("rate_limiter.admin_client_failed", err, { action });
+    if (isProd) {
+      throw new DistributedRateLimitUnavailableError("Rate limit service unavailable.");
+    }
   }
 
-  // Fallback to in-memory sliding window
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.rpc("check_distributed_rate_limit", {
+        p_key_hash: keyHash,
+        p_action: action,
+        p_max_requests: maxRequests,
+        p_window_seconds: windowSeconds,
+      });
+
+      if (error) {
+        logger.error("rate_limiter.rpc_error", error, { action });
+        if (isProd) {
+          throw new DistributedRateLimitUnavailableError("Rate limit service error.");
+        }
+      } else if (Array.isArray(data) && data.length > 0) {
+        const row = data[0];
+        return {
+          allowed: Boolean(row.allowed),
+          remaining: Number(row.remaining ?? 0),
+          resetMs: Number(row.reset_ms ?? windowMs),
+        };
+      } else {
+        logger.error("rate_limiter.invalid_rpc_response", undefined, { action });
+        if (isProd) {
+          throw new DistributedRateLimitUnavailableError("Rate limit service invalid response.");
+        }
+      }
+    } catch (err) {
+      if (err instanceof DistributedRateLimitUnavailableError) {
+        throw err;
+      }
+      logger.error("rate_limiter.rpc_exception", err, { action });
+      if (isProd) {
+        throw new DistributedRateLimitUnavailableError("Rate limit service exception.");
+      }
+    }
+  }
+
+  // Development/Test fallback only
+  logger.info("rate_limiter.dev_inmemory_fallback", { action });
   return checkInMemoryRateLimit(keyHash, maxRequests, windowMs);
 }
 

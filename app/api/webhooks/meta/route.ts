@@ -3,8 +3,15 @@ import crypto from "node:crypto";
 import { getWhatsAppConfig } from "@/server/services/integrations/whatsapp-config";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { WhatsAppConnectionsRepository } from "@/server/repositories/supabase/whatsapp-connections";
-import { checkRateLimit } from "@/server/services/integrations/rate-limiter";
+import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/services/integrations/rate-limiter";
 import { logger } from "@/lib/logger";
+
+function rateLimitUnavailableResponse(): Response {
+  return Response.json(
+    { error: "rate_limit_unavailable", message: "Request protection is temporarily unavailable." },
+    { status: 503 }
+  );
+}
 
 /**
  * GET /api/webhooks/meta — Meta Webhook Verification Challenge
@@ -18,10 +25,17 @@ export async function GET(request: NextRequest): Promise<Response> {
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
 
   // Rate limit GET challenge attempts (20 requests per minute per IP)
-  const rl = await checkRateLimit(clientIp, "webhook_verification_attempts", 20, 60000);
-  if (!rl.allowed) {
-    logger.warn("meta_webhook.get_rate_limit_exceeded");
-    return Response.json({ error: "rate_limit_exceeded", message: "Too many verification requests." }, { status: 429 });
+  try {
+    const rl = await checkRateLimit(clientIp, "webhook_verification_attempts", 20, 60000);
+    if (!rl.allowed) {
+      logger.warn("meta_webhook.get_rate_limit_exceeded");
+      return Response.json({ error: "rate_limit_exceeded", message: "Too many verification requests." }, { status: 429 });
+    }
+  } catch (err) {
+    if (err instanceof DistributedRateLimitUnavailableError) {
+      return rateLimitUnavailableResponse();
+    }
+    throw err;
   }
 
   const config = getWhatsAppConfig();
@@ -43,16 +57,30 @@ export async function POST(request: NextRequest): Promise<Response> {
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
 
   // Rate limit total POST requests (100 requests per minute per IP)
-  const postRl = await checkRateLimit(clientIp, "webhook_post", 100, 60000);
-  if (!postRl.allowed) {
-    logger.warn("meta_webhook.post_rate_limit_exceeded");
-    return Response.json({ error: "rate_limit_exceeded", message: "Too many webhook requests." }, { status: 429 });
+  try {
+    const postRl = await checkRateLimit(clientIp, "webhook_post", 100, 60000);
+    if (!postRl.allowed) {
+      logger.warn("meta_webhook.post_rate_limit_exceeded");
+      return Response.json({ error: "rate_limit_exceeded", message: "Too many webhook requests." }, { status: 429 });
+    }
+  } catch (err) {
+    if (err instanceof DistributedRateLimitUnavailableError) {
+      return rateLimitUnavailableResponse();
+    }
+    throw err;
   }
 
   // 1. Signature Verification (HMAC-SHA256)
   const signatureHeader = request.headers.get("x-hub-signature-256");
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
-    await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
+    try {
+      await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
+    } catch (err) {
+      if (err instanceof DistributedRateLimitUnavailableError) {
+        return rateLimitUnavailableResponse();
+      }
+      throw err;
+    }
     logger.warn("meta_webhook.missing_signature_header");
     return Response.json({ error: "invalid_signature", message: "Missing or invalid signature header." }, { status: 401 });
   }
@@ -74,8 +102,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     crypto.timingSafeEqual(Buffer.from(providedSignature, "utf-8"), Buffer.from(expectedSignature, "utf-8"));
 
   if (!isValidSignature) {
-    const sigRl = await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
-    logger.warn("meta_webhook.signature_mismatch", { remainingAttempts: sigRl.remaining });
+    let remainingAttempts = 0;
+    try {
+      const sigRl = await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
+      remainingAttempts = sigRl.remaining;
+    } catch (err) {
+      if (err instanceof DistributedRateLimitUnavailableError) {
+        return rateLimitUnavailableResponse();
+      }
+      throw err;
+    }
+    logger.warn("meta_webhook.signature_mismatch", { remainingAttempts });
     return Response.json({ error: "invalid_signature", message: "HMAC signature verification failed." }, { status: 401 });
   }
 

@@ -15,6 +15,7 @@ import {
   Command,
   CreditCard,
   FileText,
+  Inbox,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -43,6 +44,7 @@ import type { WorkspaceContext } from "@/server/services/workspace-context";
 
 const iconMap = {
   "layout-dashboard": LayoutDashboard,
+  inbox: Inbox,
   users: Users,
   "user-group": UserRound,
   package: Package,
@@ -62,7 +64,7 @@ const iconMap = {
 } as const;
 
 const navigationGroups = [
-  { label: "Workspace", matches: ["/dashboard", "/leads", "/customers", "/products", "/quotes", "/tasks", "/calendar"] },
+  { label: "Workspace", matches: ["/dashboard", "/inbox", "/leads", "/customers", "/products", "/quotes", "/tasks", "/calendar"] },
   { label: "Intelligence", matches: ["/ai", "/ai-history", "/approvals", "/reports"] },
   { label: "Operations", matches: ["/operations", "/notifications", "/usage", "/security", "/audit-logs", "/api-layer"] },
   { label: "Settings", matches: ["/account", "/settings", "/billing", "/team", "/permissions", "/upgrade"] },

@@ -144,6 +144,10 @@ export function handleOAuthRouteError(
     return jsonError(400, (error as { code: string }).code, error instanceof Error ? error.message : "State error.");
   }
 
+  if (error instanceof Error && (error.name === "DistributedRateLimitUnavailableError" || (error as { code?: string }).code === "rate_limit_unavailable")) {
+    return jsonError(503, "rate_limit_unavailable", "Request protection is temporarily unavailable.");
+  }
+
   // Generic — do not expose raw provider errors
   return jsonError(500, "integration_error", "An error occurred. Please try again.");
 }

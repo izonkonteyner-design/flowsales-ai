@@ -199,6 +199,31 @@ export class WhatsAppConnectionsRepository {
     return data;
   }
 
+  async reconcileWhatsAppAccount(organizationId: string, connectionId: string, accountInfo: {
+    phoneNumberId: string; verifiedName: string; displayPhoneNumber: string; wabaId: string;
+  }) {
+    const supabase = createSupabaseAdminClient();
+    const { data: existing, error: lookupError } = await supabase
+      .from('channel_accounts').select('id')
+      .eq('organization_id', organizationId).eq('connection_id', connectionId).eq('provider', 'whatsapp');
+    if (lookupError || (existing?.length ?? 0) > 1) {
+      logger.error('whatsapp.reconcile_account_lookup_failed');
+      throw new Error('Failed to reconcile WhatsApp account safely.');
+    }
+    if (!existing?.length) return this.upsertWhatsAppAccount(organizationId, connectionId, accountInfo);
+    const { data, error } = await supabase.from('channel_accounts').update({
+      external_id: accountInfo.phoneNumberId,
+      display_name: accountInfo.verifiedName || accountInfo.displayPhoneNumber || 'WhatsApp Business',
+      metadata: { waba_id: accountInfo.wabaId, display_phone_number: accountInfo.displayPhoneNumber,
+        verified_name: accountInfo.verifiedName, account_type: 'business', is_active: true },
+    }).eq('id', existing[0].id).eq('organization_id', organizationId).select('*').single();
+    if (error) {
+      logger.error('whatsapp.reconcile_account_failed');
+      throw new Error('Failed to reconcile WhatsApp account.');
+    }
+    return data;
+  }
+
   /**
    * Stores encrypted access token in integration_tokens using exact 0027 migration unique constraint (connection_id).
    */

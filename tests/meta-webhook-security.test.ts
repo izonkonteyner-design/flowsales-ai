@@ -96,6 +96,18 @@ describe('Meta Webhook Security & Verification Unit Tests', () => {
     assert.ok(code.includes('500'));
   });
 
+  test('authorized bootstrap fails closed unless exact ids and one non-demo owner workspace match', () => {
+    const routePath = path.join(process.cwd(), 'app/api/webhooks/meta/route.ts');
+    const code = fs.readFileSync(routePath, 'utf-8');
+
+    assert.ok(code.includes('META_AUTO_BIND_SINGLE_OWNER'));
+    assert.ok(code.includes('META_BOOTSTRAP_WABA_ID'));
+    assert.ok(code.includes('META_BOOTSTRAP_PHONE_NUMBER_ID'));
+    assert.ok(code.includes('organizationIds.length !== 1'));
+    assert.ok(code.includes('bootstrap_cross_workspace_conflict'));
+    assert.ok(code.includes('DEMO_ORGANIZATION_ID'));
+  });
+
   test('duplicate webhook yarışında 23505 hatasında 200 duplicate_event_ignored döner', () => {
     const routePath = path.join(process.cwd(), 'app/api/webhooks/meta/route.ts');
     const code = fs.readFileSync(routePath, 'utf-8');

@@ -13,6 +13,87 @@ function rateLimitUnavailableResponse(): Response {
   );
 }
 
+const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
+
+async function bootstrapAuthorizedWhatsAppConnection(
+  repo: WhatsAppConnectionsRepository,
+  wabaId: string | undefined,
+  phoneNumberId: string | undefined,
+  metadata: Record<string, unknown> | undefined
+): Promise<{ id: string; organization_id: string } | null> {
+  if (
+    process.env.META_AUTO_BIND_SINGLE_OWNER !== "true" ||
+    !wabaId ||
+    !phoneNumberId ||
+    wabaId !== process.env.META_BOOTSTRAP_WABA_ID ||
+    phoneNumberId !== process.env.META_BOOTSTRAP_PHONE_NUMBER_ID
+  ) {
+    return null;
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data: memberships, error: membershipError } = await supabase
+    .from("organization_members")
+    .select("organization_id, user_id, role")
+    .in("role", ["owner", "admin"])
+    .neq("organization_id", DEMO_ORGANIZATION_ID);
+
+  if (membershipError) {
+    logger.error("meta_webhook.bootstrap_membership_lookup_failed", membershipError);
+    throw new Error("Failed to resolve the authorized organization.");
+  }
+
+  const organizationIds = [...new Set((memberships || []).map((row) => row.organization_id))];
+  if (organizationIds.length !== 1) {
+    logger.error("meta_webhook.bootstrap_organization_ambiguous", { organizationCount: organizationIds.length });
+    return null;
+  }
+
+  const organizationId = organizationIds[0];
+  const actor = (memberships || []).find(
+    (row) => row.organization_id === organizationId && row.role === "owner"
+  ) || (memberships || []).find((row) => row.organization_id === organizationId);
+
+  if (!actor?.user_id) {
+    logger.error("meta_webhook.bootstrap_owner_missing");
+    return null;
+  }
+
+  const existing = await repo.findGlobalExistingConnection(wabaId, phoneNumberId);
+  if (existing && existing.organization_id !== organizationId) {
+    logger.error("meta_webhook.bootstrap_cross_workspace_conflict");
+    return null;
+  }
+
+  const displayPhoneNumber = typeof metadata?.display_phone_number === "string"
+    ? metadata.display_phone_number
+    : "";
+  const verifiedName = typeof metadata?.verified_name === "string"
+    ? metadata.verified_name
+    : "WhatsApp Business";
+  const now = new Date().toISOString();
+  const connection = await repo.upsertWhatsAppConnection({
+    organizationId,
+    wabaId,
+    phoneNumberId,
+    verifiedName,
+    displayPhoneNumber,
+    webhookSubscribedAt: now,
+    createdBy: actor.user_id,
+    status: "connected",
+  });
+
+  await repo.upsertWhatsAppAccount(organizationId, connection.id, {
+    phoneNumberId,
+    verifiedName,
+    displayPhoneNumber,
+    wabaId,
+  });
+
+  logger.info("meta_webhook.bootstrap_connection_created");
+  return { id: connection.id, organization_id: organizationId };
+}
+
 /**
  * GET /api/webhooks/meta — Meta Webhook Verification Challenge
  */
@@ -161,6 +242,9 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     activeConnection = await repo.findActiveConnectionForWebhook(wabaId, phoneNumberId);
+    if (!activeConnection) {
+      activeConnection = await bootstrapAuthorizedWhatsAppConnection(repo, wabaId, phoneNumberId, metadata);
+    }
   } catch (err) {
     logger.error("meta_webhook.active_connection_lookup_error", err);
     // Transient database error -> return 500 so Meta retries delivery

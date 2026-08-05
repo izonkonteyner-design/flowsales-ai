@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { getWhatsAppConfig } from "@/server/services/integrations/whatsapp-config";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { WhatsAppConnectionsRepository } from "@/server/repositories/supabase/whatsapp-connections";
-import { checkRateLimit, hashIp } from "@/server/services/integrations/rate-limiter";
+import { checkRateLimit } from "@/server/services/integrations/rate-limiter";
 import { logger } from "@/lib/logger";
 
 /**

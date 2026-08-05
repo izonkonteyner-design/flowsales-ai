@@ -5,6 +5,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { WhatsAppConnectionsRepository } from "@/server/repositories/supabase/whatsapp-connections";
 import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/services/integrations/rate-limiter";
 import { logger } from "@/lib/logger";
+import { parseWhatsAppInbound, persistWhatsAppInbound } from "@/server/services/integrations/whatsapp-inbound";
 
 function rateLimitUnavailableResponse(): Response {
   return Response.json(
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   if (insertErr) {
     // Handle unique constraint violation (duplicate event)
     if (insertErr.code === "23505") {
-      logger.info("meta_webhook.duplicate_event_ignored", { externalEventId });
+      logger.info("meta_webhook.duplicate_event_ignored");
       return Response.json({ received: true, duplicate: true, status: "duplicate_event_ignored" }, { status: 200 });
     }
 
@@ -204,5 +205,25 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 
   logger.info("meta_webhook.event_received", { eventId: inserted.id, eventType });
+  if (messages) {
+    try {
+      const inbound = parseWhatsAppInbound(value ?? {});
+      const persisted = await persistWhatsAppInbound({
+        organizationId: activeConnection.organization_id,
+        connectionId: activeConnection.id,
+        messages: inbound,
+      });
+      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", inserted.id);
+      logger.info("meta_webhook.inbound_messages_persisted", {
+        eventId: inserted.id,
+        count: persisted.length,
+        duplicates: persisted.filter((item) => item.duplicate).length,
+      });
+    } catch (err) {
+      await supabase.from("webhook_events").update({ status: "failed", error_message: "inbound_persistence_failed" }).eq("id", inserted.id);
+      logger.error("meta_webhook.inbound_persistence_failed", err, { eventId: inserted.id });
+      return Response.json({ error: "inbound_persistence_failed" }, { status: 500 });
+    }
+  }
   return Response.json({ received: true, eventId: inserted.id }, { status: 200 });
 }

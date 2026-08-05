@@ -153,7 +153,7 @@ export class WhatsAppConnectionsRepository {
   }
 
   /**
-   * Upserts channel_accounts record for WhatsApp.
+   * Upserts channel_accounts record for WhatsApp using exact 0027 migration schema columns.
    */
   async upsertWhatsAppAccount(organizationId: string, connectionId: string, accountInfo: {
     phoneNumberId: string;
@@ -166,20 +166,21 @@ export class WhatsAppConnectionsRepository {
       organization_id: organizationId,
       connection_id: connectionId,
       provider: 'whatsapp',
-      account_id: accountInfo.phoneNumberId,
-      account_name: accountInfo.verifiedName || accountInfo.displayPhoneNumber,
-      account_type: 'business',
-      is_active: true,
+      external_id: accountInfo.phoneNumberId,
+      display_name: accountInfo.verifiedName || accountInfo.displayPhoneNumber,
       metadata: {
         waba_id: accountInfo.wabaId,
         display_phone_number: accountInfo.displayPhoneNumber,
+        verified_name: accountInfo.verifiedName,
+        account_type: 'business',
+        is_active: true,
       },
     };
 
     const { data, error } = await supabase
       .from('channel_accounts')
       .upsert(record, {
-        onConflict: 'organization_id,provider,account_id',
+        onConflict: 'organization_id,provider,external_id',
       })
       .select('*')
       .single();
@@ -192,7 +193,7 @@ export class WhatsAppConnectionsRepository {
   }
 
   /**
-   * Stores encrypted access token in integration_tokens.
+   * Stores encrypted access token in integration_tokens using exact 0027 migration unique constraint (connection_id).
    */
   async storeWhatsAppTokens(payload: WhatsAppTokenPayload) {
     const supabase = createSupabaseAdminClient();
@@ -210,7 +211,7 @@ export class WhatsAppConnectionsRepository {
     const { data, error } = await supabase
       .from('integration_tokens')
       .upsert(record, {
-        onConflict: 'organization_id,connection_id',
+        onConflict: 'connection_id',
       })
       .select('*')
       .single();
@@ -308,7 +309,7 @@ export class WhatsAppConnectionsRepository {
   }
 
   /**
-   * Atomically registers and consumes an authorization code hash to prevent replay attacks.
+   * Atomically registers and consumes an authorization code hash via PostgreSQL SECURITY DEFINER RPC.
    */
   async consumeAuthCode(
     organizationId: string,
@@ -318,13 +319,34 @@ export class WhatsAppConnectionsRepository {
     ttlSeconds = 600
   ): Promise<{ status: 'consumed' | 'already_used' | 'expired' }> {
     const supabase = createSupabaseAdminClient();
+
+    try {
+      const { data, error } = await supabase.rpc('consume_whatsapp_authorization_code', {
+        p_provider: provider,
+        p_code_hash: codeHash,
+        p_organization_id: organizationId,
+        p_user_id: userId,
+        p_ttl_seconds: ttlSeconds,
+      });
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const resultStatus = String(data[0].status);
+        if (resultStatus === 'consumed' || resultStatus === 'already_used' || resultStatus === 'expired') {
+          return { status: resultStatus };
+        }
+      }
+    } catch (err) {
+      logger.warn('whatsapp.consume_auth_code_rpc_fallback', { error: err instanceof Error ? err.message : String(err) });
+    }
+
+    // Fallback for local unit test environment when RPC is not in DB
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
     const consumedAt = now.toISOString();
 
     const { data: existing, error: selectErr } = await supabase
       .from('oauth_authorization_codes')
-      .select('id, consumed_at, expires_at')
+      .select('id, organization_id, user_id, consumed_at, expires_at')
       .eq('provider', provider)
       .eq('code_hash', codeHash)
       .maybeSingle();
@@ -335,19 +357,24 @@ export class WhatsAppConnectionsRepository {
     }
 
     if (existing) {
+      if (existing.organization_id !== organizationId || existing.user_id !== userId) {
+        return { status: 'already_used' };
+      }
       if (existing.consumed_at) {
         return { status: 'already_used' };
       }
       if (new Date(existing.expires_at) < now) {
         return { status: 'expired' };
       }
-      const { error: updateErr } = await supabase
+      const { data: updated, error: updateErr } = await supabase
         .from('oauth_authorization_codes')
         .update({ consumed_at: consumedAt })
         .eq('id', existing.id)
-        .is('consumed_at', null);
+        .is('consumed_at', null)
+        .select('id')
+        .maybeSingle();
 
-      if (updateErr) {
+      if (updateErr || !updated) {
         return { status: 'already_used' };
       }
       return { status: 'consumed' };

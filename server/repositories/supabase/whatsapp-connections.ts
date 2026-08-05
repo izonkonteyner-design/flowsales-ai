@@ -57,31 +57,38 @@ export class WhatsAppConnectionsRepository {
    * Fail-closed: Throws an error if database query fails.
    */
   async findActiveConnectionForWebhook(wabaId?: string, phoneNumberId?: string) {
-    if (!wabaId && !phoneNumberId) {
+    const safeWabaId = wabaId && /^\d{1,64}$/.test(wabaId) ? wabaId : undefined;
+    const safePhoneNumberId = phoneNumberId && /^\d{1,64}$/.test(phoneNumberId) ? phoneNumberId : undefined;
+
+    if (!safeWabaId && !safePhoneNumberId) {
       return null;
     }
 
     const supabase = createSupabaseAdminClient();
-    let query = supabase
+    const identifierFilters = [
+      safeWabaId ? `waba_id.eq.${safeWabaId}` : null,
+      safePhoneNumberId ? `phone_number_id.eq.${safePhoneNumberId}` : null,
+    ].filter((value): value is string => Boolean(value));
+
+    const { data, error } = await supabase
       .from('channel_connections')
       .select('id, organization_id, status, waba_id, phone_number_id')
       .eq('provider', 'whatsapp')
-      .eq('status', 'connected');
-
-    if (phoneNumberId) {
-      query = query.eq('phone_number_id', phoneNumberId);
-    } else if (wabaId) {
-      query = query.eq('waba_id', wabaId);
-    }
-
-    const { data, error } = await query.maybeSingle();
+      .eq('status', 'connected')
+      .or(identifierFilters.join(','));
 
     if (error) {
       logger.error('whatsapp.find_active_webhook_connection_failed', error);
       throw new Error('Failed to query active WhatsApp connection for webhook.');
     }
 
-    return data;
+    if (!data || data.length === 0) return null;
+    if (data.length !== 1) {
+      logger.error('whatsapp.ambiguous_active_webhook_connection');
+      throw new Error('Ambiguous active WhatsApp connection for webhook.');
+    }
+
+    return data[0];
   }
 
   /**

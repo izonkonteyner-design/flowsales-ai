@@ -57,7 +57,7 @@ export class WhatsAppOutboundService {
     // 3. Fail-Closed Conversation & Organization Verification
     const { data: conv, error: convErr } = await supabase
       .from("conversations")
-      .select("id, organization_id, connection_id, external_id, assigned_user_id, channel_contact_id")
+      .select("id, organization_id, connection_id, external_id, channel_contact_id, metadata")
       .eq("id", conversationId)
       .eq("organization_id", organizationId)
       .maybeSingle();
@@ -66,7 +66,8 @@ export class WhatsAppOutboundService {
       return { success: false, errorCode: "not_found", message: "Conversation not found." };
     }
 
-    if (userRole === "sales" && conv.assigned_user_id && conv.assigned_user_id !== userId) {
+    const assignedUserId = (conv.metadata as Record<string, unknown> | null)?.assigned_user_id as string | undefined;
+    if (userRole === "sales" && assignedUserId && assignedUserId !== userId) {
       return { success: false, errorCode: "unauthorized", message: "Sales agents can only reply to assigned conversations." };
     }
 
@@ -83,25 +84,35 @@ export class WhatsAppOutboundService {
     // 5. Active Connection & Decrypted Access Token Verification
     const { data: conn } = await supabase
       .from("channel_connections")
-      .select("id, status, encrypted_access_token, metadata")
+      .select("id, status, phone_number_id, waba_id")
       .eq("id", conv.connection_id)
       .eq("organization_id", organizationId)
       .eq("provider", "whatsapp")
       .maybeSingle();
 
-    if (!conn || conn.status !== "connected" || !conn.encrypted_access_token) {
+    if (!conn || conn.status !== "connected" || !conn.phone_number_id) {
+      console.log("DEBUG_CONN:", conn);
       return { success: false, errorCode: "connection_required", message: "Active WhatsApp Business connection is required." };
     }
 
-    const metadata = (conn.metadata as Record<string, unknown>) || {};
-    const phoneNumberId = metadata.phone_number_id as string;
-    if (!phoneNumberId) {
-      return { success: false, errorCode: "connection_required", message: "Invalid WhatsApp connection metadata." };
+    const phoneNumberId = conn.phone_number_id;
+
+    const { data: tokenRow, error: tokenErr } = await supabase
+      .from("integration_tokens")
+      .select("access_token_cipher")
+      .eq("connection_id", conn.id)
+      .eq("organization_id", organizationId)
+      .eq("provider", "whatsapp")
+      .maybeSingle();
+
+    if (!tokenRow || !tokenRow.access_token_cipher) {
+      console.log("DEBUG_TOKEN_ROW:", tokenRow, "DEBUG_TOKEN_ERR:", tokenErr);
+      return { success: false, errorCode: "connection_required", message: "Active WhatsApp connection token is missing." };
     }
 
     let accessToken: string;
     try {
-      accessToken = decryptToken(conn.encrypted_access_token);
+      accessToken = decryptToken(tokenRow.access_token_cipher);
     } catch {
       return { success: false, errorCode: "connection_required", message: "Failed to decrypt channel connection credentials." };
     }

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { runOAuthGuard, jsonError, jsonOk } from "@/server/services/integrations/oauth-route-guard";
 import { WhatsAppEmbeddedSignupService } from "@/server/services/integrations/whatsapp-embedded-signup";
 import { verifySameOrigin } from "@/server/services/integrations/origin-guard";
-import { checkRateLimit, hashIp } from "@/server/services/integrations/rate-limiter";
+import { checkRateLimit } from "@/server/services/integrations/rate-limiter";
 import { logger } from "@/lib/logger";
 
 const embeddedSignupSchema = z.object({
@@ -27,10 +27,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
   const { ctx } = guard;
 
-  // 3. Rate Limit Check (5 requests per 10 minutes per IP & User)
+  // 3. Serverless Distributed Rate Limit Check (5 requests per 10 minutes per User & IP)
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
-  const rateLimitKey = `signup_${ctx.organizationId}_${ctx.userId}_${hashIp(clientIp)}`;
-  const rl = checkRateLimit(rateLimitKey, 5, 600000);
+  const rlKey = `${ctx.organizationId}_${ctx.userId}_${clientIp}`;
+  const rl = await checkRateLimit(rlKey, "embedded_signup", 5, 600000);
   if (!rl.allowed) {
     logger.warn("whatsapp.embedded_signup.rate_limit_exceeded", { organizationId: ctx.organizationId });
     return jsonError(429, "rate_limit_exceeded", "Too many setup requests. Please try again later.");

@@ -16,10 +16,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   const challenge = url.searchParams.get("hub.challenge");
 
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
-  const hashedIp = hashIp(clientIp);
 
   // Rate limit GET challenge attempts (20 requests per minute per IP)
-  const rl = checkRateLimit(`webhook_get_${hashedIp}`, 20, 60000);
+  const rl = await checkRateLimit(clientIp, "webhook_verification_attempts", 20, 60000);
   if (!rl.allowed) {
     logger.warn("meta_webhook.get_rate_limit_exceeded");
     return Response.json({ error: "rate_limit_exceeded", message: "Too many verification requests." }, { status: 429 });
@@ -42,10 +41,9 @@ export async function GET(request: NextRequest): Promise<Response> {
  */
 export async function POST(request: NextRequest): Promise<Response> {
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
-  const hashedIp = hashIp(clientIp);
 
   // Rate limit total POST requests (100 requests per minute per IP)
-  const postRl = checkRateLimit(`webhook_post_${hashedIp}`, 100, 60000);
+  const postRl = await checkRateLimit(clientIp, "webhook_post", 100, 60000);
   if (!postRl.allowed) {
     logger.warn("meta_webhook.post_rate_limit_exceeded");
     return Response.json({ error: "rate_limit_exceeded", message: "Too many webhook requests." }, { status: 429 });
@@ -54,8 +52,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   // 1. Signature Verification (HMAC-SHA256)
   const signatureHeader = request.headers.get("x-hub-signature-256");
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
-    // Rate limit invalid signature attempts (10 attempts per 10 minutes per IP)
-    checkRateLimit(`invalid_sig_${hashedIp}`, 10, 600000);
+    await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
     logger.warn("meta_webhook.missing_signature_header");
     return Response.json({ error: "invalid_signature", message: "Missing or invalid signature header." }, { status: 401 });
   }
@@ -77,8 +74,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     crypto.timingSafeEqual(Buffer.from(providedSignature, "utf-8"), Buffer.from(expectedSignature, "utf-8"));
 
   if (!isValidSignature) {
-    // Increment invalid signature rate limit bucket
-    const sigRl = checkRateLimit(`invalid_sig_${hashedIp}`, 10, 600000);
+    const sigRl = await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
     logger.warn("meta_webhook.signature_mismatch", { remainingAttempts: sigRl.remaining });
     return Response.json({ error: "invalid_signature", message: "HMAC signature verification failed." }, { status: 401 });
   }
@@ -130,14 +126,16 @@ export async function POST(request: NextRequest): Promise<Response> {
     activeConnection = await repo.findActiveConnectionForWebhook(wabaId, phoneNumberId);
   } catch (err) {
     logger.error("meta_webhook.active_connection_lookup_error", err);
+    // Transient database error -> return 500 so Meta retries delivery
     return Response.json({ error: "database_error", message: "Failed to query channel connections." }, { status: 500 });
   }
 
   if (!activeConnection) {
-    logger.warn("meta_webhook.unknown_connection", { eventType });
+    // Valid signature but unknown / revoked WABA -> return 200 OK ignored to prevent infinite Meta retry storms
+    logger.info("meta_webhook.unknown_connection_ignored", { eventType });
     return Response.json(
-      { error: "unknown_connection", message: "No active WhatsApp connection found for this account or phone number." },
-      { status: 422 }
+      { received: true, status: "ignored", reason: "unknown_connection", message: "No active WhatsApp connection registered for this account or phone number." },
+      { status: 200 }
     );
   }
 

@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { runOAuthGuard, jsonError, jsonOk } from "@/server/services/integrations/oauth-route-guard";
 import { WhatsAppDisconnectService } from "@/server/services/integrations/whatsapp-disconnect";
 import { verifySameOrigin } from "@/server/services/integrations/origin-guard";
-import { checkRateLimit, hashIp } from "@/server/services/integrations/rate-limiter";
+import { checkRateLimit } from "@/server/services/integrations/rate-limiter";
 import { logger } from "@/lib/logger";
 
 export async function POST(request: NextRequest): Promise<Response> {
@@ -19,10 +19,10 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
   const { ctx } = guard;
 
-  // 3. Rate Limit Check (5 requests per 10 minutes per IP & User)
+  // 3. Serverless Distributed Rate Limit Check (5 requests per 10 minutes per User & IP)
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
-  const rateLimitKey = `disconnect_${ctx.organizationId}_${ctx.userId}_${hashIp(clientIp)}`;
-  const rl = checkRateLimit(rateLimitKey, 5, 600000);
+  const rlKey = `${ctx.organizationId}_${ctx.userId}_${clientIp}`;
+  const rl = await checkRateLimit(rlKey, "disconnect", 5, 600000);
   if (!rl.allowed) {
     logger.warn("whatsapp.disconnect.rate_limit_exceeded", { organizationId: ctx.organizationId });
     return jsonError(429, "rate_limit_exceeded", "Too many disconnect requests. Please try again later.");

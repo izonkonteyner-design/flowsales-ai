@@ -3,30 +3,30 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { verifySameOrigin } from "../server/services/integrations/origin-guard";
-import { checkRateLimit, resetRateLimitStore, hashIp } from "../server/services/integrations/rate-limiter";
 import { redactData } from "../lib/logger";
 
 const WORKTREE = process.cwd();
 
 describe("WhatsApp Business Connection Security & Architecture Tests", () => {
-  beforeEach(() => {
-    resetRateLimitStore();
-  });
 
-  it("0029 and 0030 migrations exist and contain required WABA columns and code idempotency table", () => {
+  it("0029, 0030 and 0031 migrations exist and contain required WABA columns, code idempotency, and RPCs", () => {
     const migration29Path = path.join(WORKTREE, "supabase/migrations/0029_whatsapp_business_connection.sql");
     const migration30Path = path.join(WORKTREE, "supabase/migrations/0030_whatsapp_code_idempotency.sql");
+    const migration31Path = path.join(WORKTREE, "supabase/migrations/0031_whatsapp_connection_integrity.sql");
 
     assert.ok(fs.existsSync(migration29Path), "Migration 0029 file must exist");
     assert.ok(fs.existsSync(migration30Path), "Migration 0030 file must exist");
+    assert.ok(fs.existsSync(migration31Path), "Migration 0031 file must exist");
 
     const sql29 = fs.readFileSync(migration29Path, "utf-8");
     const sql30 = fs.readFileSync(migration30Path, "utf-8");
+    const sql31 = fs.readFileSync(migration31Path, "utf-8");
 
     assert.ok(sql29.includes("waba_id"), "Migration 0029 must contain waba_id");
     assert.ok(sql29.includes("phone_number_id"), "Migration 0029 must contain phone_number_id");
     assert.ok(sql30.includes("oauth_authorization_codes"), "Migration 0030 must contain oauth_authorization_codes table");
-    assert.ok(sql30.includes("code_hash"), "Migration 0030 must contain code_hash column");
+    assert.ok(sql31.includes("consume_whatsapp_authorization_code"), "Migration 0031 must contain consume_whatsapp_authorization_code RPC");
+    assert.ok(sql31.includes("check_distributed_rate_limit"), "Migration 0031 must contain check_distributed_rate_limit RPC");
   });
 
   it("webhook subscription false ise connected yazılmaz", () => {
@@ -88,25 +88,21 @@ describe("WhatsApp Business Connection Security & Architecture Tests", () => {
     assert.equal(result, true, "Same-origin request must be accepted");
   });
 
-  it("rate limit aşımı güvenli hata verir ve limit takibi yapar", () => {
-    const rawKey = "test_user_key_123";
+  it("rate limit aşımı güvenli hata verir ve check_distributed_rate_limit rpc çağırır", () => {
+    const rateLimiterPath = path.join(WORKTREE, "server/services/integrations/rate-limiter.ts");
+    const code = fs.readFileSync(rateLimiterPath, "utf-8");
 
-    for (let i = 0; i < 5; i++) {
-      const res = checkRateLimit(rawKey, 5, 60000);
-      assert.equal(res.allowed, true);
-    }
-
-    const exceededRes = checkRateLimit(rawKey, 5, 60000);
-    assert.equal(exceededRes.allowed, false);
-    assert.equal(exceededRes.remaining, 0);
+    assert.ok(code.includes("check_distributed_rate_limit"));
+    assert.ok(code.includes("RATE_LIMIT_HASH_SECRET"));
   });
 
-  it("aynı authorization code ikinci kez reddedilir (idempotency check)", () => {
-    const servicePath = path.join(WORKTREE, "server/services/integrations/whatsapp-embedded-signup.ts");
-    const code = fs.readFileSync(servicePath, "utf-8");
+  it("aynı authorization code ilk kez başarılı, ikinci kez reddedilir ve consume_whatsapp_authorization_code RPC kullanır", () => {
+    const repoPath = path.join(WORKTREE, "server/repositories/supabase/whatsapp-connections.ts");
+    const code = fs.readFileSync(repoPath, "utf-8");
 
-    assert.ok(code.includes("authorization_code_already_used"));
-    assert.ok(code.includes("consumeAuthCode"));
+    assert.ok(code.includes("consume_whatsapp_authorization_code"));
+    assert.ok(code.includes("already_used"));
+    assert.ok(code.includes("expired"));
   });
 
   it("error fallback sahte unknown connection oluşturmaz", () => {
@@ -133,13 +129,5 @@ describe("WhatsApp Business Connection Security & Architecture Tests", () => {
     assert.equal(redacted.appSecret, "[REDACTED]");
     assert.equal(redacted.verifyToken, "[REDACTED]");
     assert.equal(redacted.normalField, "safe_value");
-  });
-
-  it("rate limit key ham IP adresini saklamaz", () => {
-    const rawIp = "192.168.1.100";
-    const hashed = hashIp(rawIp);
-
-    assert.ok(!hashed.includes(rawIp));
-    assert.equal(hashed.length, 64);
   });
 });

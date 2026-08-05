@@ -79,12 +79,12 @@ describe('Meta Webhook Security & Verification Unit Tests', () => {
     assert.equal(hash1.length, 64);
   });
 
-  test('bilinmeyen WABA/phone bağlantısında 422 unknown_connection döner', () => {
+  test('bilinmeyen WABA/phone bağlantısında 200 OK ignored unknown_connection döner', () => {
     const routePath = path.join(process.cwd(), 'app/api/webhooks/meta/route.ts');
     const code = fs.readFileSync(routePath, 'utf-8');
 
-    assert.ok(code.includes('unknown_connection'));
-    assert.ok(code.includes('422'));
+    assert.ok(code.includes('unknown_connection_ignored'));
+    assert.ok(code.includes('status: "ignored"'));
     assert.ok(code.includes('findActiveConnectionForWebhook'));
   });
 

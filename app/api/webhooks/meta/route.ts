@@ -14,6 +14,44 @@ function rateLimitUnavailableResponse(): Response {
   );
 }
 
+const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
+
+async function rebindSignedSingleOrganizationConnection(
+  repo: WhatsAppConnectionsRepository,
+  wabaId: string | undefined,
+  phoneNumberId: string | undefined,
+  metadata: Record<string, unknown> | undefined,
+): Promise<{ id: string; organization_id: string } | null> {
+  if (process.env.META_AUTO_BIND_SINGLE_OWNER !== "true" || !wabaId || !phoneNumberId) return null;
+  if (!/^\d{1,64}$/.test(wabaId) || !/^\d{1,64}$/.test(phoneNumberId)) return null;
+  const supabase = createSupabaseAdminClient();
+  const { data: memberships, error } = await supabase.from("organization_members")
+    .select("organization_id, user_id, role").in("role", ["owner", "admin"])
+    .neq("organization_id", DEMO_ORGANIZATION_ID);
+  if (error) throw new Error("Authorized organization resolution failed.");
+  const organizationIds = [...new Set((memberships ?? []).map((row) => row.organization_id))];
+  if (organizationIds.length !== 1) return null;
+  const organizationId = organizationIds[0];
+  const actor = (memberships ?? []).find((row) => row.organization_id === organizationId && row.role === "owner")
+    ?? (memberships ?? []).find((row) => row.organization_id === organizationId);
+  if (!actor?.user_id) return null;
+  const conflict = await repo.findGlobalExistingConnection(wabaId, phoneNumberId);
+  if (conflict && conflict.organization_id !== organizationId) {
+    logger.error("meta_webhook.rebind_cross_workspace_conflict");
+    return null;
+  }
+  const current = await repo.getWhatsAppConnectionForOrg(organizationId);
+  if (!current || current.status !== "connected") return null;
+  const displayPhoneNumber = typeof metadata?.display_phone_number === "string" ? metadata.display_phone_number : "";
+  const verifiedName = typeof metadata?.verified_name === "string" ? metadata.verified_name : "WhatsApp Business";
+  const connection = await repo.upsertWhatsAppConnection({ organizationId, wabaId, phoneNumberId,
+    verifiedName, displayPhoneNumber, webhookSubscribedAt: new Date().toISOString(),
+    createdBy: actor.user_id, status: "connected" });
+  await repo.reconcileWhatsAppAccount(organizationId, connection.id, { phoneNumberId, verifiedName, displayPhoneNumber, wabaId });
+  logger.info("meta_webhook.signed_single_org_rebind_completed");
+  return { id: connection.id, organization_id: organizationId };
+}
+
 /**
  * GET /api/webhooks/meta — Meta Webhook Verification Challenge
  */
@@ -162,6 +200,9 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   try {
     activeConnection = await repo.findActiveConnectionForWebhook(wabaId, phoneNumberId);
+    if (!activeConnection) {
+      activeConnection = await rebindSignedSingleOrganizationConnection(repo, wabaId, phoneNumberId, metadata);
+    }
   } catch (err) {
     logger.error("meta_webhook.active_connection_lookup_error", err);
     // Transient database error -> return 500 so Meta retries delivery

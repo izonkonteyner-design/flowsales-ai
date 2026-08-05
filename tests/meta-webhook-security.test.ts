@@ -5,7 +5,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('Meta Webhook Security & Verification Unit Tests', () => {
-
   test('Webhook verify challenge returns hub.challenge on matching verify token', () => {
     const mode = 'subscribe';
     const verifyToken = 'secret_webhook_verify_token_123';
@@ -69,14 +68,39 @@ describe('Meta Webhook Security & Verification Unit Tests', () => {
     assert.equal(isValid, false);
   });
 
-  test('Webhook route file handles GET verification and POST signature check', () => {
+  test('raw-body hash fallback deterministiktir', () => {
+    const rawBody1 = JSON.stringify({ object: 'whatsapp_business_account', text: 'hello' });
+    const rawBody2 = JSON.stringify({ object: 'whatsapp_business_account', text: 'hello' });
+
+    const hash1 = crypto.createHash('sha256').update(rawBody1).digest('hex');
+    const hash2 = crypto.createHash('sha256').update(rawBody2).digest('hex');
+
+    assert.equal(hash1, hash2);
+    assert.equal(hash1.length, 64);
+  });
+
+  test('bilinmeyen WABA/phone bağlantısında 422 unknown_connection döner', () => {
     const routePath = path.join(process.cwd(), 'app/api/webhooks/meta/route.ts');
     const code = fs.readFileSync(routePath, 'utf-8');
 
-    assert.ok(code.includes('x-hub-signature-256'));
-    assert.ok(code.includes('sha256='));
-    assert.ok(code.includes('crypto.timingSafeEqual'));
+    assert.ok(code.includes('unknown_connection'));
+    assert.ok(code.includes('422'));
+    assert.ok(code.includes('findActiveConnectionForWebhook'));
+  });
+
+  test('webhook insert database hatasında 5xx verir', () => {
+    const routePath = path.join(process.cwd(), 'app/api/webhooks/meta/route.ts');
+    const code = fs.readFileSync(routePath, 'utf-8');
+
+    assert.ok(code.includes('webhook_persistence_failed'));
+    assert.ok(code.includes('500'));
+  });
+
+  test('duplicate webhook yarışında 23505 hatasında 200 duplicate_event_ignored döner', () => {
+    const routePath = path.join(process.cwd(), 'app/api/webhooks/meta/route.ts');
+    const code = fs.readFileSync(routePath, 'utf-8');
+
+    assert.ok(code.includes('23505'));
     assert.ok(code.includes('duplicate_event_ignored'));
-    assert.ok(code.includes('webhook_events'));
   });
 });

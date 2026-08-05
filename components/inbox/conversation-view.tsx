@@ -11,6 +11,7 @@ import {
   Lock,
   WifiOff,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 
 interface ConversationViewProps {
@@ -31,6 +32,9 @@ export function ConversationView({
   onRefresh,
 }: ConversationViewProps) {
   const [replyText, setReplyText] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [sendError, setSendError] = useState<{ code: string; message: string } | null>(null);
+
   const [isPending, startTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -83,6 +87,45 @@ export function ConversationView({
         onRefresh();
       }
     });
+  };
+
+  const handleSendReply = async () => {
+    if (!replyText.trim() || isSending || isReadOnly || isDisconnected) return;
+
+    setIsSending(true);
+    setSendError(null);
+
+    const clientIdempotencyKey = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `key_${Date.now()}_${Math.random()}`;
+
+    try {
+      const res = await fetch(`/api/inbox/conversations/${conversation.id}/reply`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: replyText.trim(),
+          clientIdempotencyKey,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        setSendError({
+          code: json?.error || "send_failed",
+          message: json?.message || "Failed to send WhatsApp outbound reply.",
+        });
+      } else {
+        setReplyText("");
+        if (onRefresh) onRefresh();
+      }
+    } catch (err: unknown) {
+      setSendError({
+        code: "send_failed",
+        message: err instanceof Error ? err.message : "Network error while sending reply.",
+      });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -149,7 +192,7 @@ export function ConversationView({
       {isDisconnected && (
         <div className="flex items-center space-x-2 bg-amber-950/50 border-b border-amber-800/40 px-6 py-2.5 text-xs text-amber-300">
           <WifiOff className="h-4 w-4 shrink-0" />
-          <span>WhatsApp channel is currently disconnected or expired. Incoming replies are paused.</span>
+          <span>WhatsApp channel is currently disconnected or expired. Outbound replies are paused.</span>
         </div>
       )}
 
@@ -157,6 +200,25 @@ export function ConversationView({
         <div className="flex items-center space-x-2 bg-slate-900 border-b border-slate-800 px-6 py-2 text-xs text-slate-400">
           <Lock className="h-3.5 w-3.5 shrink-0 text-slate-400" />
           <span>{isDemo ? "Demo mode is active (read-only)." : "You have read-only access to this conversation."}</span>
+        </div>
+      )}
+
+      {sendError && (
+        <div className="flex items-center justify-between bg-rose-950/70 border-b border-rose-800/50 px-6 py-2.5 text-xs text-rose-200">
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-400" />
+            <span>
+              {sendError.code === "template_required"
+                ? "24-Hour Service Window Closed: A WhatsApp Template Message is required to re-open customer conversation."
+                : sendError.message}
+            </span>
+          </div>
+          <button
+            onClick={() => setSendError(null)}
+            className="text-rose-300 hover:text-white font-bold ml-3"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -182,7 +244,13 @@ export function ConversationView({
 
       {/* Composer Box */}
       <div className="p-4 border-t border-slate-800/80 bg-slate-900/40">
-        <div className="flex items-center space-x-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSendReply();
+          }}
+          className="flex items-center space-x-2"
+        >
           <input
             type="text"
             placeholder={
@@ -190,21 +258,26 @@ export function ConversationView({
                 ? "Read-only mode active"
                 : isDisconnected
                 ? "Channel disconnected"
-                : "Type outbound message reply..."
+                : "Type WhatsApp outbound reply..."
             }
             value={replyText}
             onChange={(e) => setReplyText(e.target.value)}
-            disabled={isReadOnly || isDisconnected}
+            disabled={isReadOnly || isDisconnected || isSending}
             className="flex-1 bg-slate-800/80 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 disabled:opacity-50"
           />
           <button
-            disabled={isReadOnly || isDisconnected || !replyText.trim()}
-            className="flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+            type="submit"
+            disabled={isReadOnly || isDisconnected || isSending || !replyText.trim()}
+            className="flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50 transition-colors shrink-0"
           >
-            <Send className="h-4 w-4 mr-1.5" />
+            {isSending ? (
+              <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+            ) : (
+              <Send className="h-4 w-4 mr-1.5" />
+            )}
             Send
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );

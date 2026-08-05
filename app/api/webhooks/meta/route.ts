@@ -282,6 +282,34 @@ export async function POST(request: NextRequest): Promise<Response> {
       logger.error("meta_webhook.inbound_persistence_failed", err, { eventId });
       return Response.json({ error: "inbound_persistence_failed" }, { status: 500 });
     }
+  } else if (value?.statuses && Array.isArray(value.statuses)) {
+    try {
+      for (const st of value.statuses as Array<Record<string, unknown>>) {
+        if (typeof st?.id === "string" && typeof st?.status === "string") {
+          const providerMsgId = st.id;
+          const statusVal = st.status;
+          const tsNum = typeof st.timestamp === "string" ? Number(st.timestamp) : typeof st.timestamp === "number" ? st.timestamp : Date.now() / 1000;
+          const tsIso = new Date(tsNum * 1000).toISOString();
+          const errPayload = st.errors ? { errors: st.errors } : null;
+
+          await supabase.rpc("update_message_delivery_status", {
+            p_organization_id: activeConnection.organization_id,
+            p_provider_message_id: providerMsgId,
+            p_new_status: statusVal,
+            p_occurred_at: tsIso,
+            p_error_payload: errPayload,
+          });
+        }
+      }
+      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", eventId);
+      logger.info("meta_webhook.statuses_updated", { eventId, count: (value.statuses as Array<unknown>).length });
+    } catch (err) {
+      await supabase.from("webhook_events").update({ status: "failed", error_message: "status_update_failed" }).eq("id", eventId);
+      logger.error("meta_webhook.status_update_failed", err, { eventId });
+      return Response.json({ error: "status_update_failed" }, { status: 500 });
+    }
+  } else {
+    await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", eventId);
   }
   return Response.json({ received: true, eventId }, { status: 200 });
 }

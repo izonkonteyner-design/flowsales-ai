@@ -1,4 +1,5 @@
 import { createSupabaseAdminClient } from '@/lib/supabase/server-admin';
+import { logger } from '@/lib/logger';
 
 export interface WhatsAppConnectionPayload {
   organizationId: string;
@@ -31,6 +32,7 @@ export interface WhatsAppTokenPayload {
 export class WhatsAppConnectionsRepository {
   /**
    * Checks if WABA or phone_number_id is already connected in any workspace.
+   * Fail-closed: Throws an error if the database query fails.
    */
   async findGlobalExistingConnection(wabaId: string, phoneNumberId: string) {
     const supabase = createSupabaseAdminClient();
@@ -43,8 +45,42 @@ export class WhatsAppConnectionsRepository {
       .maybeSingle();
 
     if (error) {
-      console.error('[WhatsAppRepo] Error checking global connection:', error.message);
+      logger.error('whatsapp.find_global_connection_failed', error);
+      throw new Error('Failed to verify existing WhatsApp connections due to database error.');
     }
+    return data;
+  }
+
+  /**
+   * Finds an active WhatsApp connection for an incoming webhook event.
+   * Returns null if no active connection exists for the WABA or phone number.
+   * Fail-closed: Throws an error if database query fails.
+   */
+  async findActiveConnectionForWebhook(wabaId?: string, phoneNumberId?: string) {
+    if (!wabaId && !phoneNumberId) {
+      return null;
+    }
+
+    const supabase = createSupabaseAdminClient();
+    let query = supabase
+      .from('channel_connections')
+      .select('id, organization_id, status, waba_id, phone_number_id')
+      .eq('provider', 'whatsapp')
+      .eq('status', 'connected');
+
+    if (phoneNumberId) {
+      query = query.eq('phone_number_id', phoneNumberId);
+    } else if (wabaId) {
+      query = query.eq('waba_id', wabaId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+
+    if (error) {
+      logger.error('whatsapp.find_active_webhook_connection_failed', error);
+      throw new Error('Failed to query active WhatsApp connection for webhook.');
+    }
+
     return data;
   }
 
@@ -61,7 +97,7 @@ export class WhatsAppConnectionsRepository {
       .maybeSingle();
 
     if (error) {
-      console.error('[WhatsAppRepo] Error getting org connection:', error.message);
+      logger.error('whatsapp.get_org_connection_failed', error);
       return null;
     }
     return data;
@@ -102,20 +138,24 @@ export class WhatsAppConnectionsRepository {
 
     const { data, error } = await supabase
       .from('channel_connections')
-      .upsert(record, { onConflict: 'organization_id,provider' })
-      .select()
+      .upsert(record, {
+        onConflict: 'organization_id,provider',
+      })
+      .select('*')
       .single();
 
     if (error) {
-      throw new Error(`Failed to save WhatsApp connection: ${error.message}`);
+      logger.error('whatsapp.upsert_connection_failed', error);
+      throw new Error('Failed to save WhatsApp connection.');
     }
+
     return data;
   }
 
   /**
-   * Upserts the channel_accounts record for WhatsApp.
+   * Upserts channel_accounts record for WhatsApp.
    */
-  async upsertWhatsAppAccount(organizationId: string, connectionId: string, payload: {
+  async upsertWhatsAppAccount(organizationId: string, connectionId: string, accountInfo: {
     phoneNumberId: string;
     verifiedName: string;
     displayPhoneNumber: string;
@@ -126,24 +166,28 @@ export class WhatsAppConnectionsRepository {
       organization_id: organizationId,
       connection_id: connectionId,
       provider: 'whatsapp',
-      external_id: payload.phoneNumberId,
-      display_name: payload.verifiedName || payload.displayPhoneNumber,
+      account_id: accountInfo.phoneNumberId,
+      account_name: accountInfo.verifiedName || accountInfo.displayPhoneNumber,
+      account_type: 'business',
+      is_active: true,
       metadata: {
-        waba_id: payload.wabaId,
-        display_phone_number: payload.displayPhoneNumber,
-        verified_name: payload.verifiedName,
+        waba_id: accountInfo.wabaId,
+        display_phone_number: accountInfo.displayPhoneNumber,
       },
     };
 
     const { data, error } = await supabase
       .from('channel_accounts')
-      .upsert(record, { onConflict: 'organization_id,provider,external_id' })
-      .select()
+      .upsert(record, {
+        onConflict: 'organization_id,provider,account_id',
+      })
+      .select('*')
       .single();
 
     if (error) {
-      console.error('[WhatsAppRepo] Error saving channel_account:', error.message);
+      logger.error('whatsapp.upsert_account_failed', error);
     }
+
     return data;
   }
 
@@ -156,21 +200,26 @@ export class WhatsAppConnectionsRepository {
       organization_id: payload.organizationId,
       connection_id: payload.connectionId,
       provider: 'whatsapp',
-      access_token_cipher: payload.accessTokenCipher,
       token_type: payload.tokenType || 'bearer',
-      expires_at: payload.expiresAt || null,
+      access_token_cipher: payload.accessTokenCipher,
       scopes: payload.scopes || ['whatsapp_business_management', 'whatsapp_business_messaging'],
+      expires_at: payload.expiresAt || null,
+      updated_at: new Date().toISOString(),
     };
 
     const { data, error } = await supabase
       .from('integration_tokens')
-      .upsert(record, { onConflict: 'connection_id' })
-      .select()
+      .upsert(record, {
+        onConflict: 'organization_id,connection_id',
+      })
+      .select('*')
       .single();
 
     if (error) {
-      throw new Error(`Failed to store integration tokens: ${error.message}`);
+      logger.error('whatsapp.store_token_failed', error);
+      throw new Error('Failed to store encrypted WhatsApp tokens.');
     }
+
     return data;
   }
 
@@ -186,7 +235,7 @@ export class WhatsAppConnectionsRepository {
       .maybeSingle();
 
     if (error) {
-      console.error('[WhatsAppRepo] Error getting integration_token:', error.message);
+      logger.error('whatsapp.get_token_failed', error);
       return null;
     }
     return data;
@@ -204,26 +253,17 @@ export class WhatsAppConnectionsRepository {
       .update({
         status: 'revoked',
         disconnected_at: now,
-        disconnected_by: userId,
         updated_by: userId,
       })
       .eq('id', connectionId)
       .eq('organization_id', organizationId)
-      .select()
+      .select('*')
       .single();
 
     if (error) {
-      throw new Error(`Failed to disconnect WhatsApp connection: ${error.message}`);
+      logger.error('whatsapp.disconnect_connection_failed', error);
+      throw new Error('Failed to disconnect WhatsApp connection.');
     }
-
-    // Clear access token cipher in integration_tokens for security
-    await supabase
-      .from('integration_tokens')
-      .update({
-        access_token_cipher: null,
-        refresh_token_cipher: null,
-      })
-      .eq('connection_id', connectionId);
 
     return data;
   }
@@ -231,7 +271,12 @@ export class WhatsAppConnectionsRepository {
   /**
    * Updates health check status on connection.
    */
-  async updateHealthCheckStatus(connectionId: string, status: 'connected' | 'error' | 'expired' | 'revoked', errorCode?: string, errorMessage?: string) {
+  async updateHealthCheckStatus(
+    connectionId: string,
+    status: 'connected' | 'error' | 'expired' | 'revoked',
+    errorCode?: string,
+    errorMessage?: string
+  ) {
     const supabase = createSupabaseAdminClient();
     const now = new Date().toISOString();
 
@@ -241,20 +286,92 @@ export class WhatsAppConnectionsRepository {
       connection_error_code: errorCode || null,
       connection_error_message: errorMessage || null,
     };
+
     if (status === 'connected') {
       updates.connection_verified_at = now;
+    } else if (status === 'revoked') {
+      updates.disconnected_at = now;
     }
 
     const { data, error } = await supabase
       .from('channel_connections')
       .update(updates)
       .eq('id', connectionId)
-      .select()
+      .select('*')
       .single();
 
     if (error) {
-      console.error('[WhatsAppRepo] Error updating health check status:', error.message);
+      logger.error('whatsapp.update_health_status_failed', error);
     }
+
     return data;
+  }
+
+  /**
+   * Atomically registers and consumes an authorization code hash to prevent replay attacks.
+   */
+  async consumeAuthCode(
+    organizationId: string,
+    userId: string,
+    provider: string,
+    codeHash: string,
+    ttlSeconds = 600
+  ): Promise<{ status: 'consumed' | 'already_used' | 'expired' }> {
+    const supabase = createSupabaseAdminClient();
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000).toISOString();
+    const consumedAt = now.toISOString();
+
+    const { data: existing, error: selectErr } = await supabase
+      .from('oauth_authorization_codes')
+      .select('id, consumed_at, expires_at')
+      .eq('provider', provider)
+      .eq('code_hash', codeHash)
+      .maybeSingle();
+
+    if (selectErr) {
+      logger.error('whatsapp.select_auth_code_failed', selectErr);
+      throw new Error('Failed to verify authorization code idempotency.');
+    }
+
+    if (existing) {
+      if (existing.consumed_at) {
+        return { status: 'already_used' };
+      }
+      if (new Date(existing.expires_at) < now) {
+        return { status: 'expired' };
+      }
+      const { error: updateErr } = await supabase
+        .from('oauth_authorization_codes')
+        .update({ consumed_at: consumedAt })
+        .eq('id', existing.id)
+        .is('consumed_at', null);
+
+      if (updateErr) {
+        return { status: 'already_used' };
+      }
+      return { status: 'consumed' };
+    }
+
+    const { error: insertErr } = await supabase
+      .from('oauth_authorization_codes')
+      .insert({
+        organization_id: organizationId,
+        user_id: userId,
+        provider,
+        code_hash: codeHash,
+        expires_at: expiresAt,
+        consumed_at: consumedAt,
+      });
+
+    if (insertErr) {
+      if (insertErr.code === '23505') {
+        return { status: 'already_used' };
+      }
+      logger.error('whatsapp.insert_auth_code_failed', insertErr);
+      throw new Error('Failed to record authorization code idempotency.');
+    }
+
+    return { status: 'consumed' };
   }
 }

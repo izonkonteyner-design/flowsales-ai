@@ -82,7 +82,6 @@ export class OmnichannelInboxService {
     if (conversation && conversation.unreadCount > 0) {
       await this.repo.markAsRead({
         organizationId: ctx.organizationId,
-        userId: ctx.userId,
         userRole: ctx.userRole,
         conversationId,
       });

@@ -3,7 +3,7 @@
 import React from "react";
 import { ConversationSummaryDTO } from "@/server/repositories/supabase/omnichannel-inbox";
 import { ConversationItem } from "@/components/inbox/conversation-item";
-import { Search, Filter, MessageSquare, Inbox, ShieldAlert } from "lucide-react";
+import { Search, MessageSquare, Inbox, ShieldAlert } from "lucide-react";
 
 interface ConversationListProps {
   conversations: ConversationSummaryDTO[];

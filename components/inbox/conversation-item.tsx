@@ -2,7 +2,7 @@
 
 import React from "react";
 import { ConversationSummaryDTO } from "@/server/repositories/supabase/omnichannel-inbox";
-import { MessageSquare, User, Clock, CheckCircle2, AlertCircle, RefreshCw, XCircle } from "lucide-react";
+import { User, Clock, CheckCircle2, AlertCircle, RefreshCw, XCircle } from "lucide-react";
 
 interface ConversationItemProps {
   conversation: ConversationSummaryDTO;
@@ -20,7 +20,6 @@ export function ConversationItem({ conversation, isSelected, onSelect }: Convers
     unreadCount,
     status,
     assignedUserName,
-    provider,
   } = conversation;
 
   return (

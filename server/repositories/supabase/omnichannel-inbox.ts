@@ -409,7 +409,7 @@ export class OmnichannelInboxRepository {
     conversationId: string;
     assignedUserId: string | null;
   }): Promise<{ success: boolean; error?: string }> {
-    const { organizationId, userId, userRole, conversationId, assignedUserId } = params;
+    const { organizationId, userRole, conversationId, assignedUserId } = params;
 
     if (userRole === "viewer") {
       return { success: false, error: "Viewers are read-only and cannot reassign conversations." };
@@ -447,7 +447,6 @@ export class OmnichannelInboxRepository {
 
   async markAsRead(params: {
     organizationId: string;
-    userId: string;
     userRole: string;
     conversationId: string;
   }): Promise<{ success: boolean }> {

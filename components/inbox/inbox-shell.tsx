@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { ConversationSummaryDTO, ConversationDetailDTO } from "@/server/repositories/supabase/omnichannel-inbox";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { ConversationView } from "@/components/inbox/conversation-view";
@@ -13,7 +13,6 @@ interface InboxShellProps {
 
 export function InboxShell({ initialConversationId }: InboxShellProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [selectedId, setSelectedId] = useState<string | null>(initialConversationId || null);
   const [conversations, setConversations] = useState<ConversationSummaryDTO[]>([]);
@@ -30,65 +29,73 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
 
   const [isListLoading, setIsListLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
-  const [, startTransition] = useTransition();
 
   // Load conversation list on filter changes
   useEffect(() => {
     let isMounted = true;
-    setIsListLoading(true);
 
-    fetchInboxDataAction({
-      statusFilter,
-      providerFilter,
-      assigneeFilter,
-      searchQuery,
-    })
-      .then((res) => {
+    async function loadConversations() {
+      setIsListLoading(true);
+      try {
+        const res = await fetchInboxDataAction({
+          statusFilter,
+          providerFilter,
+          assigneeFilter,
+          searchQuery,
+        });
         if (!isMounted) return;
         setConversations(res.conversations);
         setUserRole(res.userRole);
         setIsDemo(res.isDemo);
-        setIsListLoading(false);
 
-        // Auto select first conversation if none selected and not on mobile
+        // Auto select first conversation if none selected
         if (!selectedId && res.conversations.length > 0) {
           setSelectedId(res.conversations[0].id);
         }
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!isMounted) return;
         console.error("Failed to load inbox conversations:", err);
-        setIsListLoading(false);
-      });
+      } finally {
+        if (isMounted) setIsListLoading(false);
+      }
+    }
+
+    loadConversations();
 
     return () => {
       isMounted = false;
     };
-  }, [statusFilter, providerFilter, assigneeFilter, searchQuery]);
+  }, [statusFilter, providerFilter, assigneeFilter, searchQuery, selectedId]);
 
   // Load selected conversation detail
   useEffect(() => {
-    if (!selectedId) {
-      setActiveConversation(null);
-      return;
-    }
-
     let isMounted = true;
-    setIsDetailLoading(true);
 
-    fetchConversationDetailAction(selectedId)
-      .then((res) => {
+    async function loadDetail() {
+      if (!selectedId) {
+        if (isMounted) {
+          setActiveConversation(null);
+          setIsDetailLoading(false);
+        }
+        return;
+      }
+
+      setIsDetailLoading(true);
+      try {
+        const res = await fetchConversationDetailAction(selectedId);
         if (!isMounted) return;
         setActiveConversation(res.conversation);
         setOrganizationMembers(res.organizationMembers);
-        setIsDetailLoading(false);
-      })
-      .catch((err) => {
+      } catch (err) {
         if (!isMounted) return;
         console.error("Failed to load conversation detail:", err);
         setActiveConversation(null);
-        setIsDetailLoading(false);
-      });
+      } finally {
+        if (isMounted) setIsDetailLoading(false);
+      }
+    }
+
+    loadDetail();
 
     return () => {
       isMounted = false;

@@ -6,16 +6,11 @@ import { MessageTimeline } from "@/components/inbox/message-timeline";
 import { updateConversationStatusAction, updateConversationAssigneeAction } from "@/app/(app)/inbox/actions";
 import {
   User,
-  CheckCircle2,
   AlertTriangle,
   Send,
   Lock,
   WifiOff,
-  ShieldAlert,
   Loader2,
-  RefreshCw,
-  XCircle,
-  AlertCircle,
 } from "lucide-react";
 
 interface ConversationViewProps {

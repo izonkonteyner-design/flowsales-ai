@@ -234,18 +234,35 @@ export async function POST(request: NextRequest): Promise<Response> {
     .select("id")
     .single();
 
+  let eventId = inserted?.id as string | undefined;
+  let retryingFailedEvent = false;
+
   if (insertErr) {
     // Handle unique constraint violation (duplicate event)
     if (insertErr.code === "23505") {
-      logger.info("meta_webhook.duplicate_event_ignored");
-      return Response.json({ received: true, duplicate: true, status: "duplicate_event_ignored" }, { status: 200 });
+      const { data: claimed } = await supabase
+        .from("webhook_events")
+        .update({ status: "received", error_message: null })
+        .eq("organization_id", activeConnection.organization_id)
+        .eq("provider", "whatsapp")
+        .eq("external_event_id", externalEventId)
+        .eq("status", "failed")
+        .select("id")
+        .maybeSingle();
+      if (!claimed?.id) {
+        logger.info("meta_webhook.duplicate_event_ignored");
+        return Response.json({ received: true, duplicate: true, status: "duplicate_event_ignored" }, { status: 200 });
+      }
+      eventId = claimed.id;
+      retryingFailedEvent = true;
+    } else {
+      logger.error("meta_webhook.persistence_failed", insertErr);
+      return Response.json({ error: "webhook_persistence_failed", message: "Failed to persist webhook event." }, { status: 500 });
     }
-
-    logger.error("meta_webhook.persistence_failed", insertErr);
-    return Response.json({ error: "webhook_persistence_failed", message: "Failed to persist webhook event." }, { status: 500 });
   }
 
-  logger.info("meta_webhook.event_received", { eventId: inserted.id, eventType });
+  if (!eventId) return Response.json({ error: "webhook_persistence_failed" }, { status: 500 });
+  logger.info(retryingFailedEvent ? "meta_webhook.failed_event_retry_started" : "meta_webhook.event_received", { eventId, eventType });
   if (messages) {
     try {
       const inbound = parseWhatsAppInbound(value ?? {});
@@ -254,17 +271,17 @@ export async function POST(request: NextRequest): Promise<Response> {
         connectionId: activeConnection.id,
         messages: inbound,
       });
-      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", inserted.id);
+      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", eventId);
       logger.info("meta_webhook.inbound_messages_persisted", {
-        eventId: inserted.id,
+        eventId,
         count: persisted.length,
         duplicates: persisted.filter((item) => item.duplicate).length,
       });
     } catch (err) {
-      await supabase.from("webhook_events").update({ status: "failed", error_message: "inbound_persistence_failed" }).eq("id", inserted.id);
-      logger.error("meta_webhook.inbound_persistence_failed", err, { eventId: inserted.id });
+      await supabase.from("webhook_events").update({ status: "failed", error_message: "inbound_persistence_failed" }).eq("id", eventId);
+      logger.error("meta_webhook.inbound_persistence_failed", err, { eventId });
       return Response.json({ error: "inbound_persistence_failed" }, { status: 500 });
     }
   }
-  return Response.json({ received: true, eventId: inserted.id }, { status: 200 });
+  return Response.json({ received: true, eventId }, { status: 200 });
 }

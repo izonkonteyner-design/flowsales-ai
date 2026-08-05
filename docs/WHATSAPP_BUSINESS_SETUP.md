@@ -53,7 +53,18 @@ This document describes how to set up, configure, and manage WhatsApp Business i
 
 ---
 
-## 5. Required Environment Variables
+## 5. Webhook Ingestion & Workspace Isolation
+
+- When Meta sends a webhook event to `POST /api/webhooks/meta`:
+  1. The server verifies the `X-Hub-Signature-256` HMAC-SHA256 signature using `META_APP_SECRET`.
+  2. The server extracts the `waba_id` or `phone_number_id` from the payload metadata.
+  3. The server queries `channel_connections` for an active (`status = 'connected'`) WhatsApp connection matching that WABA or phone number.
+  4. If an active connection is found, the event is saved to `webhook_events` associated with that specific workspace (`organization_id`).
+  5. If **no active connection** is found, the server returns HTTP 422 (`unknown_connection`) with message `"No active WhatsApp connection found for this account or phone number."`. The event is **not** marked as processed, and no dummy or random organization records are created.
+
+---
+
+## 6. Required Environment Variables
 
 Set the following environment variables in your server / Vercel dashboard:
 
@@ -79,23 +90,21 @@ TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789a
 
 ---
 
-## 6. Permissions & Scope Model
+## 7. Permissions & Scope Model
 
 - `whatsapp_business_management`: Allows managing WABA settings, phone numbers, and webhooks.
 - `whatsapp_business_messaging`: Allows sending and receiving WhatsApp messages.
-- `business_management`: Only requested if explicit Business Portfolio discovery is required.
 
 ---
 
-## 7. App Review & Business Verification
+## 8. App Review & Business Verification
 
 - **Development Mode**: Testing is limited to App Admins, Developers, and Testers, using Meta WhatsApp Test Numbers.
 - **Production Mode**: Requires Meta **Business Verification** and **App Review** for `whatsapp_business_management` and `whatsapp_business_messaging`.
-- Until App Review is approved by Meta, non-app roles will see a restriction during Embedded Signup.
 
 ---
 
-## 8. Disconnect & Credential Rotation
+## 9. Disconnect & Credential Rotation
 
 ### Disconnect Procedure
 1. In FlowSales AI, navigate to `/settings/integrations`.
@@ -105,17 +114,12 @@ TOKEN_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789a
    - Unsubscribe the WABA from app webhooks.
    - Clear encrypted token blobs from `integration_tokens`.
 
-### Credential Rotation
-If `META_APP_SECRET` or `TOKEN_ENCRYPTION_KEY` is rotated:
-1. Update environment variables in Vercel.
-2. Trigger re-authentication for connected accounts by clicking **Reconnect** on `/settings/integrations`.
-
 ---
 
-## 9. Production Activation Checklist
+## 10. Production Activation Checklist
 
 - [ ] Meta Developer App switched to Live Mode.
 - [ ] App Review approved for `whatsapp_business_messaging` and `whatsapp_business_management`.
 - [ ] Production webhook URL verified (`https://flowsales-ai-six.vercel.app/api/webhooks/meta`).
 - [ ] All environment variables configured in Vercel Production environment.
-- [ ] Database migration `0029_whatsapp_business_connection.sql` applied to production database.
+- [ ] Database migrations `0029_whatsapp_business_connection.sql` and `0030_whatsapp_code_idempotency.sql` applied to production database.

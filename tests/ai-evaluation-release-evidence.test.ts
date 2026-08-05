@@ -35,12 +35,12 @@ test("release persistence runs only after verified main push", async () => {
   assert.match(workflow, /npm run eval:ai:persist/);
 });
 
-test("production migration workflow preserves 0026 evidence and advances readiness to 0033", async () => {
+test("production migration workflow preserves 0026 evidence and advances readiness to 0034", async () => {
   const workflow = await source(".github/workflows/supabase-production-migrate.yml");
   const readiness = await source("server/services/deployment-readiness.ts");
-  assert.match(workflow, /Apply and verify migrations through 0033/);
+  assert.match(workflow, /Apply and verify migrations through 0034/);
   assert.match(workflow, /supabase\/migrations\/\*\*/);
-  assert.match(workflow, /test "\$latest" = "0033"/);
+  assert.match(workflow, /test "\$latest" = "0034"/);
   assert.match(workflow, /persist_whatsapp_inbound_message/);
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0033"/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0034"/);
 });

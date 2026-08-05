@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   migrate:
-    name: Apply and verify migrations through 0033
+    name: Apply and verify migrations through 0034
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for version in 0027 0028 0029 0030 0031 0032 0033; do
+          for version in 0027 0028 0029 0030 0031 0032 0033 0034; do
             compgen -G "supabase/migrations/${version}_*.sql" >/dev/null || { echo "Missing migration ${version}" >&2; exit 1; }
           done
 
@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           [[ "$db_url" == postgresql://* || "$db_url" == postgres://* ]] || { echo "Production PostgreSQL URI is not configured." >&2; exit 1; }
-          for file in supabase/migrations/00{27,28,29,30,31,32,33}_*.sql; do
+          for file in supabase/migrations/00{27,28,29,30,31,32,33,34}_*.sql; do
             version="$(basename "$file" | cut -d_ -f1)"
             applied="$(psql "$db_url" -X -Atqc "select exists(select 1 from public.deployment_migrations where version='${version}');")"
             if [[ "$applied" == "t" ]]; then
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           latest="$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")"
-          test "$latest" = "0033"
+          test "$latest" = "0034"
           psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
             select case when
               exists (select 1 from public.deployment_migrations where version='0032' and name='0032_whatsapp_inbound_conversations.sql')
@@ -73,4 +73,4 @@ jobs:
               and not has_function_privilege('authenticated', 'public.persist_whatsapp_inbound_message(uuid,uuid,text,text,text,text,text,timestamptz,jsonb,jsonb)', 'EXECUTE')
             then 'ready' else 'not_ready' end;
           " | grep -qx ready
-          echo "Production Supabase migration verified at 0033."
+          echo "Production Supabase migration verified at 0034."

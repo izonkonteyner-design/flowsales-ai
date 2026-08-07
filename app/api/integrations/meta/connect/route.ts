@@ -3,8 +3,9 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import { redirect } from "next/navigation";
 import { runOAuthGuard, handleOAuthRouteError, jsonError } from "@/server/services/integrations/oauth-route-guard";
-import { getProviderAdapter, validateReturnPath, OAuthConfigurationRequiredError, type ChannelProvider } from "@/server/services/integrations/provider-adapter";
+import { validateReturnPath, OAuthConfigurationRequiredError, type ChannelProvider } from "@/server/services/integrations/provider-adapter";
 import { createOAuthState } from "@/server/services/integrations/oauth-state";
+import { getWhatsAppConfig } from "@/server/services/integrations/whatsapp-config";
 import { logger } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
@@ -20,14 +21,21 @@ export async function GET(request: NextRequest) {
 
   try {
     const returnPath = validateReturnPath(rawReturnPath);
-    const adapter = getProviderAdapter(provider);
-    const configCheck = process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim() || process.env.NEXT_PUBLIC_META_APP_ID?.trim();
-    if (!configCheck) throw new OAuthConfigurationRequiredError(provider);
+    const config = getWhatsAppConfig();
+    if (!config.appId || !config.appSecret || !config.siteUrl) throw new OAuthConfigurationRequiredError(provider);
     const { rawStateToken } = await createOAuthState(provider, ctx.organizationId, ctx.userId, returnPath, false);
-    const built = adapter.buildAuthorizationUrl({ organizationId: ctx.organizationId, userId: ctx.userId, returnPath, codeVerifier: null, stateToken: rawStateToken });
-    const authorizationUrl = new URL(built.url);
-    // Keep provider in the registered callback query so the callback can validate it against the stored state.
-    authorizationUrl.searchParams.set("redirect_uri", `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/meta/callback?provider=${provider}`);
+    const redirectUri = `${config.siteUrl}/api/integrations/meta/callback?provider=${provider}`;
+    const scopes: Record<"instagram" | "facebook" | "whatsapp", string[]> = {
+      instagram: ["pages_show_list", "pages_manage_metadata", "instagram_basic", "instagram_manage_messages"],
+      facebook: ["pages_show_list", "pages_manage_metadata", "pages_messaging"],
+      whatsapp: ["whatsapp_business_management", "whatsapp_business_messaging"],
+    };
+    const authorizationUrl = new URL("https://www.facebook.com/v21.0/dialog/oauth");
+    authorizationUrl.searchParams.set("client_id", config.appId);
+    authorizationUrl.searchParams.set("redirect_uri", redirectUri);
+    authorizationUrl.searchParams.set("scope", scopes[provider].join(","));
+    authorizationUrl.searchParams.set("state", rawStateToken);
+    authorizationUrl.searchParams.set("response_type", "code");
     logger.info("oauth.connect_initiated", { provider, organizationId: ctx.organizationId });
     redirect(authorizationUrl.toString());
   } catch (error) {

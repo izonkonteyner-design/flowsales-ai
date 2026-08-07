@@ -7,6 +7,27 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
 interface RouteParams { params: Promise<{ conversationId: string }> }
 
+function outboundErrorStatus(code: string): number {
+  switch (code) {
+    case "template_required":
+    case "connection_required":
+    case "invalid_input":
+      return 400;
+    case "unauthorized":
+      return 403;
+    case "not_found":
+      return 404;
+    case "rate_limit_exceeded":
+      return 429;
+    case "rate_limit_unavailable":
+      return 503;
+    case "send_failed":
+    case "persistence_failed":
+    default:
+      return 502;
+  }
+}
+
 export async function POST(req: NextRequest, { params }: RouteParams) {
   try {
     const { conversationId } = await params;
@@ -57,8 +78,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
 
     if (!result.success) {
       const code = result.errorCode || "send_failed";
-      const status = code === "unauthorized" ? 403 : code === "not_found" ? 404 : code === "rate_limit_exceeded" ? 429 : code === "rate_limit_unavailable" ? 503 : code === "send_failed" || code === "persistence_failed" ? 502 : 400;
-      return NextResponse.json({ error: code, message: result.message }, { status });
+      return NextResponse.json({ error: code, message: result.message }, { status: outboundErrorStatus(code) });
     }
     return NextResponse.json(result.data, { status: 200 });
   } catch (err: unknown) {

@@ -84,7 +84,7 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
       <div className="flex min-w-0 flex-1 flex-col">
         {!isDetailLoading && activeConversation && messagingProvider && (
           <>
-            <CrmIdentityPanel conversationId={activeConversation.id} isReadOnly={readOnly} onChanged={handleRefresh} />
+            <CrmIdentityPanel conversationId={activeConversation.id} provider={activeConversation.provider} isReadOnly={readOnly} onChanged={handleRefresh} />
             <CrmConversationActions conversationId={activeConversation.id} disabled={readOnly} onChanged={handleRefresh} />
             <ConversationIntelligencePanel conversationId={activeConversation.id} disabled={readOnly} />
             <AiReplySuggestion conversationId={activeConversation.id} disabled={readOnly || activeConversation.connectionStatus !== "connected"} />

@@ -205,7 +205,7 @@ begin
 
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', c.id,
-    'name', coalesce(c.full_name, c.name, c.email, 'Customer'),
+    'name', coalesce(c.full_name, c.email, 'Customer'),
     'phone', c.phone,
     'sourceLeadId', c.source_lead_id
   ) order by c.created_at), '[]'::jsonb)
@@ -216,7 +216,7 @@ begin
 
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', l.id,
-    'name', coalesce(l.full_name, l.name, l.email, 'Lead'),
+    'name', coalesce(l.full_name, l.email, 'Lead'),
     'phone', l.phone,
     'status', l.status,
     'convertedCustomerId', l.converted_customer_id

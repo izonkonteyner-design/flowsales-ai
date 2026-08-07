@@ -290,7 +290,15 @@ export async function POST(request: NextRequest): Promise<Response> {
           const statusVal = st.status;
           const tsNum = typeof st.timestamp === "string" ? Number(st.timestamp) : typeof st.timestamp === "number" ? st.timestamp : Date.now() / 1000;
           const tsIso = new Date(tsNum * 1000).toISOString();
-          const errPayload = st.errors ? { errors: st.errors } : null;
+          const errList = Array.isArray(st.errors) ? (st.errors as Array<Record<string, unknown>>) : [];
+          const firstErr = errList[0];
+          const errPayload = st.errors
+            ? {
+                errors: st.errors,
+                error_code: firstErr?.code ? String(firstErr.code) : firstErr?.title ? String(firstErr.title) : "failed",
+                error_message: firstErr?.message ? String(firstErr.message) : firstErr?.title ? String(firstErr.title) : "Delivery failed",
+              }
+            : null;
 
           await supabase.rpc("update_message_delivery_status", {
             p_organization_id: activeConnection.organization_id,

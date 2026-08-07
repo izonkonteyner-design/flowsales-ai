@@ -41,7 +41,11 @@ export interface MessageItemDTO {
     mimeType: string | null;
     externalUrl: string | null;
   }>;
-  sentAt: string;
+  sentAt: string | null;
+  deliveredAt?: string | null;
+  readAt?: string | null;
+  failedAt?: string | null;
+  errorCode?: string | null;
   createdAt: string;
 }
 
@@ -278,6 +282,10 @@ export class OmnichannelInboxRepository {
         status,
         metadata,
         sent_at,
+        delivered_at,
+        read_at,
+        failed_at,
+        error_code,
         created_at,
         message_attachments (
           id,
@@ -314,6 +322,10 @@ export class OmnichannelInboxRepository {
           externalUrl: a.external_url,
         })),
         sentAt: m.sent_at,
+        deliveredAt: m.delivered_at,
+        readAt: m.read_at,
+        failedAt: m.failed_at,
+        errorCode: m.error_code,
         createdAt: m.created_at,
       };
     });

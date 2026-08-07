@@ -86,8 +86,8 @@ export function MessageTimeline({ messages }: MessageTimelineProps) {
               {!isInbound && (
                 <div className="mt-1 flex items-center justify-end space-x-1 text-[10px] text-emerald-200">
                   {isFailed ? (
-                    <span className="flex items-center text-rose-300 font-medium">
-                      <AlertTriangle className="h-3 w-3 mr-0.5" /> Failed
+                    <span className="flex items-center text-rose-300 font-medium" title={msg.errorCode ? `Error: ${msg.errorCode}` : "Delivery failed"}>
+                      <AlertTriangle className="h-3 w-3 mr-0.5" /> Failed {msg.errorCode ? `(${msg.errorCode})` : ""}
                     </span>
                   ) : isRead ? (
                     <span className="flex items-center text-cyan-300">

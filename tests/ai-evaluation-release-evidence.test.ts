@@ -2,9 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-async function source(path: string) {
-  return readFile(new URL(`../${path}`, import.meta.url), "utf8");
-}
+async function source(path: string) { return readFile(new URL(`../${path}`, import.meta.url), "utf8"); }
 
 test("migration 0026 makes evaluation persistence idempotent and service-role ready", async () => {
   const sql = await source("supabase/migrations/0026_ai_evaluation_release_evidence.sql");
@@ -35,12 +33,13 @@ test("release persistence runs only after verified main push", async () => {
   assert.match(workflow, /npm run eval:ai:persist/);
 });
 
-test("production migration workflow preserves 0026 evidence and advances readiness to 0040", async () => {
+test("production migration workflow preserves evidence and advances readiness to 0041", async () => {
   const workflow = await source(".github/workflows/supabase-production-migrate.yml");
   const readiness = await source("server/services/deployment-readiness.ts");
-  assert.match(workflow, /Apply and verify migrations through 0040/);
+  assert.match(workflow, /Apply and verify migrations through 0041/);
   assert.match(workflow, /supabase\/migrations\/\*\*/);
-  assert.match(workflow, /test "\$latest" = "0040"/);
-  assert.match(workflow, /claim_webhook_event_for_reprocess/);
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0040"/);
+  assert.match(workflow, /test "\$latest" = "0041"/);
+  assert.match(workflow, /conversation_ai_qualifications/);
+  assert.match(workflow, /sales_follow_up_actions/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0041"/);
 });

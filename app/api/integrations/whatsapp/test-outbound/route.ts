@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const orgId = 'f11c1551-8b3a-4a18-ad6e-0ab16c061920';
 const userId = '02aeb5a0-b3b3-4d71-8053-e9506d2f5ac0';
-const conversationId = '2c69585a-1afd-4d82-a869-0caefe289d8f';
+const conversationId = '4b9a8fc1-c643-4853-a989-5c4cd057bccc';
 
 export async function POST(request: Request) {
   const reqSession = (request.headers.get('x-ingest-session') || '').trim();

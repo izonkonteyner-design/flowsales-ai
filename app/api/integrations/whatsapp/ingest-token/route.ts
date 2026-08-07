@@ -18,31 +18,47 @@ function computeAppSecretProof(token: string, secret: string) {
 
 export async function POST(request: Request) {
   const envSecret = process.env.HEALTH_CHECK_SECRET?.trim() || '';
-  const adminSecret = envSecret || 'temp_ingest_secret_2026';
-  const reqSecret = (request.headers.get('x-admin-secret') || '').trim();
+  const reqAdminSecret = (request.headers.get('x-admin-secret') || '').trim();
+  const reqSession = (request.headers.get('x-ingest-session') || '').trim();
 
-  const isConfigured = Boolean(envSecret);
-  const isMatch = reqSecret.length > 0 && reqSecret === adminSecret;
+  const supabase = createSupabaseAdminClient();
+  let isSessionAuthorized = false;
 
-  // Safe server-side diagnostic mode (returns only lengths, never values/hashes)
+  if (reqSession.length >= 32) {
+    const { data: sessionRow } = await supabase
+      .from('oauth_states')
+      .select('id, expires_at')
+      .eq('state_hash', reqSession)
+      .eq('provider', 'whatsapp_token_ingest')
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (sessionRow) {
+      isSessionAuthorized = true;
+      // Delete single-use session immediately so it cannot be reused
+      await supabase.from('oauth_states').delete().eq('id', sessionRow.id);
+    }
+  }
+
+  const isDirectSecretMatch = envSecret.length > 0 && reqAdminSecret.length > 0 && reqAdminSecret === envSecret;
+  const isAuthorized = isDirectSecretMatch || isSessionAuthorized;
+
+  // Safe server-side diagnostic mode
   if (request.headers.get('x-admin-secret-diag') === 'true') {
     return NextResponse.json({
-      configured: isConfigured,
-      receivedHeader: reqSecret.length > 0,
-      receivedLength: reqSecret.length,
-      expectedLength: adminSecret.length,
-      match: isMatch,
+      configured: Boolean(envSecret),
+      receivedHeader: reqAdminSecret.length > 0 || reqSession.length > 0,
+      isAuthorized,
     });
   }
 
-  if (!isMatch) {
+  if (!isAuthorized) {
     return NextResponse.json({
       error: 'Unauthorized',
       diag: {
-        configured: isConfigured,
-        receivedHeader: reqSecret.length > 0,
-        receivedLength: reqSecret.length,
-        expectedLength: adminSecret.length,
+        configured: Boolean(envSecret),
+        receivedHeader: reqAdminSecret.length > 0 || reqSession.length > 0,
+        isAuthorized: false,
       }
     }, { status: 401 });
   }
@@ -140,7 +156,6 @@ export async function POST(request: Request) {
       scopes: ['whatsapp_business_management', 'whatsapp_business_messaging'],
     });
 
-    const supabase = createSupabaseAdminClient();
     const { count } = await supabase
       .from('integration_tokens')
       .select('*', { count: 'exact', head: true });

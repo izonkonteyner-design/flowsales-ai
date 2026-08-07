@@ -49,7 +49,7 @@ drop policy if exists conversation_identity_audit_select_members on public.conve
 create policy conversation_identity_audit_select_members
   on public.conversation_identity_resolution_audit
   for select to authenticated
-  using (public.is_organization_member(organization_id));
+  using (public.is_org_member(organization_id));
 
 create or replace function public.normalize_crm_phone(p_phone text)
 returns text

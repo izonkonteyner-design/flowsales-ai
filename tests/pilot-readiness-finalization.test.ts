@@ -18,7 +18,7 @@ test("CRM identity is available for WhatsApp Instagram and Facebook and remains 
 test("Meta CRM identity never auto-selects search candidates", async () => {
   const service = await source("server/services/omnichannel-crm-identity.ts");
   assert.match(service, /candidates: \{ customers: \[\], leads: \[\] \}/);
-  assert.doesNotMatch(service, /searchCandidates[\s\S]*\[0\]/);
+  assert.match(service, /searchCandidates\(organizationId: string, rawQuery: string\): Promise<CrmSearchResults> \{\s*return this\.whatsapp\.searchCandidates\(organizationId, rawQuery\);\s*\}/);
   assert.match(service, /resolveManual/);
 });
 

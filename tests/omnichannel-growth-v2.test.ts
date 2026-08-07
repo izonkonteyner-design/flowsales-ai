@@ -14,6 +14,27 @@ test("Instagram and Messenger OAuth never auto-select ambiguous accounts", async
   assert.match(oauth, /access_token_cipher: encryptToken/);
 });
 
+test("Meta messaging configuration accepts the production Meta App env contract", async () => {
+  const page = await source("app/(app)/settings/integrations/page.tsx");
+  assert.match(page, /META_CLIENT_ID[^\n]*META_APP_ID/);
+  assert.match(page, /META_CLIENT_SECRET[^\n]*META_APP_SECRET/);
+  assert.match(page, /TOKEN_ENCRYPTION_KEY/);
+  assert.match(page, /META_WEBHOOK_VERIFY_TOKEN[^\n]*WHATSAPP_WEBHOOK_VERIFY_TOKEN/);
+  assert.match(page, /provider === "instagram" \|\| provider === "facebook"/);
+});
+
+test("Meta messaging disconnect destroys encrypted credentials and is same-origin guarded", async () => {
+  const service = await source("server/services/integrations/meta-messaging-disconnect.ts");
+  const instagram = await source("app/api/integrations/instagram/disconnect/route.ts");
+  const facebook = await source("app/api/integrations/facebook/disconnect/route.ts");
+  assert.match(service, /from\("integration_tokens"\)[\s\S]*\.delete\(\)/);
+  assert.match(service, /status: "revoked"/);
+  assert.match(instagram, /verifySameOrigin/);
+  assert.match(facebook, /verifySameOrigin/);
+  assert.match(instagram, /connectionId/);
+  assert.match(facebook, /connectionId/);
+});
+
 test("Meta messaging webhooks are signature verified and tenant resolution fails closed", async () => {
   const route = await source("app/api/webhooks/meta-messaging/route.ts");
   const service = await source("server/services/integrations/meta-messaging.ts");

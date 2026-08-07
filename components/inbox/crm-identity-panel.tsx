@@ -7,13 +7,14 @@ import type { CrmSearchResults, WhatsAppIdentityDTO } from "@/server/services/wh
 
 interface Props {
   conversationId: string | null;
+  provider?: string;
   isReadOnly: boolean;
   onChanged?: () => void;
 }
 
 const EMPTY_SEARCH: CrmSearchResults = { customers: [], leads: [] };
 
-export function CrmIdentityPanel({ conversationId, isReadOnly, onChanged }: Props) {
+export function CrmIdentityPanel({ conversationId, provider = "whatsapp", isReadOnly, onChanged }: Props) {
   const [identity, setIdentity] = useState<WhatsAppIdentityDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -24,37 +25,22 @@ export function CrmIdentityPanel({ conversationId, isReadOnly, onChanged }: Prop
 
   async function loadIdentity() {
     if (!conversationId) return;
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const res = await fetch(`/api/inbox/conversations/${conversationId}/identity`, { cache: "no-store" });
       if (!res.ok) throw new Error("CRM identity could not be loaded.");
       setIdentity(await res.json());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "CRM identity could not be loaded.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err instanceof Error ? err.message : "CRM identity could not be loaded."); }
+    finally { setLoading(false); }
   }
 
   useEffect(() => {
     if (!conversationId) return;
     let cancelled = false;
     fetch(`/api/inbox/conversations/${conversationId}/identity`, { cache: "no-store" })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("CRM identity could not be loaded.");
-        return (await res.json()) as WhatsAppIdentityDTO;
-      })
-      .then((data) => {
-        if (cancelled) return;
-        setIdentity(data);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "CRM identity could not be loaded.");
-        setLoading(false);
-      });
+      .then(async (res) => { if (!res.ok) throw new Error("CRM identity could not be loaded."); return (await res.json()) as WhatsAppIdentityDTO; })
+      .then((data) => { if (!cancelled) { setIdentity(data); setLoading(false); } })
+      .catch((err: unknown) => { if (!cancelled) { setError(err instanceof Error ? err.message : "CRM identity could not be loaded."); setLoading(false); } });
     return () => { cancelled = true; };
   }, [conversationId]);
 
@@ -62,9 +48,7 @@ export function CrmIdentityPanel({ conversationId, isReadOnly, onChanged }: Prop
     if (!conversationId || isReadOnly || saving) return;
     setSaving(true); setError(null);
     try {
-      const res = await fetch(`/api/inbox/conversations/${conversationId}/identity`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
+      const res = await fetch(`/api/inbox/conversations/${conversationId}/identity`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.success) throw new Error(json?.error || "CRM identity update failed.");
       await loadIdentity(); setSearchQuery(""); setSearchResults(EMPTY_SEARCH); onChanged?.();
@@ -93,6 +77,7 @@ export function CrmIdentityPanel({ conversationId, isReadOnly, onChanged }: Prop
   const unmatched = identity.status === "UNMATCHED";
   const manuallyResolved = identity.status === "MANUALLY_RESOLVED";
   const needsResolution = ambiguous || unmatched;
+  const createLeadLabel = provider === "whatsapp" ? "Create Lead from WhatsApp" : provider === "instagram" ? "Create Lead from Instagram" : "Create Lead from Facebook Messenger";
 
   return <div className="border-b border-slate-800/80 bg-slate-900/70 px-6 py-3 text-xs">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -108,22 +93,15 @@ export function CrmIdentityPanel({ conversationId, isReadOnly, onChanged }: Prop
         {(matchedCustomer || matchedLead || manuallyResolved) && !isReadOnly && <button onClick={() => void mutate({ action: "unlink" })} disabled={saving} className="rounded-lg border border-slate-700 px-2.5 py-1 text-slate-300 hover:bg-slate-800 disabled:opacity-50">Unlink</button>}
       </div>
     </div>
-
     {needsResolution && <div className="mt-3 space-y-3">
       <p className="text-slate-400">{ambiguous ? "More than one CRM record matches. Select the correct record; no automatic choice will be made." : "No CRM identity is linked. Create a Lead or explicitly link an existing Lead/Customer."}</p>
       {identity.candidates.customers.length > 0 && <div className="flex flex-wrap items-center gap-2"><span className="text-slate-500">Exact customers:</span>{identity.candidates.customers.map((candidate) => <button key={candidate.id} disabled={isReadOnly || saving} onClick={() => void mutate({ action: "link_customer", customerId: candidate.id })} className="inline-flex items-center gap-1 rounded-lg border border-emerald-800/60 bg-emerald-950/30 px-2.5 py-1 text-emerald-300 disabled:opacity-50"><Link2 className="h-3 w-3" /> {candidate.name} · {candidate.maskedPhone}</button>)}</div>}
       {identity.candidates.leads.length > 0 && <div className="flex flex-wrap items-center gap-2"><span className="text-slate-500">Exact leads:</span>{identity.candidates.leads.map((candidate) => <button key={candidate.id} disabled={isReadOnly || saving} onClick={() => void mutate({ action: "link_lead", leadId: candidate.id })} className="inline-flex items-center gap-1 rounded-lg border border-sky-800/60 bg-sky-950/30 px-2.5 py-1 text-sky-300 disabled:opacity-50"><Link2 className="h-3 w-3" /> {candidate.name} · {candidate.maskedPhone}</button>)}</div>}
       {!isReadOnly && <div className="flex flex-wrap items-center gap-2">
-        {unmatched && <button disabled={saving} onClick={() => void mutate({ action: "create_lead" })} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 font-semibold text-white disabled:opacity-50">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}Create Lead from conversation</button>}
-        <div className="flex min-w-[280px] flex-1 items-center gap-2">
-          <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchExisting(); } }} placeholder="Search existing lead/customer by name or phone" className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-slate-200 placeholder:text-slate-600 focus:border-sky-600 focus:outline-none" />
-          <button type="button" disabled={searchQuery.trim().length < 2 || searching} onClick={() => void searchExisting()} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-slate-300 disabled:opacity-50">{searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}Search</button>
-        </div>
+        {unmatched && <button disabled={saving} onClick={() => void mutate({ action: "create_lead" })} className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-3 py-1.5 font-semibold text-white disabled:opacity-50">{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserPlus className="h-3.5 w-3.5" />}{createLeadLabel}</button>}
+        <div className="flex min-w-[280px] flex-1 items-center gap-2"><input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void searchExisting(); } }} placeholder="Search existing lead/customer by name or phone" className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-slate-200 placeholder:text-slate-600 focus:border-sky-600 focus:outline-none" /><button type="button" disabled={searchQuery.trim().length < 2 || searching} onClick={() => void searchExisting()} className="inline-flex items-center gap-1 rounded-lg border border-slate-700 px-2.5 py-1.5 text-slate-300 disabled:opacity-50">{searching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}Search</button></div>
       </div>}
-      {(searchResults.customers.length > 0 || searchResults.leads.length > 0) && <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/70 p-3">
-        {searchResults.customers.map((candidate) => <button key={`customer-${candidate.id}`} disabled={saving} onClick={() => void mutate({ action: "link_customer", customerId: candidate.id })} className="mr-2 inline-flex items-center gap-1 rounded-lg border border-emerald-800/60 px-2.5 py-1 text-emerald-300 disabled:opacity-50">Customer · {candidate.name} · {candidate.maskedPhone}</button>)}
-        {searchResults.leads.map((candidate) => <button key={`lead-${candidate.id}`} disabled={saving} onClick={() => void mutate({ action: "link_lead", leadId: candidate.id })} className="mr-2 inline-flex items-center gap-1 rounded-lg border border-sky-800/60 px-2.5 py-1 text-sky-300 disabled:opacity-50">Lead · {candidate.name} · {candidate.maskedPhone}</button>)}
-      </div>}
+      {(searchResults.customers.length > 0 || searchResults.leads.length > 0) && <div className="space-y-2 rounded-xl border border-slate-800 bg-slate-950/70 p-3">{searchResults.customers.map((candidate) => <button key={`customer-${candidate.id}`} disabled={saving} onClick={() => void mutate({ action: "link_customer", customerId: candidate.id })} className="mr-2 inline-flex items-center gap-1 rounded-lg border border-emerald-800/60 px-2.5 py-1 text-emerald-300 disabled:opacity-50">Customer · {candidate.name} · {candidate.maskedPhone}</button>)}{searchResults.leads.map((candidate) => <button key={`lead-${candidate.id}`} disabled={saving} onClick={() => void mutate({ action: "link_lead", leadId: candidate.id })} className="mr-2 inline-flex items-center gap-1 rounded-lg border border-sky-800/60 px-2.5 py-1 text-sky-300 disabled:opacity-50">Lead · {candidate.name} · {candidate.maskedPhone}</button>)}</div>}
     </div>}
     {error && <div className="mt-2 text-rose-300">{error}</div>}
   </div>;

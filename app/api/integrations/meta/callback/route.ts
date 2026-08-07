@@ -32,23 +32,16 @@ export async function GET(request: NextRequest) {
 
     const redirectUri = `${siteUrl}/api/integrations/meta/callback?provider=${provider}`;
     const token = await exchangeMetaCode({ code: searchParams.get("code")!, redirectUri });
-    const staged = await stageMetaMessagingConnection({
-      organizationId: ctx.organizationId, userId: ctx.userId, provider,
-      userToken: token.accessToken, expiresIn: token.expiresIn,
-    });
+    const staged = await stageMetaMessagingConnection({ organizationId: ctx.organizationId, userId: ctx.userId, provider, userToken: token.accessToken, expiresIn: token.expiresIn });
 
-    // Safe auto-selection is allowed only when discovery returned exactly one eligible account.
     if (staged.candidates.length === 1) {
-      await selectMetaMessagingAccount({
-        organizationId: ctx.organizationId, userId: ctx.userId, provider,
-        externalAccountId: staged.candidates[0].externalId,
-      });
+      await selectMetaMessagingAccount({ organizationId: ctx.organizationId, userId: ctx.userId, provider, externalAccountId: staged.candidates[0].externalId });
       logger.info("oauth.callback_success", { provider, organizationId: ctx.organizationId, accountSelection: "single_candidate" });
       redirect(`${stateRecord.returnPath}${stateRecord.returnPath.includes("?") ? "&" : "?"}connected=${provider}`);
     }
 
     logger.info("oauth.callback_account_selection_required", { provider, organizationId: ctx.organizationId, candidateCount: staged.candidates.length });
-    redirect(`/settings/integrations?select=${provider}`);
+    redirect(`/settings/integrations/meta-select?provider=${provider}`);
   } catch (error) {
     const response = handleOAuthRouteError(error, { provider, route: "meta/callback" });
     if (response.status === 503) redirect(`/settings/integrations?error=configuration_required&provider=${provider}`);

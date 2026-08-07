@@ -44,6 +44,20 @@ export async function updateConversationAssigneeAction(
   return res;
 }
 
+export async function sendOmnichannelReplyAction(params: {
+  conversationId: string;
+  text: string;
+  clientIdempotencyKey: string;
+}) {
+  const service = new OmnichannelInboxService();
+  const res = await service.sendReply(params);
+  if (res.success) {
+    revalidatePath("/inbox");
+    revalidatePath(`/inbox/${params.conversationId}`);
+  }
+  return res;
+}
+
 export async function fetchApprovedTemplatesAction() {
   const service = new OmnichannelInboxService();
   return service.getApprovedTemplates();

@@ -6,13 +6,19 @@ interface RouteParams {
   params: Promise<{ conversationId: string }>;
 }
 
-export async function GET(_req: NextRequest, { params }: RouteParams) {
+export async function GET(req: NextRequest, { params }: RouteParams) {
   const { conversationId } = await params;
   const ctx = await loadWorkspaceContext();
   if (!ctx || !ctx.userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (ctx.mode === "demo") return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const service = new WhatsAppCrmIdentityService();
+  const searchQuery = req.nextUrl.searchParams.get("q");
+  if (searchQuery !== null) {
+    const results = await service.searchCandidates(ctx.organization.id, searchQuery);
+    return NextResponse.json(results);
+  }
+
   const identity = await service.getIdentity(ctx.organization.id, conversationId);
   if (!identity) return NextResponse.json({ error: "not_found" }, { status: 404 });
   return NextResponse.json(identity);

@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// Temporary preview-only presence diagnostics. Never logs secret values.
 if (process.env.VERCEL === "1") {
   const present = (value: string | undefined) => Boolean(value?.trim());
   console.log("[meta-env-diagnostics]", JSON.stringify({

@@ -6,6 +6,7 @@ import {
 } from "@/server/repositories/supabase/omnichannel-inbox";
 import { loadWorkspaceContext, createDemoWorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { recordWhatsAppAuditEvent } from "@/server/services/whatsapp-audit";
 
 export class OmnichannelInboxService {
   private repo = new OmnichannelInboxRepository();
@@ -43,7 +44,6 @@ export class OmnichannelInboxService {
     isDemo: boolean;
   }> {
     const ctx = await this.resolveContext();
-
     const conversations = await this.repo.getConversations({
       organizationId: ctx.organizationId,
       userId: ctx.userId,
@@ -53,14 +53,7 @@ export class OmnichannelInboxService {
       assigneeFilter: params.assigneeFilter,
       searchQuery: params.searchQuery,
     });
-
-    return {
-      conversations,
-      organizationId: ctx.organizationId,
-      userRole: ctx.userRole,
-      userId: ctx.userId,
-      isDemo: ctx.isDemo,
-    };
+    return { conversations, organizationId: ctx.organizationId, userRole: ctx.userRole, userId: ctx.userId, isDemo: ctx.isDemo };
   }
 
   async getConversationDetail(conversationId: string): Promise<{
@@ -71,7 +64,6 @@ export class OmnichannelInboxService {
     organizationMembers: Array<{ userId: string; name: string; email: string }>;
   }> {
     const ctx = await this.resolveContext();
-
     const conversation = await this.repo.getConversationDetail({
       organizationId: ctx.organizationId,
       userId: ctx.userId,
@@ -80,11 +72,7 @@ export class OmnichannelInboxService {
     });
 
     if (conversation && conversation.unreadCount > 0) {
-      await this.repo.markAsRead({
-        organizationId: ctx.organizationId,
-        userRole: ctx.userRole,
-        conversationId,
-      });
+      await this.repo.markAsRead({ organizationId: ctx.organizationId, userRole: ctx.userRole, conversationId });
     }
 
     let organizationMembers: Array<{ userId: string; name: string; email: string }> = [];
@@ -94,60 +82,50 @@ export class OmnichannelInboxService {
         .from("organization_members")
         .select("user_id, name, email")
         .eq("organization_id", ctx.organizationId);
-
       if (members) {
-        organizationMembers = members.map((m) => ({
-          userId: m.user_id,
-          name: m.name || m.email || "Member",
-          email: m.email || "",
-        }));
+        organizationMembers = members.map((m) => ({ userId: m.user_id, name: m.name || m.email || "Member", email: m.email || "" }));
       }
     }
 
-    return {
-      conversation,
-      userRole: ctx.userRole,
-      userId: ctx.userId,
-      isDemo: ctx.isDemo,
-      organizationMembers,
-    };
+    return { conversation, userRole: ctx.userRole, userId: ctx.userId, isDemo: ctx.isDemo, organizationMembers };
   }
 
-  async updateStatus(
-    conversationId: string,
-    newStatus: "open" | "pending" | "resolved" | "closed"
-  ): Promise<{ success: boolean; error?: string }> {
+  async updateStatus(conversationId: string, newStatus: "open" | "pending" | "resolved" | "closed") {
     const ctx = await this.resolveContext();
-
-    return this.repo.updateStatus({
+    const result = await this.repo.updateStatus({
       organizationId: ctx.organizationId,
       userId: ctx.userId,
       userRole: ctx.userRole,
       conversationId,
       newStatus,
     });
+    if (result.success) {
+      await recordWhatsAppAuditEvent({ organizationId: ctx.organizationId, conversationId, actorUserId: ctx.userId,
+        eventType: "conversation_status_changed", metadata: { status: newStatus } });
+    }
+    return result;
   }
 
-  async updateAssignee(
-    conversationId: string,
-    assignedUserId: string | null
-  ): Promise<{ success: boolean; error?: string }> {
+  async updateAssignee(conversationId: string, assignedUserId: string | null) {
     const ctx = await this.resolveContext();
-
-    return this.repo.updateAssignee({
+    const result = await this.repo.updateAssignee({
       organizationId: ctx.organizationId,
       userId: ctx.userId,
       userRole: ctx.userRole,
       conversationId,
       assignedUserId,
     });
+    if (result.success) {
+      await recordWhatsAppAuditEvent({ organizationId: ctx.organizationId, conversationId, actorUserId: ctx.userId,
+        eventType: "conversation_assignee_changed", metadata: { assignedUserId } });
+    }
+    return result;
   }
 
   async getApprovedTemplates() {
     const ctx = await this.resolveContext();
     const { WhatsAppTemplateService } = await import("@/server/services/integrations/whatsapp-template-service");
-    const service = new WhatsAppTemplateService();
-    return service.getApprovedTemplates(ctx.organizationId);
+    return new WhatsAppTemplateService().getApprovedTemplates(ctx.organizationId);
   }
 
   async sendTemplateMessage(params: {
@@ -160,10 +138,8 @@ export class OmnichannelInboxService {
     const ctx = await this.resolveContext();
     const { WhatsAppTemplateService } = await import("@/server/services/integrations/whatsapp-template-service");
     const service = new WhatsAppTemplateService();
-
     const clientIdempotencyKey = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `tpl_${Date.now()}_${Math.random()}`;
-
-    return service.sendTemplateMessage({
+    const result = await service.sendTemplateMessage({
       organizationId: ctx.organizationId,
       userId: ctx.userId,
       userRole: ctx.userRole,
@@ -174,5 +150,14 @@ export class OmnichannelInboxService {
       headerParameters: params.headerParameters || [],
       clientIdempotencyKey,
     });
+    await recordWhatsAppAuditEvent({
+      organizationId: ctx.organizationId,
+      conversationId: params.conversationId,
+      messageId: result.data?.messageId ?? null,
+      actorUserId: ctx.userId,
+      eventType: result.success ? "template_sent" : "template_failed",
+      metadata: { templateName: params.templateName, languageCode: params.languageCode, errorCode: result.errorCode ?? null },
+    });
+    return result;
   }
 }

@@ -68,7 +68,7 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
     fetchInboxDataAction({ statusFilter, providerFilter, assigneeFilter, searchQuery }).then((res) => setConversations(res.conversations));
   };
   const readOnly = userRole === "viewer" || isDemo;
-  const messagingProvider = activeConversation && ["whatsapp", "instagram", "facebook"].includes(activeConversation.provider);
+  const messagingProvider = Boolean(activeConversation && ["whatsapp", "instagram", "facebook"].includes(activeConversation.provider));
   const isMetaMessagingConversation = activeConversation?.provider === "instagram" || activeConversation?.provider === "facebook";
 
   return (
@@ -82,19 +82,15 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {!isDetailLoading && activeConversation?.provider === "whatsapp" && (
-          <>
-            <CrmIdentityPanel conversationId={activeConversation.id} isReadOnly={readOnly} onChanged={handleRefresh} />
-            <CrmConversationActions conversationId={activeConversation.id} disabled={readOnly} onChanged={handleRefresh} />
-          </>
-        )}
         {!isDetailLoading && activeConversation && messagingProvider && (
           <>
+            <CrmIdentityPanel conversationId={activeConversation.id} provider={activeConversation.provider} isReadOnly={readOnly} onChanged={handleRefresh} />
+            <CrmConversationActions conversationId={activeConversation.id} disabled={readOnly} onChanged={handleRefresh} />
             <ConversationIntelligencePanel conversationId={activeConversation.id} disabled={readOnly} />
             <AiReplySuggestion conversationId={activeConversation.id} disabled={readOnly || activeConversation.connectionStatus !== "connected"} />
+            <ConversationAuditPanel conversationId={activeConversation.id} refreshKey={refreshVersion} />
           </>
         )}
-        {!isDetailLoading && activeConversation?.provider === "whatsapp" && <ConversationAuditPanel conversationId={activeConversation.id} refreshKey={refreshVersion} />}
         <div className="min-h-0 flex-1">
           {!isDetailLoading && activeConversation && isMetaMessagingConversation ? (
             <MetaConversationView conversation={activeConversation} userRole={userRole} isDemo={isDemo}

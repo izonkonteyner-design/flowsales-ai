@@ -17,11 +17,34 @@ function computeAppSecretProof(token: string, secret: string) {
 }
 
 export async function POST(request: Request) {
-  const adminSecret = process.env.HEALTH_CHECK_SECRET || 'temp_ingest_secret_2026';
-  const reqSecret = request.headers.get('x-admin-secret');
+  const envSecret = process.env.HEALTH_CHECK_SECRET?.trim() || '';
+  const adminSecret = envSecret || 'temp_ingest_secret_2026';
+  const reqSecret = (request.headers.get('x-admin-secret') || '').trim();
 
-  if (!reqSecret || reqSecret !== adminSecret) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const isConfigured = Boolean(envSecret);
+  const isMatch = reqSecret.length > 0 && reqSecret === adminSecret;
+
+  // Safe server-side diagnostic mode (returns only lengths, never values/hashes)
+  if (request.headers.get('x-admin-secret-diag') === 'true') {
+    return NextResponse.json({
+      configured: isConfigured,
+      receivedHeader: reqSecret.length > 0,
+      receivedLength: reqSecret.length,
+      expectedLength: adminSecret.length,
+      match: isMatch,
+    });
+  }
+
+  if (!isMatch) {
+    return NextResponse.json({
+      error: 'Unauthorized',
+      diag: {
+        configured: isConfigured,
+        receivedHeader: reqSecret.length > 0,
+        receivedLength: reqSecret.length,
+        expectedLength: adminSecret.length,
+      }
+    }, { status: 401 });
   }
 
   let body: { accessToken?: string };
@@ -36,7 +59,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid accessToken format' }, { status: 400 });
   }
 
-  const appSecret = process.env.META_APP_SECRET || '';
+  const appSecret = (process.env.META_APP_SECRET || '').trim();
   const proof = computeAppSecretProof(rawToken, appSecret);
   const proofQuery = proof ? `&appsecret_proof=${proof}` : '';
   const graphVersion = process.env.META_GRAPH_API_VERSION || 'v21.0';

@@ -7,7 +7,7 @@ async function source(path: string) { return readFile(new URL(`../${path}`, impo
 test("0041 adds tenant-scoped intelligence and human-approved follow-up schema", async () => {
   const sql = await source("supabase/migrations/0041_omnichannel_growth_v2.sql");
   assert.match(sql, /create table if not exists public\.conversation_intelligence/i);
-  assert.match(sql, /qualification_score.*between 0 and 100/is);
+  assert.match(sql, /qualification_score[\s\S]*between 0 and 100/i);
   assert.match(sql, /create table if not exists public\.sales_follow_up_plans/i);
   assert.match(sql, /create table if not exists public\.sales_follow_up_steps/i);
   assert.match(sql, /requires_human_approval boolean not null default true/i);

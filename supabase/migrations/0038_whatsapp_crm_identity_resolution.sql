@@ -88,6 +88,18 @@ begin
     return new;
   end if;
 
+  -- A human decision is sticky. Repeated inbound webhook upserts must not silently undo it.
+  if tg_op = 'UPDATE'
+     and old.identity_resolution_status = 'MANUALLY_RESOLVED'
+     and old.channel_contact_id is not distinct from new.channel_contact_id then
+    new.customer_id := old.customer_id;
+    new.lead_id := old.lead_id;
+    new.identity_resolution_status := old.identity_resolution_status;
+    new.identity_resolution_method := old.identity_resolution_method;
+    new.identity_resolved_at := old.identity_resolved_at;
+    return new;
+  end if;
+
   select cc.contact_id, cc.lead_id,
          coalesce(cc.metadata->>'crm_contact_match', 'none'),
          coalesce(cc.metadata->>'lead_match', 'none')
@@ -160,6 +172,129 @@ create trigger conversations_apply_whatsapp_identity
 before insert or update of channel_contact_id, organization_id, provider
 on public.conversations
 for each row execute function public.apply_whatsapp_conversation_identity();
+
+create or replace function public.get_whatsapp_identity_candidates(
+  p_organization_id uuid,
+  p_conversation_id uuid
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_phone text;
+  v_normalized text;
+  v_customers jsonb;
+  v_leads jsonb;
+begin
+  if auth.role() <> 'service_role' then raise exception 'service_role_required'; end if;
+
+  select cc.phone_number
+    into v_phone
+    from public.conversations c
+    join public.channel_contacts cc on cc.id = c.channel_contact_id and cc.organization_id = c.organization_id
+   where c.id = p_conversation_id
+     and c.organization_id = p_organization_id
+     and c.provider = 'whatsapp';
+
+  if v_phone is null then
+    return jsonb_build_object('normalizedPhone', null, 'customers', '[]'::jsonb, 'leads', '[]'::jsonb);
+  end if;
+
+  v_normalized := public.normalize_crm_phone(v_phone);
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', c.id,
+    'name', coalesce(c.full_name, c.name, c.email, 'Customer'),
+    'phone', c.phone,
+    'sourceLeadId', c.source_lead_id
+  ) order by c.created_at), '[]'::jsonb)
+  into v_customers
+  from public.contacts c
+  where c.organization_id = p_organization_id
+    and public.normalize_crm_phone(coalesce(c.phone, '')) = v_normalized;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', l.id,
+    'name', coalesce(l.full_name, l.name, l.email, 'Lead'),
+    'phone', l.phone,
+    'status', l.status,
+    'convertedCustomerId', l.converted_customer_id
+  ) order by l.created_at), '[]'::jsonb)
+  into v_leads
+  from public.leads l
+  where l.organization_id = p_organization_id
+    and public.normalize_crm_phone(coalesce(l.phone, '')) = v_normalized;
+
+  return jsonb_build_object('normalizedPhone', v_normalized, 'customers', v_customers, 'leads', v_leads);
+end;
+$$;
+
+create or replace function public.resolve_whatsapp_identity_manual(
+  p_organization_id uuid,
+  p_conversation_id uuid,
+  p_customer_id uuid,
+  p_lead_id uuid,
+  p_resolved_by uuid
+) returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_old_customer uuid;
+  v_old_lead uuid;
+  v_status text;
+  v_method text;
+begin
+  if auth.role() <> 'service_role' then raise exception 'service_role_required'; end if;
+  if p_customer_id is not null and p_lead_id is not null then raise exception 'single_manual_target_required'; end if;
+
+  select customer_id, lead_id into v_old_customer, v_old_lead
+    from public.conversations
+   where id = p_conversation_id and organization_id = p_organization_id and provider = 'whatsapp'
+   for update;
+  if not found then raise exception 'conversation_not_found'; end if;
+
+  if p_customer_id is not null and not exists (
+    select 1 from public.contacts where id = p_customer_id and organization_id = p_organization_id
+  ) then raise exception 'customer_not_found'; end if;
+
+  if p_lead_id is not null and not exists (
+    select 1 from public.leads where id = p_lead_id and organization_id = p_organization_id
+  ) then raise exception 'lead_not_found'; end if;
+
+  if p_customer_id is null and p_lead_id is null then
+    v_status := 'UNMATCHED';
+    v_method := 'manual_unlink';
+  else
+    v_status := 'MANUALLY_RESOLVED';
+    v_method := case when p_customer_id is not null then 'manual_customer' else 'manual_lead' end;
+  end if;
+
+  update public.conversations
+     set customer_id = p_customer_id,
+         lead_id = p_lead_id,
+         identity_resolution_status = v_status,
+         identity_resolution_method = v_method,
+         identity_resolved_at = now(),
+         updated_at = now()
+   where id = p_conversation_id and organization_id = p_organization_id;
+
+  insert into public.conversation_identity_resolution_audit (
+    organization_id, conversation_id, previous_customer_id, previous_lead_id,
+    new_customer_id, new_lead_id, resolution_status, resolution_method, resolved_by
+  ) values (
+    p_organization_id, p_conversation_id, v_old_customer, v_old_lead,
+    p_customer_id, p_lead_id, v_status, v_method, p_resolved_by
+  );
+end;
+$$;
+
+revoke all on function public.get_whatsapp_identity_candidates(uuid, uuid) from public, anon, authenticated;
+grant execute on function public.get_whatsapp_identity_candidates(uuid, uuid) to service_role;
+revoke all on function public.resolve_whatsapp_identity_manual(uuid, uuid, uuid, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.resolve_whatsapp_identity_manual(uuid, uuid, uuid, uuid, uuid) to service_role;
 
 -- Backfill existing WhatsApp conversations through the trigger without changing business state.
 update public.conversations

@@ -21,11 +21,26 @@ export function ConversationIntelligencePanel({ conversationId, disabled }: { co
       fetch(`/api/inbox/conversations/${conversationId}/qualification`, { cache: "no-store" }),
       fetch(`/api/inbox/conversations/${conversationId}/follow-up`, { cache: "no-store" }),
     ]);
-    const q = await qRes.json().catch(() => ({})); const p = await pRes.json().catch(() => ({}));
-    setQualification(q.qualification || null); setPlan(p.plan || null);
+    const q = await qRes.json().catch(() => ({}));
+    const p = await pRes.json().catch(() => ({}));
+    setQualification(q.qualification || null);
+    setPlan(p.plan || null);
   }
 
-  useEffect(() => { void refresh(); }, [conversationId]);
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      fetch(`/api/inbox/conversations/${conversationId}/qualification`, { cache: "no-store" }).then((response) => response.json().catch(() => ({}))),
+      fetch(`/api/inbox/conversations/${conversationId}/follow-up`, { cache: "no-store" }).then((response) => response.json().catch(() => ({}))),
+    ]).then(([q, p]) => {
+      if (!active) return;
+      setQualification(q.qualification || null);
+      setPlan(p.plan || null);
+    }).catch(() => {
+      if (active) setError("Conversation intelligence could not be loaded.");
+    });
+    return () => { active = false; };
+  }, [conversationId]);
 
   async function generate() {
     setLoading(true); setError(null);

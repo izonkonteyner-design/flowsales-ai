@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadWorkspaceContext } from "@/server/services/workspace-context";
-import { WhatsAppCrmIdentityService } from "@/server/services/whatsapp-crm-identity";
+import { OmnichannelCrmIdentityService } from "@/server/services/omnichannel-crm-identity";
 
 interface RouteParams {
   params: Promise<{ conversationId: string }>;
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
   if (!ctx || !ctx.userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (ctx.mode === "demo") return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  const service = new WhatsAppCrmIdentityService();
+  const service = new OmnichannelCrmIdentityService();
   const searchQuery = req.nextUrl.searchParams.get("q");
   if (searchQuery !== null) {
     const results = await service.searchCandidates(ctx.organization.id, searchQuery);
@@ -35,7 +35,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object") return NextResponse.json({ error: "invalid_input" }, { status: 400 });
 
-  const service = new WhatsAppCrmIdentityService();
+  const service = new OmnichannelCrmIdentityService();
   if (body.action === "create_lead") {
     const result = await service.createLeadFromConversation({
       organizationId: ctx.organization.id,

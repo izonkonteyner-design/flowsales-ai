@@ -51,7 +51,10 @@ export async function createFollowUpPlanFromQualification(params: {
     organization_id: params.organizationId, plan_id: plan.id, conversation_id: params.conversationId,
     action_type: item.action_type, status: "approval_required", scheduled_for: item.scheduled_for, payload: item.payload,
   })));
-  if (actionsError) throw new Error("Failed to create follow-up actions.");
+  if (actionsError) {
+    await admin.from("sales_follow_up_plans").delete().eq("id", plan.id).eq("organization_id", params.organizationId);
+    throw new Error("Failed to create follow-up actions.");
+  }
   await admin.from("omnichannel_audit_events").insert({
     organization_id: params.organizationId, conversation_id: params.conversationId, actor_user_id: params.userId,
     event_type: "follow_up_plan_created", metadata: { plan_id: plan.id, qualification_id: qualification.id, action_count: schedule.length, strategy },
@@ -79,21 +82,33 @@ export async function updateFollowUpAction(params: {
   const { data: action } = await admin.from("sales_follow_up_actions")
     .select("id,plan_id,status,action_type").eq("id", params.actionId).eq("organization_id", params.organizationId).eq("conversation_id", params.conversationId).maybeSingle();
   if (!action) throw new Error("Follow-up action not found.");
-  if (params.decision === "completed" && action.status !== "approved") throw new Error("Action must be explicitly approved before completion.");
+
+  if (params.decision === "approved" && action.status !== "approval_required") {
+    throw new Error("Only an approval-required action can be approved.");
+  }
+  if (params.decision === "completed" && action.status !== "approved") {
+    throw new Error("Action must be explicitly approved before completion.");
+  }
+  if (params.decision === "cancelled" && !["approval_required", "approved"].includes(action.status)) {
+    throw new Error("Only a pending or approved action can be cancelled.");
+  }
+
+  const now = new Date().toISOString();
   const patch = params.decision === "approved"
-    ? { status: "approved", approved_by: params.userId, approved_at: new Date().toISOString() }
+    ? { status: "approved", approved_by: params.userId, approved_at: now }
     : params.decision === "completed"
-      ? { status: "completed", completed_by: params.userId, completed_at: new Date().toISOString() }
+      ? { status: "completed", completed_by: params.userId, completed_at: now }
       : { status: "cancelled" };
   const { data, error } = await admin.from("sales_follow_up_actions").update(patch)
-    .eq("id", params.actionId).eq("organization_id", params.organizationId).select("id,status,action_type").maybeSingle();
-  if (error || !data) throw new Error("Follow-up action update failed.");
+    .eq("id", params.actionId).eq("organization_id", params.organizationId).eq("status", action.status)
+    .select("id,status,action_type").maybeSingle();
+  if (error || !data) throw new Error("Follow-up action update failed or was changed concurrently.");
 
-  await admin.from("omnichannel_audit_events").insert({ organization_id: params.organizationId, conversation_id: params.conversationId, actor_user_id: params.userId, event_type: `follow_up_action_${params.decision}`, metadata: { action_id: params.actionId, action_type: action.action_type } });
+  await admin.from("omnichannel_audit_events").insert({ organization_id: params.organizationId, conversation_id: params.conversationId, actor_user_id: params.userId, event_type: `follow_up_action_${params.decision}`, metadata: { action_id: params.actionId, action_type: action.action_type, previous_status: action.status } });
 
   const { data: remaining } = await admin.from("sales_follow_up_actions").select("id,scheduled_for,status").eq("organization_id", params.organizationId).eq("plan_id", action.plan_id).in("status", ["approval_required", "approved"]);
   const next = (remaining || []).map((item) => item.scheduled_for).sort()[0] || null;
-  await admin.from("sales_follow_up_plans").update({ status: next ? "active" : "completed", next_action_at: next, updated_at: new Date().toISOString() })
+  await admin.from("sales_follow_up_plans").update({ status: next ? "active" : "completed", next_action_at: next, updated_at: now })
     .eq("id", action.plan_id).eq("organization_id", params.organizationId);
   return data;
 }

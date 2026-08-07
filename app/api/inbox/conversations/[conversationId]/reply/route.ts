@@ -10,6 +10,7 @@ interface RouteParams { params: Promise<{ conversationId: string }> }
 function outboundErrorStatus(code: string): number {
   switch (code) {
     case "template_required":
+    case "window_closed":
     case "connection_required":
     case "invalid_input":
       return 400;

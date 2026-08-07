@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { ConversationSummaryDTO } from "@/server/repositories/supabase/omnichannel-inbox";
 import { ConversationItem } from "@/components/inbox/conversation-item";
 import { Search, MessageSquare, Inbox, ShieldAlert, ChevronDown } from "lucide-react";
@@ -39,7 +39,6 @@ export function ConversationList({
   isDemo,
 }: ConversationListProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [statusFilter, providerFilter, assigneeFilter, searchQuery]);
   const visibleConversations = conversations.slice(0, visibleCount);
   const hasMore = visibleCount < conversations.length;
 

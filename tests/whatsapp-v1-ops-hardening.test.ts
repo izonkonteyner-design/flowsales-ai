@@ -13,8 +13,8 @@ test("0040 adds auditable bounded webhook recovery", async () => {
   assert.match(sql, /next_retry_at/i);
   assert.match(sql, /claim_webhook_event_for_reprocess/i);
   assert.match(sql, /v_required_version constant text := '0040'/i);
-  assert.match(sql, /grant execute on function public\.claim_webhook_event_for_reprocess.*service_role/is);
-  assert.match(sql, /revoke all on function public\.claim_webhook_event_for_reprocess.*anon, authenticated/is);
+  assert.match(sql, /grant execute on function public\.claim_webhook_event_for_reprocess[\s\S]*service_role/i);
+  assert.match(sql, /revoke all on function public\.claim_webhook_event_for_reprocess[\s\S]*anon, authenticated/i);
 });
 
 test("Meta webhook requires HMAC and caps retries", async () => {
@@ -49,6 +49,8 @@ test("template finalizer cannot send to arbitrary recipients", async () => {
   assert.match(script, /status !== "APPROVED"/);
   assert.match(script, /Safety guard: controlled template conversation is not the allowlisted test recipient/);
   assert.match(script, /TEMPLATE_ID = "1788819732249991"/);
+  assert.match(script, /verifyPersistedTemplate/);
+  assert.match(script, /waitForWebhook/);
 });
 
 test("Inbox exposes progressive paging CRM controls and audit history", async () => {

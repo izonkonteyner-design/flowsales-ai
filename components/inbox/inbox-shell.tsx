@@ -6,6 +6,7 @@ import { ConversationSummaryDTO, ConversationDetailDTO } from "@/server/reposito
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { ConversationView } from "@/components/inbox/conversation-view";
 import { CrmIdentityPanel } from "@/components/inbox/crm-identity-panel";
+import { AiReplySuggestion } from "@/components/inbox/ai-reply-suggestion";
 import { fetchInboxDataAction, fetchConversationDetailAction } from "@/app/(app)/inbox/actions";
 
 interface InboxShellProps {
@@ -138,11 +139,17 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {!isDetailLoading && activeConversation?.provider === "whatsapp" && (
-          <CrmIdentityPanel
-            conversationId={activeConversation.id}
-            isReadOnly={userRole === "viewer" || isDemo}
-            onChanged={handleRefresh}
-          />
+          <>
+            <CrmIdentityPanel
+              conversationId={activeConversation.id}
+              isReadOnly={userRole === "viewer" || isDemo}
+              onChanged={handleRefresh}
+            />
+            <AiReplySuggestion
+              conversationId={activeConversation.id}
+              disabled={userRole === "viewer" || isDemo || activeConversation.connectionStatus !== "connected"}
+            />
+          </>
         )}
         <div className="min-h-0 flex-1">
           <ConversationView

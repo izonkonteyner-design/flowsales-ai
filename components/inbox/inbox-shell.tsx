@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ConversationSummaryDTO, ConversationDetailDTO } from "@/server/repositories/supabase/omnichannel-inbox";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { ConversationView } from "@/components/inbox/conversation-view";
+import { MetaConversationView } from "@/components/inbox/meta-conversation-view";
 import { CrmIdentityPanel } from "@/components/inbox/crm-identity-panel";
 import { CrmConversationActions } from "@/components/inbox/crm-conversation-actions";
 import { ConversationAuditPanel } from "@/components/inbox/conversation-audit-panel";
@@ -68,6 +69,7 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
   };
   const readOnly = userRole === "viewer" || isDemo;
   const messagingProvider = activeConversation && ["whatsapp", "instagram", "facebook"].includes(activeConversation.provider);
+  const isMetaMessagingConversation = activeConversation?.provider === "instagram" || activeConversation?.provider === "facebook";
 
   return (
     <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/90 shadow-2xl backdrop-blur-xl">
@@ -94,8 +96,13 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
         )}
         {!isDetailLoading && activeConversation?.provider === "whatsapp" && <ConversationAuditPanel conversationId={activeConversation.id} refreshKey={refreshVersion} />}
         <div className="min-h-0 flex-1">
-          <ConversationView conversation={activeConversation} isLoading={isDetailLoading} userRole={userRole} isDemo={isDemo}
-            organizationMembers={organizationMembers} onRefresh={handleRefresh} />
+          {!isDetailLoading && activeConversation && isMetaMessagingConversation ? (
+            <MetaConversationView conversation={activeConversation} userRole={userRole} isDemo={isDemo}
+              organizationMembers={organizationMembers} onRefresh={handleRefresh} />
+          ) : (
+            <ConversationView conversation={activeConversation} isLoading={isDetailLoading} userRole={userRole} isDemo={isDemo}
+              organizationMembers={organizationMembers} onRefresh={handleRefresh} />
+          )}
         </div>
       </div>
     </div>

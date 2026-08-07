@@ -137,7 +137,7 @@ export async function POST(request: Request) {
       components: [
         {
           type: 'BODY',
-          text: 'Sayin {{1}}, FlowSales AI uzerinden yeni bir bildiriminiz var: {{2}}. Detaylar icin panoyu ziyaret edebilirsiniz.',
+          text: reqBody.text || 'Sayin {{1}}, FlowSales AI uzerinden yeni bir bildiriminiz var: {{2}}. Detaylar icin panoyu ziyaret edebilirsiniz.',
           example: {
             body_text: [['Cagatay', 'Siparis durumunuz guncellendi']],
           },

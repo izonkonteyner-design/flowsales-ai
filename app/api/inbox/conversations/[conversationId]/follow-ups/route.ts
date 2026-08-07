@@ -1,8 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadWorkspaceContext } from "@/server/services/workspace-context";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { createFollowUpPlan } from "@/server/services/sales-follow-up-engine";
 
 interface RouteParams { params: Promise<{ conversationId: string }> }
+
+export async function GET(_: NextRequest, { params }: RouteParams) {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const { conversationId } = await params;
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.from("sales_follow_up_plans")
+    .select("id,name,status,created_at,sales_follow_up_steps(id,step_order,action_type,channel,due_at,status,draft_text,requires_human_approval)")
+    .eq("organization_id", ctx.organization.id).eq("conversation_id", conversationId)
+    .order("created_at", { ascending: false }).limit(10);
+  if (error) return NextResponse.json({ error: "follow_up_load_failed" }, { status: 500 });
+  return NextResponse.json({ plans: data ?? [] });
+}
 
 export async function POST(req: NextRequest, { params }: RouteParams) {
   const ctx = await loadWorkspaceContext();

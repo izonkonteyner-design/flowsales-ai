@@ -19,6 +19,13 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     const body = await req.json().catch(() => null) as { text?: string; clientIdempotencyKey?: string } | null;
     if (!body || typeof body !== "object") return NextResponse.json({ error: "invalid_input", message: "Invalid JSON request body." }, { status: 400 });
 
+    const text = typeof body.text === "string" ? body.text.trim() : "";
+    const clientIdempotencyKey = typeof body.clientIdempotencyKey === "string" ? body.clientIdempotencyKey.trim() : "";
+    if (!text) return NextResponse.json({ error: "invalid_input", message: "Message text is required." }, { status: 400 });
+    if (clientIdempotencyKey.length < 8 || clientIdempotencyKey.length > 64) {
+      return NextResponse.json({ error: "invalid_input", message: "Invalid idempotency key format." }, { status: 400 });
+    }
+
     const admin = createSupabaseAdminClient();
     const { data: conversation } = await admin.from("conversations").select("provider")
       .eq("id", conversationId).eq("organization_id", ctx.organization.id).maybeSingle();
@@ -31,7 +38,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     if (conversation.provider === "whatsapp") {
       result = await new WhatsAppOutboundService().sendOutboundReply({
         organizationId: ctx.organization.id, userId: ctx.userId, userRole: ctx.role,
-        conversationId, text: body.text, clientIdempotencyKey: body.clientIdempotencyKey,
+        conversationId, text, clientIdempotencyKey,
       });
       await recordWhatsAppAuditEvent({
         organizationId: ctx.organization.id, conversationId,
@@ -42,7 +49,7 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     } else if (conversation.provider === "instagram" || conversation.provider === "facebook") {
       result = await sendMetaMessagingReply({
         organizationId: ctx.organization.id, userId: ctx.userId, userRole: ctx.role,
-        conversationId, text: body.text || "", clientIdempotencyKey: body.clientIdempotencyKey || "",
+        conversationId, text, clientIdempotencyKey,
       });
     } else {
       return NextResponse.json({ error: "unsupported_provider", message: "Reply transport is not enabled for this channel." }, { status: 400 });

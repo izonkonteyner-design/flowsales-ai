@@ -99,6 +99,27 @@ export class WhatsAppOutboundService {
 
     const phoneNumberId = conn.phone_number_id;
 
+    // 5. 24-Hour Customer Window Verification
+    const { data: lastInboundMsg } = await supabase
+      .from("messages")
+      .select("sent_at, created_at")
+      .eq("conversation_id", conversationId)
+      .eq("organization_id", organizationId)
+      .eq("direction", "inbound")
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const windowCheck = validateCustomerWindow(lastInboundMsg?.sent_at || lastInboundMsg?.created_at);
+    if (!windowCheck.allowed) {
+      return {
+        success: false,
+        errorCode: "template_required",
+        message: "24-hour customer service window has expired. A WhatsApp template message is required.",
+      };
+    }
+
+    // 6. Token Decryption
     const { data: tokenRow, error: tokenErr } = await supabase
       .from("integration_tokens")
       .select("access_token_cipher")
@@ -117,26 +138,6 @@ export class WhatsAppOutboundService {
       accessToken = decryptToken(tokenRow.access_token_cipher);
     } catch {
       return { success: false, errorCode: "connection_required", message: "Failed to decrypt channel connection credentials." };
-    }
-
-    // 6. 24-Hour Customer Window Verification
-    const { data: lastInboundMsg } = await supabase
-      .from("messages")
-      .select("sent_at, created_at")
-      .eq("conversation_id", conversationId)
-      .eq("organization_id", organizationId)
-      .eq("direction", "inbound")
-      .order("sent_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const windowCheck = validateCustomerWindow(lastInboundMsg?.sent_at || lastInboundMsg?.created_at);
-    if (!windowCheck.allowed) {
-      return {
-        success: false,
-        errorCode: "template_required",
-        message: "24-hour customer service window has expired. A WhatsApp template message is required.",
-      };
     }
 
     // 7. Atomic Idempotency Reservation

@@ -66,6 +66,40 @@ function canonicalPhone(raw) {
   return digits;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function verifyPersistedTemplate(messageId, wamid) {
+  const row = await psql(`select json_build_object(
+    'id', id, 'external_id', external_id, 'message_type', message_type, 'status', status,
+    'conversation_id', conversation_id, 'organization_id', organization_id
+  )::text from public.messages
+  where id='${messageId}'::uuid and organization_id='${ORG_ID}'::uuid and conversation_id='${CONVERSATION_ID}'::uuid;`, true);
+  if (!row) return { ok: false, reason: "message_not_persisted" };
+  const parsed = JSON.parse(row);
+  if (parsed.external_id !== wamid || parsed.message_type !== "template") return { ok: false, reason: "persisted_message_mismatch" };
+  return { ok: true, status: parsed.status };
+}
+
+async function waitForWebhook(wamid) {
+  const encoded = wamid.replaceAll("'", "''");
+  for (let attempt = 1; attempt <= 6; attempt += 1) {
+    const row = await psql(`select json_build_object(
+      'count', count(*),
+      'processed', count(*) filter (where status='processed'),
+      'failed', count(*) filter (where status='failed')
+    )::text
+    from public.webhook_events
+    where organization_id='${ORG_ID}'::uuid
+      and provider='whatsapp'
+      and payload::text like '%${encoded}%';`, true);
+    const parsed = row ? JSON.parse(row) : { count: 0, processed: 0, failed: 0 };
+    if (Number(parsed.processed) > 0) return { observed: true, status: "processed", count: Number(parsed.count) };
+    if (Number(parsed.failed) > 0) return { observed: true, status: "failed", count: Number(parsed.count) };
+    if (attempt < 6) await sleep(10_000);
+  }
+  return { observed: false, status: "not_observed", count: 0 };
+}
+
 const catalog = await callManage("list");
 const templates = Array.isArray(catalog.templates) ? catalog.templates : [];
 const template = templates.find((item) => String(item.id) === TEMPLATE_ID || String(item.name) === TEMPLATE_NAME);
@@ -92,16 +126,32 @@ const sendResult = await callManage("send", {
   language: String(template.language || "tr"),
   bodyParameters: ["Cagatay", "FlowSales WhatsApp template delivery verification"],
 });
-if (!sendResult?.success || !sendResult?.data?.externalId) {
+if (!sendResult?.success || !sendResult?.data?.externalId || !sendResult?.data?.messageId) {
   console.log(JSON.stringify({ decision: "WHATSAPP TEMPLATE DELIVERY FAILED", template: TEMPLATE_NAME, status, errorCode: sendResult?.errorCode || "send_failed" }));
   process.exitCode = 1;
 } else {
-  console.log(JSON.stringify({
-    decision: "WHATSAPP TEMPLATE DELIVERY VERIFIED",
-    template: TEMPLATE_NAME,
-    templateId: TEMPLATE_ID,
-    status,
-    messageId: sendResult.data.messageId,
-    wamid: sendResult.data.externalId,
-  }));
+  const messageId = String(sendResult.data.messageId);
+  const wamid = String(sendResult.data.externalId);
+  const persistence = await verifyPersistedTemplate(messageId, wamid);
+  if (!persistence.ok) {
+    console.log(JSON.stringify({ decision: "WHATSAPP TEMPLATE DELIVERY FAILED", template: TEMPLATE_NAME, status, reason: persistence.reason, messageId, wamid }));
+    process.exitCode = 1;
+  } else {
+    const webhook = await waitForWebhook(wamid);
+    if (!webhook.observed) {
+      console.log(JSON.stringify({ decision: "WHATSAPP TEMPLATE DELIVERY BLOCKED", template: TEMPLATE_NAME, templateId: TEMPLATE_ID, status, reason: "webhook_not_observed", messageId, wamid, persistedStatus: persistence.status }));
+    } else {
+      console.log(JSON.stringify({
+        decision: "WHATSAPP TEMPLATE DELIVERY VERIFIED",
+        template: TEMPLATE_NAME,
+        templateId: TEMPLATE_ID,
+        status,
+        messageId,
+        wamid,
+        persistedStatus: persistence.status,
+        webhookStatus: webhook.status,
+        webhookEvents: webhook.count,
+      }));
+    }
+  }
 }

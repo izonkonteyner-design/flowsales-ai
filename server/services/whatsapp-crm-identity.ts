@@ -36,6 +36,11 @@ export interface WhatsAppIdentityDTO {
   };
 }
 
+export interface CrmSearchResults {
+  customers: Array<{ id: string; name: string; maskedPhone: string }>;
+  leads: Array<{ id: string; name: string; maskedPhone: string; status: string | null }>;
+}
+
 export class WhatsAppCrmIdentityService {
   async getIdentity(organizationId: string, conversationId: string): Promise<WhatsAppIdentityDTO | null> {
     const supabase = createSupabaseAdminClient();
@@ -107,6 +112,43 @@ export class WhatsAppCrmIdentityService {
           status: item.status || null,
         })),
       },
+    };
+  }
+
+  async searchCandidates(organizationId: string, rawQuery: string): Promise<CrmSearchResults> {
+    const supabase = createSupabaseAdminClient();
+    const query = rawQuery.trim().replace(/[%_,]/g, "").slice(0, 80);
+    if (query.length < 2) return { customers: [], leads: [] };
+
+    const [customerResult, leadResult] = await Promise.all([
+      supabase
+        .from("contacts")
+        .select("id, full_name, phone")
+        .eq("organization_id", organizationId)
+        .or(`full_name.ilike.%${query}%,phone.ilike.%${query}%`)
+        .order("updated_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("leads")
+        .select("id, full_name, phone, status")
+        .eq("organization_id", organizationId)
+        .or(`full_name.ilike.%${query}%,phone.ilike.%${query}%`)
+        .order("updated_at", { ascending: false })
+        .limit(8),
+    ]);
+
+    return {
+      customers: (customerResult.data || []).map((item) => ({
+        id: item.id,
+        name: item.full_name,
+        maskedPhone: maskPhoneNumber(item.phone || ""),
+      })),
+      leads: (leadResult.data || []).map((item) => ({
+        id: item.id,
+        name: item.full_name,
+        maskedPhone: maskPhoneNumber(item.phone || ""),
+        status: item.status || null,
+      })),
     };
   }
 

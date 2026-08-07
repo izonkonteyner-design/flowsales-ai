@@ -134,5 +134,5 @@ revoke all on function public.deployment_readiness() from public, anon, authenti
 grant execute on function public.deployment_readiness() to service_role;
 
 insert into public.deployment_migrations (version, name, checksum)
-values ('0040', '0040_whatsapp_ops_audit_hardening.sql', 'e40a9c1d7f6b2a0039whatsapp0040ops')
+values ('0040', '0040_whatsapp_ops_audit_hardening.sql', 'e40a9c1d7f6b2a0039a11d7c0040f00d')
 on conflict (version) do update set name = excluded.name, executed_at = now();

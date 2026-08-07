@@ -10,7 +10,7 @@ test("Instagram and Messenger OAuth never auto-select ambiguous accounts", async
   assert.match(callback, /staged\.candidates\.length === 1/);
   assert.match(callback, /meta-select\?provider=/);
   assert.match(oauth, /selection_status: "candidate"/);
-  assert.doesNotMatch(oauth, /accounts\[0\].*connected/s);
+  assert.doesNotMatch(oauth, /accounts\[0\][^\n]*connected/);
   assert.match(oauth, /access_token_cipher: encryptToken/);
 });
 

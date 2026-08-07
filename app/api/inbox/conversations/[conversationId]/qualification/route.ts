@@ -4,10 +4,12 @@ import { generateConversationQualification, getLatestConversationQualification, 
 
 interface RouteParams { params: Promise<{ conversationId: string }> }
 
-async function ctxOrResponse() {
+type AuthenticatedContext = NonNullable<Awaited<ReturnType<typeof loadWorkspaceContext>>> & { userId: string };
+
+async function ctxOrResponse(): Promise<{ ctx: AuthenticatedContext } | { response: NextResponse }> {
   const ctx = await loadWorkspaceContext();
-  if (!ctx?.userId) return { response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) } as const;
-  return { ctx } as const;
+  if (!ctx?.userId) return { response: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+  return { ctx: { ...ctx, userId: ctx.userId } as AuthenticatedContext };
 }
 
 export async function GET(_: NextRequest, { params }: RouteParams) {

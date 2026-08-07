@@ -2,7 +2,7 @@
 
 import React from "react";
 import { MessageItemDTO } from "@/server/repositories/supabase/omnichannel-inbox";
-import { Check, CheckCheck, AlertTriangle, FileText, Image as ImageIcon, Mic, HelpCircle } from "lucide-react";
+import { Check, CheckCheck, AlertTriangle, FileText, Image as ImageIcon, Mic, HelpCircle, ExternalLink } from "lucide-react";
 
 interface MessageTimelineProps {
   messages: MessageItemDTO[];
@@ -44,15 +44,18 @@ export function MessageTimeline({ messages }: MessageTimelineProps) {
                   : "bg-emerald-600 text-white rounded-tr-sm"
               }`}
             >
-              {/* Media Attachments Placeholder */}
               {msg.attachments && msg.attachments.length > 0 && (
                 <div className="mb-2 space-y-2">
                   {msg.attachments.map((att) => (
-                    <div
+                    <a
                       key={att.id}
-                      className={`flex items-center space-x-2 rounded-lg p-2.5 text-xs ${
-                        isInbound ? "bg-slate-800/80 text-slate-200" : "bg-emerald-700/80 text-emerald-50"
+                      href={`/api/inbox/attachments/${att.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={`flex items-center space-x-2 rounded-lg p-2.5 text-xs transition-colors ${
+                        isInbound ? "bg-slate-800/80 text-slate-200 hover:bg-slate-700/80" : "bg-emerald-700/80 text-emerald-50 hover:bg-emerald-700"
                       }`}
+                      title="Open securely through FlowSales"
                     >
                       {att.attachmentType === "image" ? (
                         <ImageIcon className="h-4 w-4 shrink-0 text-emerald-400" />
@@ -65,12 +68,12 @@ export function MessageTimeline({ messages }: MessageTimelineProps) {
                         <p className="font-medium truncate">{att.fileName || `${att.attachmentType} attachment`}</p>
                         <p className="text-[10px] opacity-75">{att.mimeType || att.attachmentType}</p>
                       </div>
-                    </div>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                    </a>
                   ))}
                 </div>
               )}
 
-              {/* Unsupported Message Type Placeholder */}
               {msg.messageType === "unsupported" ? (
                 <div className="flex items-center space-x-2 text-xs italic text-amber-300">
                   <HelpCircle className="h-4 w-4 shrink-0" />
@@ -82,7 +85,6 @@ export function MessageTimeline({ messages }: MessageTimelineProps) {
                 </p>
               )}
 
-              {/* Message Status Indicators for Outbound */}
               {!isInbound && (
                 <div className="mt-1 flex items-center justify-end space-x-1 text-[10px] text-emerald-200">
                   {isFailed ? (

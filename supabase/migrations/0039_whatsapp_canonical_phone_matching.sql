@@ -125,6 +125,6 @@ $$;
 revoke all on function public.deployment_readiness() from public, anon, authenticated;
 grant execute on function public.deployment_readiness() to service_role;
 
-insert into public.deployment_migrations (version, name)
-values ('0039', '0039_whatsapp_canonical_phone_matching.sql')
-on conflict (version) do nothing;
+insert into public.deployment_migrations (version, name, checksum)
+values ('0039', '0039_whatsapp_canonical_phone_matching.sql', 'd9e2c3b4a5f60718293a4b5c6d7e8f39')
+on conflict (version) do update set name = excluded.name, executed_at = now();

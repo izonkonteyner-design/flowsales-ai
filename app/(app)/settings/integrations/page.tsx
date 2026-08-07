@@ -16,6 +16,15 @@ export const metadata: Metadata = {
 
 const PROVIDERS: ChannelProvider[] = ["whatsapp", "instagram", "facebook", "google", "tiktok"];
 
+function isMetaMessagingConfigured(): boolean {
+  const appId = process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim();
+  const appSecret = process.env.META_CLIENT_SECRET?.trim() || process.env.META_APP_SECRET?.trim();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  const encryptionKey = process.env.TOKEN_ENCRYPTION_KEY?.trim();
+  const webhookVerifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN?.trim() || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
+  return Boolean(appId && appSecret && siteUrl && encryptionKey && webhookVerifyToken);
+}
+
 export default async function IntegrationsPage() {
   const workspace = await getWorkspaceContext();
   const isDemo = workspace.mode === "demo";
@@ -33,8 +42,14 @@ export default async function IntegrationsPage() {
   }
 
   const providerConfigured = new Map<ChannelProvider, boolean>();
+  const metaMessagingConfigured = isMetaMessagingConfigured();
   for (const provider of PROVIDERS) {
-    providerConfigured.set(provider, isProviderConfigured(provider));
+    providerConfigured.set(
+      provider,
+      provider === "instagram" || provider === "facebook"
+        ? metaMessagingConfigured
+        : isProviderConfigured(provider),
+    );
   }
 
   const anyConfigured = PROVIDERS.some((p) => providerConfigured.get(p));
@@ -88,11 +103,7 @@ export default async function IntegrationsPage() {
           <div>
             <p className="font-medium text-blue-800 dark:text-blue-300">Provider credentials not configured</p>
             <p className="mt-0.5 text-sm text-blue-700 dark:text-blue-400">
-              No OAuth credentials are set up for any provider. Configure{" "}
-              <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900/50">META_CLIENT_ID</code>,{" "}
-              <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900/50">GOOGLE_CLIENT_ID</code>, or{" "}
-              <code className="rounded bg-blue-100 px-1 font-mono text-xs dark:bg-blue-900/50">TIKTOK_CLIENT_KEY</code>{" "}
-              environment variables to enable OAuth connections.
+              No OAuth credentials are set up for any provider. Configure the Meta App ID/App Secret pair for Instagram or Facebook, or the corresponding Google/TikTok credentials, to enable connections.
             </p>
           </div>
         </div>

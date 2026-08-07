@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createSupabaseAdminClient } from '@/lib/supabase/server-admin';
 import { WhatsAppTemplateService } from '@/server/services/integrations/whatsapp-template-service';
+import { WhatsAppOutboundService } from '@/server/services/integrations/whatsapp-outbound';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,6 +49,25 @@ export async function POST(request: Request) {
       return NextResponse.json(res);
     } catch (err: unknown) {
       return NextResponse.json({ error: err instanceof Error ? err.message : 'Template send failed' }, { status: 500 });
+    }
+  }
+
+  if (action === 'send_freeform') {
+    try {
+      const outboundService = new WhatsAppOutboundService();
+      const res = await outboundService.sendOutboundReply({
+        organizationId: orgId,
+        userId,
+        userRole: 'owner',
+        conversationId,
+        text: 'Test free-form reply after 24h window reopening',
+        clientIdempotencyKey: `test_freeform_${Date.now()}`,
+        isTestMode: true,
+      });
+
+      return NextResponse.json(res);
+    } catch (err: unknown) {
+      return NextResponse.json({ error: err instanceof Error ? err.message : 'Free-form send failed' }, { status: 500 });
     }
   }
 

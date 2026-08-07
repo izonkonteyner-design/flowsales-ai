@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { loadWorkspaceContext } from "@/server/services/workspace-context";
 import { generateWhatsAppReplySuggestion } from "@/server/services/integrations/whatsapp-ai-suggestion";
+import { recordWhatsAppAuditEvent } from "@/server/services/whatsapp-audit";
 
 interface RouteParams {
   params: Promise<{ conversationId: string }>;
@@ -31,6 +32,14 @@ export async function POST(_request: Request, { params }: RouteParams) {
     const status = result.errorCode === "not_found" ? 404 : result.errorCode === "unauthorized" ? 403 : 503;
     return NextResponse.json({ error: result.errorCode, message: result.message }, { status });
   }
+
+  await recordWhatsAppAuditEvent({
+    organizationId: ctx.organization.id,
+    conversationId,
+    actorUserId: ctx.userId,
+    eventType: "ai_suggestion_generated",
+    metadata: { requiresHumanSend: true, suggestionLength: result.suggestion?.length ?? 0 },
+  });
 
   return NextResponse.json({ suggestion: result.suggestion, requiresHumanSend: true }, { status: 200 });
 }

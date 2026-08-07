@@ -6,6 +6,9 @@ import { WhatsAppConnectionsRepository } from "@/server/repositories/supabase/wh
 import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/services/integrations/rate-limiter";
 import { logger } from "@/lib/logger";
 import { parseWhatsAppInbound, persistWhatsAppInbound } from "@/server/services/integrations/whatsapp-inbound";
+import { recordWhatsAppAuditEvent } from "@/server/services/whatsapp-audit";
+
+const MAX_WEBHOOK_ATTEMPTS = 5;
 
 function rateLimitUnavailableResponse(): Response {
   return Response.json(
@@ -14,310 +17,227 @@ function rateLimitUnavailableResponse(): Response {
   );
 }
 
-const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
-
-async function rebindSignedSingleOrganizationConnection(
-  repo: WhatsAppConnectionsRepository,
-  wabaId: string | undefined,
-  phoneNumberId: string | undefined,
-  metadata: Record<string, unknown> | undefined,
-): Promise<{ id: string; organization_id: string } | null> {
-  if (process.env.META_AUTO_BIND_SINGLE_OWNER !== "true" || !wabaId || !phoneNumberId) return null;
-  if (!/^\d{1,64}$/.test(wabaId) || !/^\d{1,64}$/.test(phoneNumberId)) return null;
+async function markWebhookFailure(input: {
+  eventId: string;
+  organizationId: string;
+  attemptCount: number;
+  errorMessage: string;
+}) {
   const supabase = createSupabaseAdminClient();
-  const { data: memberships, error } = await supabase.from("organization_members")
-    .select("organization_id, user_id, role").in("role", ["owner", "admin"])
-    .neq("organization_id", DEMO_ORGANIZATION_ID);
-  if (error) throw new Error("Authorized organization resolution failed.");
-  const organizationIds = [...new Set((memberships ?? []).map((row) => row.organization_id))];
-  if (organizationIds.length !== 1) return null;
-  const organizationId = organizationIds[0];
-  const actor = (memberships ?? []).find((row) => row.organization_id === organizationId && row.role === "owner")
-    ?? (memberships ?? []).find((row) => row.organization_id === organizationId);
-  if (!actor?.user_id) return null;
-  const conflict = await repo.findGlobalExistingConnection(wabaId, phoneNumberId);
-  if (conflict && conflict.organization_id !== organizationId) {
-    logger.error("meta_webhook.rebind_cross_workspace_conflict");
-    return null;
+  const deadLetter = input.attemptCount >= MAX_WEBHOOK_ATTEMPTS;
+  await supabase.from("webhook_events").update({
+    status: "failed",
+    error_message: input.errorMessage,
+    retry_count: Math.max(1, input.attemptCount),
+    last_attempt_at: new Date().toISOString(),
+    next_retry_at: deadLetter ? null : new Date(Date.now() + Math.min(60, 2 ** Math.max(1, input.attemptCount)) * 60_000).toISOString(),
+    dead_lettered_at: deadLetter ? new Date().toISOString() : null,
+  }).eq("id", input.eventId).eq("organization_id", input.organizationId);
+
+  if (deadLetter) {
+    await recordWhatsAppAuditEvent({
+      organizationId: input.organizationId,
+      eventType: "webhook_dead_lettered",
+      metadata: { eventId: input.eventId, retryCount: input.attemptCount, reason: input.errorMessage },
+    });
   }
-  const current = await repo.getWhatsAppConnectionForOrg(organizationId);
-  if (!current || current.status !== "connected") return null;
-  const displayPhoneNumber = typeof metadata?.display_phone_number === "string" ? metadata.display_phone_number : "";
-  const verifiedName = typeof metadata?.verified_name === "string" ? metadata.verified_name : "WhatsApp Business";
-  const connection = await repo.upsertWhatsAppConnection({ organizationId, wabaId, phoneNumberId,
-    verifiedName, displayPhoneNumber, webhookSubscribedAt: new Date().toISOString(),
-    createdBy: actor.user_id, status: "connected" });
-  await repo.reconcileWhatsAppAccount(organizationId, connection.id, { phoneNumberId, verifiedName, displayPhoneNumber, wabaId });
-  logger.info("meta_webhook.signed_single_org_rebind_completed");
-  return { id: connection.id, organization_id: organizationId };
+  return deadLetter;
 }
 
-/**
- * GET /api/webhooks/meta — Meta Webhook Verification Challenge
- */
+/** GET /api/webhooks/meta — Meta Webhook Verification Challenge */
 export async function GET(request: NextRequest): Promise<Response> {
   const url = new URL(request.url);
   const mode = url.searchParams.get("hub.mode");
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge");
-
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
 
-  // Rate limit GET challenge attempts (20 requests per minute per IP)
   try {
     const rl = await checkRateLimit(clientIp, "webhook_verification_attempts", 20, 60000);
-    if (!rl.allowed) {
-      logger.warn("meta_webhook.get_rate_limit_exceeded");
-      return Response.json({ error: "rate_limit_exceeded", message: "Too many verification requests." }, { status: 429 });
-    }
+    if (!rl.allowed) return Response.json({ error: "rate_limit_exceeded", message: "Too many verification requests." }, { status: 429 });
   } catch (err) {
-    if (err instanceof DistributedRateLimitUnavailableError) {
-      return rateLimitUnavailableResponse();
-    }
+    if (err instanceof DistributedRateLimitUnavailableError) return rateLimitUnavailableResponse();
     throw err;
   }
 
-  const config = getWhatsAppConfig();
-  const expectedToken = config.webhookVerifyToken;
-
+  const expectedToken = getWhatsAppConfig().webhookVerifyToken;
   if (mode === "subscribe" && token && expectedToken && token === expectedToken) {
     logger.info("meta_webhook.verify_success");
     return new Response(challenge || "", { status: 200 });
   }
-
   logger.warn("meta_webhook.verify_failed");
   return Response.json({ error: "forbidden", message: "Webhook verification failed." }, { status: 403 });
 }
 
-/**
- * POST /api/webhooks/meta — Meta Webhook Event Ingestion
- */
+/** POST /api/webhooks/meta — Meta Webhook Event Ingestion */
 export async function POST(request: NextRequest): Promise<Response> {
   const clientIp = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip") || "unknown_ip";
-
-  // Rate limit total POST requests (100 requests per minute per IP)
   try {
     const postRl = await checkRateLimit(clientIp, "webhook_post", 100, 60000);
-    if (!postRl.allowed) {
-      logger.warn("meta_webhook.post_rate_limit_exceeded");
-      return Response.json({ error: "rate_limit_exceeded", message: "Too many webhook requests." }, { status: 429 });
-    }
+    if (!postRl.allowed) return Response.json({ error: "rate_limit_exceeded", message: "Too many webhook requests." }, { status: 429 });
   } catch (err) {
-    if (err instanceof DistributedRateLimitUnavailableError) {
-      return rateLimitUnavailableResponse();
-    }
+    if (err instanceof DistributedRateLimitUnavailableError) return rateLimitUnavailableResponse();
     throw err;
   }
 
-  // 1. Signature Verification (HMAC-SHA256)
   const signatureHeader = request.headers.get("x-hub-signature-256");
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) {
-    try {
-      await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
-    } catch (err) {
-      if (err instanceof DistributedRateLimitUnavailableError) {
-        return rateLimitUnavailableResponse();
-      }
-      throw err;
-    }
+    try { await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000); }
+    catch (err) { if (err instanceof DistributedRateLimitUnavailableError) return rateLimitUnavailableResponse(); throw err; }
     logger.warn("meta_webhook.missing_signature_header");
     return Response.json({ error: "invalid_signature", message: "Missing or invalid signature header." }, { status: 401 });
   }
 
   const rawBody = await request.text();
-  const config = getWhatsAppConfig();
-  const appSecret = config.appSecret;
-
-  if (!appSecret) {
-    logger.error("meta_webhook.missing_app_secret");
-    return Response.json({ error: "configuration_error", message: "Webhook secret is not configured." }, { status: 500 });
-  }
-
+  const appSecret = getWhatsAppConfig().appSecret;
+  if (!appSecret) return Response.json({ error: "configuration_error", message: "Webhook secret is not configured." }, { status: 500 });
   const expectedSignature = crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
   const providedSignature = signatureHeader.slice(7);
-
-  const isValidSignature =
-    providedSignature.length === expectedSignature.length &&
-    crypto.timingSafeEqual(Buffer.from(providedSignature, "utf-8"), Buffer.from(expectedSignature, "utf-8"));
-
-  if (!isValidSignature) {
+  const validSignature = providedSignature.length === expectedSignature.length
+    && crypto.timingSafeEqual(Buffer.from(providedSignature, "utf-8"), Buffer.from(expectedSignature, "utf-8"));
+  if (!validSignature) {
     let remainingAttempts = 0;
-    try {
-      const sigRl = await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000);
-      remainingAttempts = sigRl.remaining;
-    } catch (err) {
-      if (err instanceof DistributedRateLimitUnavailableError) {
-        return rateLimitUnavailableResponse();
-      }
-      throw err;
-    }
+    try { remainingAttempts = (await checkRateLimit(clientIp, "invalid_webhook_signature", 10, 600000)).remaining; }
+    catch (err) { if (err instanceof DistributedRateLimitUnavailableError) return rateLimitUnavailableResponse(); throw err; }
     logger.warn("meta_webhook.signature_mismatch", { remainingAttempts });
     return Response.json({ error: "invalid_signature", message: "HMAC signature verification failed." }, { status: 401 });
   }
 
-  // 2. Parse JSON payload safely
   let payload: Record<string, unknown>;
-  try {
-    payload = JSON.parse(rawBody) as Record<string, unknown>;
-  } catch {
-    logger.warn("meta_webhook.invalid_json_payload");
-    return Response.json({ error: "invalid_json", message: "Failed to parse webhook JSON payload." }, { status: 400 });
-  }
+  try { payload = JSON.parse(rawBody) as Record<string, unknown>; }
+  catch { return Response.json({ error: "invalid_json", message: "Failed to parse webhook JSON payload." }, { status: 400 }); }
 
-  // 3. Extract identifiers for workspace resolution and deterministik idempotency
-  const entry = Array.isArray(payload.entry) ? (payload.entry[0] as Record<string, unknown> | undefined) : null;
-  const changes = Array.isArray(entry?.changes) ? (entry.changes[0] as Record<string, unknown> | undefined) : null;
+  const entry = Array.isArray(payload.entry) ? payload.entry[0] as Record<string, unknown> | undefined : undefined;
+  const changes = Array.isArray(entry?.changes) ? entry?.changes?.[0] as Record<string, unknown> | undefined : undefined;
   const value = changes?.value as Record<string, unknown> | undefined;
   const metadata = value?.metadata as Record<string, unknown> | undefined;
+  const wabaId = typeof entry?.id === "string" ? entry.id : typeof metadata?.waba_id === "string" ? metadata.waba_id : undefined;
+  const phoneNumberId = typeof metadata?.phone_number_id === "string" ? metadata.phone_number_id : undefined;
+  const messages = Array.isArray(value?.messages) ? value?.messages?.[0] as Record<string, unknown> | undefined : undefined;
+  const statuses = Array.isArray(value?.statuses) ? value?.statuses?.[0] as Record<string, unknown> | undefined : undefined;
 
-  const wabaId = (entry?.id as string) || (metadata?.waba_id as string) || undefined;
-  const phoneNumberId = (metadata?.phone_number_id as string) || undefined;
-
-  const messages = Array.isArray(value?.messages) ? (value.messages[0] as Record<string, unknown> | undefined) : null;
-  const statuses = Array.isArray(value?.statuses) ? (value.statuses[0] as Record<string, unknown> | undefined) : null;
-
-  // 4. Deterministik Idempotency Key
   let externalEventId: string;
-  if (messages?.id && typeof messages.id === "string") {
-    externalEventId = messages.id;
-  } else if (statuses?.id && typeof statuses.id === "string") {
-    const statusVal = (statuses.status as string) || "status";
-    const tsVal = (statuses.timestamp as string) || "";
-    externalEventId = `${statuses.id}_${statusVal}_${tsVal}`;
-  } else if (entry?.id && changes?.field) {
-    const tsVal = (value?.timestamp as string) || "";
-    externalEventId = `${entry.id}_${changes.field}_${tsVal}`;
-  } else {
-    // Fallback: SHA-256 hash of rawBody
-    externalEventId = crypto.createHash("sha256").update(rawBody).digest("hex");
-  }
+  if (typeof messages?.id === "string") externalEventId = messages.id;
+  else if (typeof statuses?.id === "string") externalEventId = `${statuses.id}_${String(statuses.status || "status")}_${String(statuses.timestamp || "")}`;
+  else if (entry?.id && changes?.field) externalEventId = `${entry.id}_${changes.field}_${String(value?.timestamp || "")}`;
+  else externalEventId = crypto.createHash("sha256").update(rawBody).digest("hex");
+  const eventType = typeof changes?.field === "string" ? changes.field : typeof payload.object === "string" ? payload.object : "whatsapp_business_account";
 
-  const eventType = (changes?.field as string) || (payload.object as string) || "whatsapp_business_account";
-
-  // 5. Workspace Resolution — Match active WhatsApp connection
   const repo = new WhatsAppConnectionsRepository();
   let activeConnection: { id: string; organization_id: string } | null = null;
-
-  try {
-    activeConnection = await repo.findActiveConnectionForWebhook(wabaId, phoneNumberId);
-    if (!activeConnection) {
-      activeConnection = await rebindSignedSingleOrganizationConnection(repo, wabaId, phoneNumberId, metadata);
-    }
-  } catch (err) {
+  try { activeConnection = await repo.findActiveConnectionForWebhook(wabaId, phoneNumberId); }
+  catch (err) {
     logger.error("meta_webhook.active_connection_lookup_error", err);
-    // Transient database error -> return 500 so Meta retries delivery
     return Response.json({ error: "database_error", message: "Failed to query channel connections." }, { status: 500 });
   }
-
   if (!activeConnection) {
-    // Valid signature but unknown / revoked WABA -> return 200 OK ignored to prevent infinite Meta retry storms
     logger.info("meta_webhook.unknown_connection_ignored", { eventType });
-    return Response.json(
-      { received: true, status: "ignored", reason: "unknown_connection", message: "No active WhatsApp connection registered for this account or phone number." },
-      { status: 200 }
-    );
+    return Response.json({ received: true, status: "ignored", reason: "unknown_connection" }, { status: 200 });
   }
 
-  // 6. Persistence into webhook_events associated with active workspace
   const supabase = createSupabaseAdminClient();
-  const { data: inserted, error: insertErr } = await supabase
-    .from("webhook_events")
-    .insert({
-      organization_id: activeConnection.organization_id,
-      provider: "whatsapp",
-      external_event_id: externalEventId,
-      event_type: eventType,
-      payload: payload,
-      status: "received",
-      received_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
+  const { data: inserted, error: insertErr } = await supabase.from("webhook_events").insert({
+    organization_id: activeConnection.organization_id,
+    provider: "whatsapp",
+    external_event_id: externalEventId,
+    event_type: eventType,
+    payload,
+    status: "received",
+    retry_count: 0,
+    last_attempt_at: new Date().toISOString(),
+    received_at: new Date().toISOString(),
+  }).select("id,retry_count").single();
 
   let eventId = inserted?.id as string | undefined;
+  let attemptCount = 1;
   let retryingFailedEvent = false;
 
   if (insertErr) {
-    // Handle unique constraint violation (duplicate event)
-    if (insertErr.code === "23505") {
-      const { data: claimed } = await supabase
-        .from("webhook_events")
-        .update({ status: "received", error_message: null })
-        .eq("organization_id", activeConnection.organization_id)
-        .eq("provider", "whatsapp")
-        .eq("external_event_id", externalEventId)
-        .eq("status", "failed")
-        .select("id")
-        .maybeSingle();
-      if (!claimed?.id) {
-        logger.info("meta_webhook.duplicate_event_ignored");
-        return Response.json({ received: true, duplicate: true, status: "duplicate_event_ignored" }, { status: 200 });
-      }
-      eventId = claimed.id;
-      retryingFailedEvent = true;
-    } else {
+    if (insertErr.code !== "23505") {
       logger.error("meta_webhook.persistence_failed", insertErr);
       return Response.json({ error: "webhook_persistence_failed", message: "Failed to persist webhook event." }, { status: 500 });
     }
+
+    const { data: existing } = await supabase.from("webhook_events")
+      .select("id,status,retry_count,dead_lettered_at")
+      .eq("organization_id", activeConnection.organization_id)
+      .eq("provider", "whatsapp")
+      .eq("external_event_id", externalEventId)
+      .maybeSingle();
+
+    if (!existing || existing.status !== "failed") {
+      logger.info("meta_webhook.duplicate_event_ignored");
+      return Response.json({ received: true, duplicate: true, status: "duplicate_event_ignored" }, { status: 200 });
+    }
+
+    const previousAttempts = Number(existing.retry_count ?? 1);
+    if (existing.dead_lettered_at || previousAttempts >= MAX_WEBHOOK_ATTEMPTS) {
+      if (!existing.dead_lettered_at) {
+        await supabase.from("webhook_events").update({ dead_lettered_at: new Date().toISOString(), next_retry_at: null })
+          .eq("id", existing.id).eq("organization_id", activeConnection.organization_id);
+        await recordWhatsAppAuditEvent({ organizationId: activeConnection.organization_id, eventType: "webhook_dead_lettered",
+          metadata: { eventId: existing.id, retryCount: previousAttempts, reason: "retry_limit_reached" } });
+      }
+      return Response.json({ received: true, duplicate: true, status: "dead_lettered" }, { status: 200 });
+    }
+
+    attemptCount = previousAttempts + 1;
+    const { data: claimed } = await supabase.from("webhook_events").update({
+      status: "received", error_message: null, retry_count: attemptCount,
+      last_attempt_at: new Date().toISOString(), next_retry_at: null,
+    }).eq("id", existing.id).eq("organization_id", activeConnection.organization_id).eq("status", "failed")
+      .select("id").maybeSingle();
+    if (!claimed?.id) return Response.json({ received: true, duplicate: true, status: "duplicate_event_ignored" }, { status: 200 });
+    eventId = claimed.id;
+    retryingFailedEvent = true;
   }
 
   if (!eventId) return Response.json({ error: "webhook_persistence_failed" }, { status: 500 });
-  logger.info(retryingFailedEvent ? "meta_webhook.failed_event_retry_started" : "meta_webhook.event_received", { eventId, eventType });
+  logger.info(retryingFailedEvent ? "meta_webhook.failed_event_retry_started" : "meta_webhook.event_received", { eventId, eventType, attemptCount });
+
   if (messages) {
     try {
       const inbound = parseWhatsAppInbound(value ?? {});
-      const persisted = await persistWhatsAppInbound({
-        organizationId: activeConnection.organization_id,
-        connectionId: activeConnection.id,
-        messages: inbound,
-      });
-      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", eventId);
-      logger.info("meta_webhook.inbound_messages_persisted", {
-        eventId,
-        count: persisted.length,
-        duplicates: persisted.filter((item) => item.duplicate).length,
-      });
+      const persisted = await persistWhatsAppInbound({ organizationId: activeConnection.organization_id, connectionId: activeConnection.id, messages: inbound });
+      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString(), next_retry_at: null })
+        .eq("id", eventId).eq("organization_id", activeConnection.organization_id);
+      logger.info("meta_webhook.inbound_messages_persisted", { eventId, count: persisted.length, duplicates: persisted.filter((item) => item.duplicate).length });
     } catch (err) {
-      await supabase.from("webhook_events").update({ status: "failed", error_message: "inbound_persistence_failed" }).eq("id", eventId);
-      logger.error("meta_webhook.inbound_persistence_failed", err, { eventId });
-      return Response.json({ error: "inbound_persistence_failed" }, { status: 500 });
+      const deadLetter = await markWebhookFailure({ eventId, organizationId: activeConnection.organization_id, attemptCount, errorMessage: "inbound_persistence_failed" });
+      logger.error("meta_webhook.inbound_persistence_failed", err, { eventId, attemptCount, deadLetter });
+      return deadLetter ? Response.json({ received: true, status: "dead_lettered" }, { status: 200 }) : Response.json({ error: "inbound_persistence_failed" }, { status: 500 });
     }
-  } else if (value?.statuses && Array.isArray(value.statuses)) {
+  } else if (Array.isArray(value?.statuses)) {
     try {
       for (const st of value.statuses as Array<Record<string, unknown>>) {
-        if (typeof st?.id === "string" && typeof st?.status === "string") {
-          const providerMsgId = st.id;
-          const statusVal = st.status;
-          const tsNum = typeof st.timestamp === "string" ? Number(st.timestamp) : typeof st.timestamp === "number" ? st.timestamp : Date.now() / 1000;
-          const tsIso = new Date(tsNum * 1000).toISOString();
-          const errList = Array.isArray(st.errors) ? (st.errors as Array<Record<string, unknown>>) : [];
-          const firstErr = errList[0];
-          const errPayload = st.errors
-            ? {
-                errors: st.errors,
-                error_code: firstErr?.code ? String(firstErr.code) : firstErr?.title ? String(firstErr.title) : "failed",
-                error_message: firstErr?.message ? String(firstErr.message) : firstErr?.title ? String(firstErr.title) : "Delivery failed",
-              }
-            : null;
-
-          await supabase.rpc("update_message_delivery_status", {
-            p_organization_id: activeConnection.organization_id,
-            p_provider_message_id: providerMsgId,
-            p_new_status: statusVal,
-            p_occurred_at: tsIso,
-            p_error_payload: errPayload,
-          });
-        }
+        if (typeof st.id !== "string" || typeof st.status !== "string") continue;
+        const tsNum = typeof st.timestamp === "string" ? Number(st.timestamp) : typeof st.timestamp === "number" ? st.timestamp : Date.now() / 1000;
+        const errList = Array.isArray(st.errors) ? st.errors as Array<Record<string, unknown>> : [];
+        const firstErr = errList[0];
+        await supabase.rpc("update_message_delivery_status", {
+          p_organization_id: activeConnection.organization_id,
+          p_provider_message_id: st.id,
+          p_new_status: st.status,
+          p_occurred_at: new Date(tsNum * 1000).toISOString(),
+          p_error_payload: errList.length ? {
+            errors: errList,
+            error_code: firstErr?.code ? String(firstErr.code) : firstErr?.title ? String(firstErr.title) : "failed",
+            error_message: firstErr?.message ? String(firstErr.message) : firstErr?.title ? String(firstErr.title) : "Delivery failed",
+          } : null,
+        });
       }
-      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", eventId);
-      logger.info("meta_webhook.statuses_updated", { eventId, count: (value.statuses as Array<unknown>).length });
+      await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString(), next_retry_at: null })
+        .eq("id", eventId).eq("organization_id", activeConnection.organization_id);
+      logger.info("meta_webhook.statuses_updated", { eventId, count: value.statuses.length });
     } catch (err) {
-      await supabase.from("webhook_events").update({ status: "failed", error_message: "status_update_failed" }).eq("id", eventId);
-      logger.error("meta_webhook.status_update_failed", err, { eventId });
-      return Response.json({ error: "status_update_failed" }, { status: 500 });
+      const deadLetter = await markWebhookFailure({ eventId, organizationId: activeConnection.organization_id, attemptCount, errorMessage: "status_update_failed" });
+      logger.error("meta_webhook.status_update_failed", err, { eventId, attemptCount, deadLetter });
+      return deadLetter ? Response.json({ received: true, status: "dead_lettered" }, { status: 200 }) : Response.json({ error: "status_update_failed" }, { status: 500 });
     }
   } else {
-    await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", eventId);
+    await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString(), next_retry_at: null })
+      .eq("id", eventId).eq("organization_id", activeConnection.organization_id);
   }
+
   return Response.json({ received: true, eventId }, { status: 200 });
 }

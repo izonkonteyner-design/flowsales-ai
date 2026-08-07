@@ -1,4 +1,4 @@
-export const REQUIRED_DEPLOYMENT_MIGRATION = "0039";
+export const REQUIRED_DEPLOYMENT_MIGRATION = "0040";
 
 const REQUIRED_ENV_GROUPS = [
   { label: "NEXT_PUBLIC_SUPABASE_URL", keys: ["NEXT_PUBLIC_SUPABASE_URL"] },
@@ -38,56 +38,25 @@ export type DeploymentDatabaseStatus = {
   missingTables: string[];
 };
 
-function isConfigured(key: string) {
-  return Boolean(process.env[key]?.trim());
-}
+function isConfigured(key: string) { return Boolean(process.env[key]?.trim()); }
 
 export function getDeploymentEnvironmentStatus() {
-  const missingRequired = REQUIRED_ENV_GROUPS
-    .filter((group) => !group.keys.some(isConfigured))
-    .map((group) => group.label);
-
-  const features = Object.fromEntries(
-    FEATURE_ENV_GROUPS.map((group) => [
-      group.feature,
-      {
-        configured: group.keys.every(isConfigured),
-        missing: group.keys.filter((key) => !isConfigured(key)),
-      },
-    ]),
-  );
-
-  return {
-    ready: missingRequired.length === 0,
-    missingRequired,
-    features,
-  };
+  const missingRequired = REQUIRED_ENV_GROUPS.filter((group) => !group.keys.some(isConfigured)).map((group) => group.label);
+  const features = Object.fromEntries(FEATURE_ENV_GROUPS.map((group) => [group.feature, {
+    configured: group.keys.every(isConfigured), missing: group.keys.filter((key) => !isConfigured(key)),
+  }]));
+  return { ready: missingRequired.length === 0, missingRequired, features };
 }
 
 export function normalizeDeploymentDatabaseStatus(value: unknown): DeploymentDatabaseStatus | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-
   const record = value as Record<string, unknown>;
-  const missingFunctions = Array.isArray(record.missingFunctions)
-    ? record.missingFunctions.filter((item): item is string => typeof item === "string")
-    : [];
-  const missingTables = Array.isArray(record.missingTables)
-    ? record.missingTables.filter((item): item is string => typeof item === "string")
-    : [];
+  const missingFunctions = Array.isArray(record.missingFunctions) ? record.missingFunctions.filter((item): item is string => typeof item === "string") : [];
+  const missingTables = Array.isArray(record.missingTables) ? record.missingTables.filter((item): item is string => typeof item === "string") : [];
   const latestMigration = typeof record.latestMigration === "string" ? record.latestMigration : null;
-  const requiredMigration =
-    typeof record.requiredMigration === "string" ? record.requiredMigration : REQUIRED_DEPLOYMENT_MIGRATION;
-
+  const requiredMigration = typeof record.requiredMigration === "string" ? record.requiredMigration : REQUIRED_DEPLOYMENT_MIGRATION;
   return {
-    ready:
-      record.ready === true &&
-      latestMigration !== null &&
-      latestMigration >= requiredMigration &&
-      missingFunctions.length === 0 &&
-      missingTables.length === 0,
-    latestMigration,
-    requiredMigration,
-    missingFunctions,
-    missingTables,
+    ready: record.ready === true && latestMigration !== null && latestMigration >= requiredMigration && missingFunctions.length === 0 && missingTables.length === 0,
+    latestMigration, requiredMigration, missingFunctions, missingTables,
   };
 }

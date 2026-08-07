@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadWorkspaceContext } from "@/server/services/workspace-context";
 import { WhatsAppOutboundService } from "@/server/services/integrations/whatsapp-outbound";
+import { recordWhatsAppAuditEvent } from "@/server/services/whatsapp-audit";
 
 interface RouteParams {
   params: Promise<{
@@ -40,6 +41,17 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
       conversationId,
       text,
       clientIdempotencyKey,
+    });
+
+    await recordWhatsAppAuditEvent({
+      organizationId: ctx.organization.id,
+      conversationId,
+      messageId: result.data?.messageId ?? null,
+      actorUserId: ctx.userId,
+      eventType: result.success ? "message_sent" : "message_failed",
+      metadata: result.success
+        ? { status: result.data?.status ?? "sent" }
+        : { errorCode: result.errorCode ?? "send_failed" },
     });
 
     if (!result.success) {

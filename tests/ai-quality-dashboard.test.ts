@@ -84,11 +84,11 @@ test("AI quality response parser fails closed", () => {
   assert.throws(() => aiQualityDashboardSchema.parse({ generatedAt: "bad", summary: {}, segments: [], evaluations: [], risks: [] }));
 });
 
-test("AI quality migration remains registered while deployment readiness advances to 0039", async () => {
+test("AI quality migration remains registered while deployment readiness advances to 0040", async () => {
   const sql = await readFile(migration, "utf8");
   const readiness = await source("server/services/deployment-readiness.ts");
   assert.match(sql, /values \('0025', 'ai_quality_dashboard'\)/i);
   assert.match(sql, /v_required_version constant text := '0025'/i);
   assert.match(sql, /get_ai_quality_dashboard/i);
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0039"/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0040"/);
 });

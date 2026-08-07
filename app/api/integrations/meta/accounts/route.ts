@@ -3,11 +3,13 @@ import { loadWorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { selectMetaMessagingAccount, type MetaMessagingProvider } from "@/server/services/integrations/meta-messaging-oauth";
 
-async function context() {
+type AuthenticatedContext = NonNullable<Awaited<ReturnType<typeof loadWorkspaceContext>>> & { userId: string };
+
+async function context(): Promise<AuthenticatedContext | null> {
   const ctx = await loadWorkspaceContext();
   if (!ctx?.userId) return null;
   if (ctx.mode === "demo" || !["owner", "admin"].includes(ctx.role)) return null;
-  return ctx;
+  return { ...ctx, userId: ctx.userId } as AuthenticatedContext;
 }
 
 export async function GET(request: NextRequest) {

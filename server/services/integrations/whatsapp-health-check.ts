@@ -2,6 +2,7 @@ import { validateWhatsAppServerConfig } from './whatsapp-config';
 import { MetaGraphClient, MetaGraphError } from './meta-graph-client';
 import { WhatsAppConnectionsRepository } from '@/server/repositories/supabase/whatsapp-connections';
 import { decryptToken } from './encryption';
+import { createSupabaseAdminClient } from '@/lib/supabase/server-admin';
 
 export interface HealthCheckResult {
   status: 'healthy' | 'degraded' | 'expired' | 'revoked' | 'configuration_required' | 'error';
@@ -100,12 +101,30 @@ export class WhatsAppHealthCheckService {
       const phoneNumbers = await this.metaClient.getWabaPhoneNumbers(connection.waba_id, accessToken);
       const phoneNumberAccess = phoneNumbers.some(p => p.id === connection.phone_number_id);
 
-      const webhookSubscribed = Boolean(connection.webhook_subscribed_at);
+      let webhookSubscribed = Boolean(connection.webhook_subscribed_at);
+      if (wabaAccess && phoneNumberAccess && !webhookSubscribed) {
+        webhookSubscribed = await this.metaClient.subscribeWabaToApp(connection.waba_id, accessToken);
+        if (webhookSubscribed) {
+          const supabase = createSupabaseAdminClient();
+          await supabase
+            .from('channel_connections')
+            .update({ webhook_subscribed_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .eq('id', connection.id)
+            .eq('organization_id', organizationId);
+        }
+      }
 
-      const isHealthy = wabaAccess && phoneNumberAccess;
+      const isHealthy = wabaAccess && phoneNumberAccess && webhookSubscribed;
       const status = isHealthy ? 'healthy' : 'degraded';
+      const errorCode = !webhookSubscribed ? 'webhook_subscription_missing' : undefined;
+      const errorMessage = !webhookSubscribed ? 'WhatsApp webhook subscription is missing and automatic recovery did not succeed.' : undefined;
 
-      await this.repository.updateHealthCheckStatus(connection.id, isHealthy ? 'connected' : 'error');
+      await this.repository.updateHealthCheckStatus(
+        connection.id,
+        isHealthy ? 'connected' : 'error',
+        errorCode,
+        errorMessage,
+      );
 
       return {
         status,
@@ -113,12 +132,13 @@ export class WhatsAppHealthCheckService {
         phoneNumberAccess,
         webhookSubscribed,
         checkedAt,
+        ...(errorCode ? { errorCode, errorMessage } : {}),
       };
     } catch (err: unknown) {
       const isMetaErr = err instanceof MetaGraphError;
       const errCode = isMetaErr ? err.code : 'health_check_failed';
       const errMsg = err instanceof Error ? err.message : 'WhatsApp health check failed.';
-      const isExpired = errCode === 'code_already_used' || errMsg.includes('expired') || errMsg.includes('OAuth');
+      const isExpired = errCode === 'code_already_used' || errMsg.toLowerCase().includes('expired') || errMsg.includes('OAuth');
       const status = isExpired ? 'expired' : 'error';
 
       await this.repository.updateHealthCheckStatus(connection.id, isExpired ? 'expired' : 'error', errCode, errMsg);

@@ -112,13 +112,13 @@ export async function POST(request: Request) {
       liveCount: liveTemplates.length,
       purgedCount: deletedLocalIds.length,
       purgedTemplates: deletedLocalIds,
-      templates: liveTemplates.map((t) => ({
-        id: t.id,
-        name: t.name,
-        language: t.language,
-        status: t.status,
-        category: t.category,
-        components: t.components,
+      templates: liveTemplates.map((t: Record<string, unknown>) => ({
+        id: String(t.id || ''),
+        name: String(t.name || ''),
+        language: String(t.language || ''),
+        status: String(t.status || ''),
+        category: String(t.category || ''),
+        components: (t.components as Array<Record<string, unknown>>) || [],
       })),
     });
   }

@@ -5,9 +5,10 @@ import { listOmnichannelConversationAuditEvents, recordOmnichannelReviewEvent } 
 async function contextForConversation(context: { params: Promise<{ conversationId: string }> }) {
   const workspace = await loadWorkspaceContext();
   if (!workspace?.userId) return { error: Response.json({ error: "unauthorized" }, { status: 401 }) } as const;
+  const userId = workspace.userId;
   const { conversationId } = await context.params;
   if (!z.string().uuid().safeParse(conversationId).success) return { error: Response.json({ error: "invalid_conversation" }, { status: 400 }) } as const;
-  return { workspace, conversationId } as const;
+  return { workspace, userId, conversationId } as const;
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ conversationId: string }> }) {
@@ -30,7 +31,7 @@ export async function POST(request: Request, context: { params: Promise<{ conver
   await recordOmnichannelReviewEvent({
     organizationId: resolved.workspace.organization.id,
     conversationId: resolved.conversationId,
-    userId: resolved.workspace.userId,
+    userId: resolved.userId,
   });
   return Response.json({ success: true });
 }

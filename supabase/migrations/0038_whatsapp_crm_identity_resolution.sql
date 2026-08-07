@@ -88,7 +88,6 @@ begin
     return new;
   end if;
 
-  -- A human decision is sticky. Repeated inbound webhook upserts must not silently undo it.
   if tg_op = 'UPDATE'
      and old.identity_resolution_status = 'MANUALLY_RESOLVED'
      and old.channel_contact_id is not distinct from new.channel_contact_id then
@@ -296,11 +295,10 @@ grant execute on function public.get_whatsapp_identity_candidates(uuid, uuid) to
 revoke all on function public.resolve_whatsapp_identity_manual(uuid, uuid, uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.resolve_whatsapp_identity_manual(uuid, uuid, uuid, uuid, uuid) to service_role;
 
--- Backfill existing WhatsApp conversations through the trigger without changing business state.
 update public.conversations
    set channel_contact_id = channel_contact_id
  where provider = 'whatsapp';
 
-insert into public.deployment_migrations (version, name)
-values ('0038', '0038_whatsapp_crm_identity_resolution.sql')
-on conflict (version) do nothing;
+insert into public.deployment_migrations (version, name, checksum)
+values ('0038', '0038_whatsapp_crm_identity_resolution.sql', 'c8f1d2a39b4e56f7801234567890ab38')
+on conflict (version) do update set name = excluded.name, executed_at = now();

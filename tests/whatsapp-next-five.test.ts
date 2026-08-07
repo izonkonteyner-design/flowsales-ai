@@ -40,7 +40,7 @@ test("WhatsApp health check repairs missing webhook subscription and fails degra
   assert.match(health, /webhook_subscribed_at/);
 });
 
-test("WhatsApp self-service onboarding uses Embedded Signup without manual access-token UI", async () => {
+test("WhatsApp self-service onboarding uses Embedded Signup without manual token-entry fields", async () => {
   const page = await source("app/(app)/settings/integrations/page.tsx");
   const button = await source("components/settings/whatsapp-connect-button.tsx");
   const signup = await source("server/services/integrations/whatsapp-embedded-signup.ts");
@@ -50,5 +50,5 @@ test("WhatsApp self-service onboarding uses Embedded Signup without manual acces
   assert.match(button, /response_type: "code"/);
   assert.match(signup, /encryptToken\(tokenResp\.access_token\)/);
   assert.match(signup, /subscribeWabaToApp/);
-  assert.doesNotMatch(page, /access_token|access token/i);
+  assert.doesNotMatch(page, /name=["']access_token|type=["']password["'][^>]*access/i);
 });

@@ -7,6 +7,7 @@ import {
 import { loadWorkspaceContext, createDemoWorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { recordWhatsAppAuditEvent } from "@/server/services/whatsapp-audit";
+import { sendOmnichannelReply } from "@/server/services/integrations/omnichannel-outbound";
 
 export class OmnichannelInboxService {
   private repo = new OmnichannelInboxRepository();
@@ -119,6 +120,26 @@ export class OmnichannelInboxService {
       await recordWhatsAppAuditEvent({ organizationId: ctx.organizationId, conversationId, actorUserId: ctx.userId,
         eventType: "conversation_assignee_changed", metadata: { assignedUserId } });
     }
+    return result;
+  }
+
+  async sendReply(params: { conversationId: string; text: string; clientIdempotencyKey: string }) {
+    const ctx = await this.resolveContext();
+    const result = await sendOmnichannelReply({
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+      userRole: ctx.userRole,
+      conversationId: params.conversationId,
+      text: params.text,
+      clientIdempotencyKey: params.clientIdempotencyKey,
+    });
+    await recordWhatsAppAuditEvent({
+      organizationId: ctx.organizationId,
+      conversationId: params.conversationId,
+      actorUserId: ctx.userId,
+      eventType: result.success ? "message_sent" : "message_failed",
+      metadata: { channelDispatch: true, errorCode: result.success ? null : result.errorCode ?? null },
+    });
     return result;
   }
 

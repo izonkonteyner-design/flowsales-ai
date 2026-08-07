@@ -20,7 +20,6 @@ export async function GET(request: NextRequest) {
   const rawProvider = searchParams.get("provider") ?? "facebook";
   const hasCode = searchParams.has("code");
   const hasError = searchParams.has("error");
-
   const allowedMetaProviders: ChannelProvider[] = ["whatsapp", "instagram", "facebook"];
   if (!allowedMetaProviders.includes(rawProvider as ChannelProvider)) return jsonError(400, "invalid_provider", "provider must be one of: whatsapp, instagram, facebook");
   const provider = rawProvider as ChannelProvider;
@@ -35,11 +34,9 @@ export async function GET(request: NextRequest) {
     const stateRecord = await consumeOAuthState(rawStateToken, provider, ctx.organizationId, ctx.userId);
     if (!process.env.META_APP_ID?.trim() && !process.env.NEXT_PUBLIC_META_APP_ID?.trim()) throw new OAuthConfigurationRequiredError(provider);
     if (!process.env.TOKEN_ENCRYPTION_KEY?.trim()) throw new OAuthTokenEncryptionNotConfiguredError();
-
-    // WhatsApp uses its dedicated Embedded Signup callback and production-verified flow.
     if (provider === "whatsapp") redirect(stateRecord.returnPath);
 
-    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/meta/callback`;
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/meta/callback?provider=${provider}`;
     const exchanged = await exchangeMetaCode(searchParams.get("code")!, redirectUri);
     const connection = await upsertChannelConnection({
       organizationId: ctx.organizationId,

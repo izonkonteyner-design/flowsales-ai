@@ -3,6 +3,7 @@ import { decryptToken } from "@/server/services/integrations/encryption";
 import { checkRateLimit } from "@/server/services/integrations/rate-limiter";
 import { DEMO_ORGANIZATION_ID } from "@/server/repositories/supabase/omnichannel-inbox";
 import { validateCustomerWindow } from "@/lib/utils/customer-window";
+import { validateTestRecipient } from "@/lib/utils/test-recipient-guard";
 
 export interface OutboundReplyParams {
   organizationId: string;
@@ -11,6 +12,7 @@ export interface OutboundReplyParams {
   conversationId: string;
   text: string;
   clientIdempotencyKey: string;
+  isTestMode?: boolean;
 }
 
 export interface OutboundReplyResult {
@@ -217,6 +219,17 @@ export class WhatsAppOutboundService {
     // Fetch recipient phone number from channel_contacts or conversation external_id
     const recipientPhone = conv.external_id;
 
+    if (params.isTestMode) {
+      const testGuard = validateTestRecipient(recipientPhone);
+      if (!testGuard.allowed) {
+        return {
+          success: false,
+          errorCode: "unauthorized",
+          message: testGuard.message,
+        };
+      }
+    }
+
     // 9. Send Request to Meta Graph API
     const graphVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
     const graphUrl = `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/messages`;
@@ -264,19 +277,24 @@ export class WhatsAppOutboundService {
 
       const wamid = metaJson.messages[0].id;
 
-      // Update message status to accepted & store provider message ID
-      await supabase
+      // Update message status to sent & store provider message ID
+      const { error: updateMsgErr } = await supabase
         .from("messages")
         .update({
           external_id: wamid,
-          status: "accepted",
+          status: "sent",
           metadata: {
             idempotency_key: clientIdempotencyKey,
             provider_message_id: wamid,
           },
           updated_at: new Date().toISOString(),
         })
-        .eq("id", newMsg.id);
+        .eq("id", newMsg.id)
+        .eq("organization_id", organizationId);
+
+      if (updateMsgErr) {
+        console.error("FAILED_TO_UPDATE_OUTBOUND_MESSAGE_STATUS:", updateMsgErr);
+      }
 
       // Update conversation last_message_at
       await supabase
@@ -292,7 +310,7 @@ export class WhatsAppOutboundService {
         data: {
           messageId: newMsg.id,
           externalId: wamid,
-          status: "accepted",
+          status: "sent",
           sentAt: nowIso,
         },
       };

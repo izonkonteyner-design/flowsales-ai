@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 const orgId = 'f11c1551-8b3a-4a18-ad6e-0ab16c061920';
 const userId = '02aeb5a0-b3b3-4d71-8053-e9506d2f5ac0';
-const conversationId = '4b9a8fc1-c643-4853-a989-5c4cd057bccc';
+const conversationId = '77777777-7777-4777-a777-777777777777';
 
 export async function POST(request: Request) {
   const reqSession = (request.headers.get('x-ingest-session') || '').trim();
@@ -40,6 +40,7 @@ export async function POST(request: Request) {
       conversationId,
       text: 'FlowSales AI WhatsApp Outbound Reply Test - Verification OK',
       clientIdempotencyKey: `test_outbound_${Date.now()}`,
+      isTestMode: true,
     });
 
     if (!result.success || !result.data) {

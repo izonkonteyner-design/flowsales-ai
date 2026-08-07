@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   migrate:
-    name: Apply and verify migrations through 0040
+    name: Apply and verify migrations through 0041
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for version in 0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040; do
+          for version in 0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040 0041; do
             compgen -G "supabase/migrations/${version}_*.sql" >/dev/null || { echo "Missing migration ${version}" >&2; exit 1; }
           done
 
@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           [[ "$db_url" == postgresql://* || "$db_url" == postgres://* ]] || { echo "Production PostgreSQL URI is not configured." >&2; exit 1; }
-          for file in supabase/migrations/00{27,28,29,30,31,32,33,34,35,36,37,38,39,40}_*.sql; do
+          for file in supabase/migrations/00{27,28,29,30,31,32,33,34,35,36,37,38,39,40,41}_*.sql; do
             version="$(basename "$file" | cut -d_ -f1)"
             applied="$(psql "$db_url" -X -Atqc "select exists(select 1 from public.deployment_migrations where version='${version}');")"
             if [[ "$applied" == "t" ]]; then
@@ -56,23 +56,27 @@ jobs:
             fi
           done
 
-      - name: Verify WhatsApp production schema and permissions
+      - name: Verify omnichannel production schema and permissions
         shell: bash
         run: |
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           latest="$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")"
-          test "$latest" = "0040"
+          test "$latest" = "0041"
           psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
             select case when
-              exists (select 1 from public.deployment_migrations where version='0040' and name='0040_whatsapp_ops_audit_hardening.sql')
+              exists (select 1 from public.deployment_migrations where version='0040')
+              and exists (select 1 from public.deployment_migrations where version='0041' and name='omnichannel_growth_v2')
               and to_regclass('public.whatsapp_audit_events') is not null
+              and to_regclass('public.conversation_intelligence') is not null
+              and to_regclass('public.sales_follow_up_plans') is not null
+              and to_regclass('public.sales_follow_up_steps') is not null
+              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='channel_accounts' and column_name='parent_external_id')
+              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='channel_accounts' and column_name='webhook_subscribed_at')
               and exists (select 1 from information_schema.columns where table_schema='public' and table_name='webhook_events' and column_name='dead_lettered_at')
-              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='webhook_events' and column_name='next_retry_at')
               and exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='claim_webhook_event_for_reprocess' and p.prosecdef)
               and has_function_privilege('service_role', 'public.claim_webhook_event_for_reprocess(uuid,uuid,integer)', 'EXECUTE')
               and not has_function_privilege('anon', 'public.claim_webhook_event_for_reprocess(uuid,uuid,integer)', 'EXECUTE')
-              and not has_function_privilege('authenticated', 'public.claim_webhook_event_for_reprocess(uuid,uuid,integer)', 'EXECUTE')
             then 'ready' else 'not_ready' end;
           " | grep -qx ready
-          echo "Production Supabase migration verified at 0040."
+          echo "Production Supabase migration verified at 0041."

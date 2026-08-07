@@ -88,6 +88,56 @@ $$;
 revoke all on function public.persist_whatsapp_inbound_message(uuid,uuid,text,text,text,text,text,timestamptz,jsonb,jsonb) from public, anon, authenticated;
 grant execute on function public.persist_whatsapp_inbound_message(uuid,uuid,text,text,text,text,text,timestamptz,jsonb,jsonb) to service_role;
 
+-- Re-evaluate existing WhatsApp channel contacts using the canonical phone rule.
+-- This is organization-scoped and fail-closed: duplicates clear automatic links.
+do $$
+declare
+  r record;
+  v_normalized text;
+  v_contact_matches integer;
+  v_lead_matches integer;
+  v_contact_id uuid;
+  v_lead_id uuid;
+begin
+  for r in
+    select id, organization_id, phone_number
+      from public.channel_contacts
+     where provider = 'whatsapp' and phone_number is not null
+  loop
+    v_normalized := public.normalize_crm_phone(r.phone_number);
+
+    select count(*), case when count(*) = 1 then (array_agg(id order by id))[1] else null end
+      into v_contact_matches, v_contact_id
+      from public.contacts
+     where organization_id = r.organization_id
+       and public.normalize_crm_phone(coalesce(phone, '')) = v_normalized;
+
+    select count(*), case when count(*) = 1 then (array_agg(id order by id))[1] else null end
+      into v_lead_matches, v_lead_id
+      from public.leads
+     where organization_id = r.organization_id
+       and public.normalize_crm_phone(coalesce(phone, '')) = v_normalized;
+
+    update public.channel_contacts
+       set contact_id = case when v_contact_matches = 1 then v_contact_id else null end,
+           lead_id = case when v_lead_matches = 1 then v_lead_id else null end,
+           metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
+             'crm_contact_match', case when v_contact_matches > 1 then 'ambiguous' when v_contact_matches = 1 then 'matched' else 'none' end,
+             'lead_match', case when v_lead_matches > 1 then 'ambiguous' when v_lead_matches = 1 then 'matched' else 'none' end,
+             'normalized_phone', v_normalized
+           ),
+           updated_at = now()
+     where id = r.id and organization_id = r.organization_id;
+  end loop;
+end;
+$$;
+
+-- Re-run identity resolution for existing WhatsApp conversations. The 0038 trigger
+-- preserves sticky MANUALLY_RESOLVED decisions while refreshing automatic matches.
+update public.conversations
+   set channel_contact_id = channel_contact_id
+ where provider = 'whatsapp';
+
 create or replace function public.deployment_readiness()
 returns jsonb language plpgsql security definer set search_path = public, pg_catalog as $$
 declare

@@ -42,24 +42,25 @@ export async function POST(request: Request) {
       clientIdempotencyKey: `test_outbound_${Date.now()}`,
     });
 
-    if (!result.success) {
-      return NextResponse.json({ error: result.errorCode, message: result.message }, { status: 500 });
+    if (!result.success || !result.data) {
+      return NextResponse.json({ error: result.errorCode || 'send_failed', message: result.message }, { status: 500 });
     }
 
-    const wamid = result.data.wamid;
+    const { externalId, messageId, status } = result.data;
 
     // Verify DB persistence
     const { data: dbMsg } = await supabase
       .from('messages')
       .select('id, conversation_id, organization_id, external_id, status, created_at')
-      .eq('id', result.data.messageId)
+      .eq('id', messageId)
       .single();
 
     return NextResponse.json({
       success: true,
-      wamid,
-      messageId: result.data.messageId,
-      status: result.data.status,
+      wamid: externalId,
+      externalId,
+      messageId,
+      status,
       persistedDbMessage: dbMsg,
     });
   } catch (err: unknown) {

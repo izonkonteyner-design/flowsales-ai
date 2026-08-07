@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ConversationSummaryDTO, ConversationDetailDTO } from "@/server/repositories/supabase/omnichannel-inbox";
 import { ConversationList } from "@/components/inbox/conversation-list";
 import { ConversationView } from "@/components/inbox/conversation-view";
+import { CrmIdentityPanel } from "@/components/inbox/crm-identity-panel";
 import { fetchInboxDataAction, fetchConversationDetailAction } from "@/app/(app)/inbox/actions";
 
 interface InboxShellProps {
@@ -30,7 +31,6 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
   const [isListLoading, setIsListLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
 
-  // Load conversation list on filter changes
   useEffect(() => {
     let isMounted = true;
 
@@ -48,7 +48,6 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
         setUserRole(res.userRole);
         setIsDemo(res.isDemo);
 
-        // Auto select first conversation if none selected
         if (!selectedId && res.conversations.length > 0) {
           setSelectedId(res.conversations[0].id);
         }
@@ -67,7 +66,6 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
     };
   }, [statusFilter, providerFilter, assigneeFilter, searchQuery, selectedId]);
 
-  // Load selected conversation detail
   useEffect(() => {
     let isMounted = true;
 
@@ -120,7 +118,6 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
 
   return (
     <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/90 shadow-2xl backdrop-blur-xl">
-      {/* Left Sidebar (Conversation List & Filters) */}
       <div className="w-full max-w-xs md:max-w-sm shrink-0">
         <ConversationList
           conversations={conversations}
@@ -139,16 +136,24 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
         />
       </div>
 
-      {/* Right Main Pane (Conversation Detail & Message Timeline) */}
-      <div className="flex-1">
-        <ConversationView
-          conversation={activeConversation}
-          isLoading={isDetailLoading}
-          userRole={userRole}
-          isDemo={isDemo}
-          organizationMembers={organizationMembers}
-          onRefresh={handleRefresh}
-        />
+      <div className="flex min-w-0 flex-1 flex-col">
+        {!isDetailLoading && activeConversation?.provider === "whatsapp" && (
+          <CrmIdentityPanel
+            conversationId={activeConversation.id}
+            isReadOnly={userRole === "viewer" || isDemo}
+            onChanged={handleRefresh}
+          />
+        )}
+        <div className="min-h-0 flex-1">
+          <ConversationView
+            conversation={activeConversation}
+            isLoading={isDetailLoading}
+            userRole={userRole}
+            isDemo={isDemo}
+            organizationMembers={organizationMembers}
+            onRefresh={handleRefresh}
+          />
+        </div>
       </div>
     </div>
   );

@@ -1,6 +1,5 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { decryptToken } from "@/server/services/integrations/encryption";
-import { checkRateLimit } from "@/server/services/integrations/rate-limiter";
 import { DEMO_ORGANIZATION_ID } from "@/server/repositories/supabase/omnichannel-inbox";
 import { validateTestRecipient } from "@/lib/utils/test-recipient-guard";
 
@@ -93,7 +92,6 @@ export class WhatsAppTemplateService {
       isTestMode,
     } = params;
 
-    // 1. Authorization check
     if (userRole === "viewer" || organizationId === DEMO_ORGANIZATION_ID) {
       return { success: false, errorCode: "unauthorized", message: "User is not authorized to send template messages." };
     }
@@ -102,7 +100,6 @@ export class WhatsAppTemplateService {
       return { success: false, errorCode: "invalid_input", message: "Template name and language code are required." };
     }
 
-    // 2. Fetch template definition from catalog
     const supabase = createSupabaseAdminClient();
     const { data: tplRow, error: tplErr } = await supabase
       .from("whatsapp_templates")
@@ -128,7 +125,6 @@ export class WhatsAppTemplateService {
       };
     }
 
-    // 3. Validate parameter counts against template structure
     const components = (tplRow.components as Array<{ type: string; text?: string }>) || [];
     const bodyComp = components.find((c) => c.type === "BODY");
 
@@ -144,7 +140,6 @@ export class WhatsAppTemplateService {
       }
     }
 
-    // 4. Fetch Active Connection & Access Token
     const { data: conv } = await supabase
       .from("conversations")
       .select("id, organization_id, connection_id, external_id")
@@ -195,7 +190,6 @@ export class WhatsAppTemplateService {
       return { success: false, errorCode: "connection_required", message: "Failed to decrypt connection token." };
     }
 
-    // 5. Build Meta Cloud API Payload
     const templateComponents: Array<Record<string, unknown>> = [];
 
     if (headerParameters.length > 0) {
@@ -235,7 +229,6 @@ export class WhatsAppTemplateService {
       },
     };
 
-    // 6. Insert pending message record
     const nowIso = new Date().toISOString();
     const renderedBody = `[Template: ${templateName}] ${bodyParameters.join(" | ")}`.trim();
 
@@ -264,7 +257,6 @@ export class WhatsAppTemplateService {
       return { success: false, errorCode: "send_failed", message: "Failed to persist outbound template message." };
     }
 
-    // 7. Post to Meta Graph API
     const graphVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
     const graphUrl = `https://graph.facebook.com/${graphVersion}/${conn.phone_number_id}/messages`;
 

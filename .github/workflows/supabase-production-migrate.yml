@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   migrate:
-    name: Apply and verify migrations through 0034
+    name: Apply and verify migrations through 0039
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for version in 0027 0028 0029 0030 0031 0032 0033 0034; do
+          for version in 0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039; do
             compgen -G "supabase/migrations/${version}_*.sql" >/dev/null || { echo "Missing migration ${version}" >&2; exit 1; }
           done
 
@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           [[ "$db_url" == postgresql://* || "$db_url" == postgres://* ]] || { echo "Production PostgreSQL URI is not configured." >&2; exit 1; }
-          for file in supabase/migrations/00{27,28,29,30,31,32,33,34}_*.sql; do
+          for file in supabase/migrations/00{27,28,29,30,31,32,33,34,35,36,37,38,39}_*.sql; do
             version="$(basename "$file" | cut -d_ -f1)"
             applied="$(psql "$db_url" -X -Atqc "select exists(select 1 from public.deployment_migrations where version='${version}');")"
             if [[ "$applied" == "t" ]]; then
@@ -62,15 +62,21 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           latest="$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")"
-          test "$latest" = "0034"
+          test "$latest" = "0039"
           psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
             select case when
-              exists (select 1 from public.deployment_migrations where version='0032' and name='0032_whatsapp_inbound_conversations.sql')
-              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='conversations' and column_name='unread_count')
+              exists (select 1 from public.deployment_migrations where version='0038' and name='0038_whatsapp_crm_identity_resolution.sql')
+              and exists (select 1 from public.deployment_migrations where version='0039' and name='0039_whatsapp_canonical_phone_matching.sql')
+              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='conversations' and column_name='customer_id')
+              and exists (select 1 from information_schema.columns where table_schema='public' and table_name='conversations' and column_name='identity_resolution_status')
+              and to_regclass('public.conversation_identity_resolution_audit') is not null
+              and exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='normalize_crm_phone')
               and exists (select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='persist_whatsapp_inbound_message' and p.prosecdef)
               and has_function_privilege('service_role', 'public.persist_whatsapp_inbound_message(uuid,uuid,text,text,text,text,text,timestamptz,jsonb,jsonb)', 'EXECUTE')
-              and not has_function_privilege('anon', 'public.persist_whatsapp_inbound_message(uuid,uuid,text,text,text,text,text,timestamptz,jsonb,jsonb)', 'EXECUTE')
-              and not has_function_privilege('authenticated', 'public.persist_whatsapp_inbound_message(uuid,uuid,text,text,text,text,text,timestamptz,jsonb,jsonb)', 'EXECUTE')
+              and has_function_privilege('service_role', 'public.get_whatsapp_identity_candidates(uuid,uuid)', 'EXECUTE')
+              and has_function_privilege('service_role', 'public.resolve_whatsapp_identity_manual(uuid,uuid,uuid,uuid,uuid)', 'EXECUTE')
+              and not has_function_privilege('anon', 'public.get_whatsapp_identity_candidates(uuid,uuid)', 'EXECUTE')
+              and not has_function_privilege('authenticated', 'public.resolve_whatsapp_identity_manual(uuid,uuid,uuid,uuid,uuid)', 'EXECUTE')
             then 'ready' else 'not_ready' end;
           " | grep -qx ready
-          echo "Production Supabase migration verified at 0034."
+          echo "Production Supabase migration verified at 0039."

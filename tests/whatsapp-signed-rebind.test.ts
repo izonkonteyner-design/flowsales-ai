@@ -2,14 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("signed rebind is explicit single-org non-demo and conflict-safe", async () => {
+test("Meta webhook fails closed when WABA or phone cannot be resolved", async () => {
   const route = await readFile("app/api/webhooks/meta/route.ts", "utf8");
-  assert.match(route, /META_AUTO_BIND_SINGLE_OWNER !== "true"/);
-  assert.match(route, /organizationIds\.length !== 1/);
-  assert.match(route, /neq\("organization_id", DEMO_ORGANIZATION_ID\)/);
-  assert.match(route, /conflict && conflict\.organization_id !== organizationId/);
-  assert.match(route, /current\.status !== "connected"/);
-  assert.match(route, /reconcileWhatsAppAccount/);
+  assert.doesNotMatch(route, /META_AUTO_BIND_SINGLE_OWNER/);
+  assert.doesNotMatch(route, /rebindSignedSingleOrganizationConnection/);
+  assert.match(route, /findActiveConnectionForWebhook\(wabaId, phoneNumberId\)/);
+  assert.match(route, /unknown_connection/);
+  assert.match(route, /status: "ignored"/);
 });
 
 test("account reconciliation rejects ambiguity and scopes the update", async () => {

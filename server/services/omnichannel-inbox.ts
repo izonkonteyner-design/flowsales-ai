@@ -142,4 +142,37 @@ export class OmnichannelInboxService {
       assignedUserId,
     });
   }
+
+  async getApprovedTemplates() {
+    const ctx = await this.resolveContext();
+    const { WhatsAppTemplateService } = await import("@/server/services/integrations/whatsapp-template-service");
+    const service = new WhatsAppTemplateService();
+    return service.getApprovedTemplates(ctx.organizationId);
+  }
+
+  async sendTemplateMessage(params: {
+    conversationId: string;
+    templateName: string;
+    languageCode: string;
+    bodyParameters?: string[];
+    headerParameters?: string[];
+  }) {
+    const ctx = await this.resolveContext();
+    const { WhatsAppTemplateService } = await import("@/server/services/integrations/whatsapp-template-service");
+    const service = new WhatsAppTemplateService();
+
+    const clientIdempotencyKey = typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `tpl_${Date.now()}_${Math.random()}`;
+
+    return service.sendTemplateMessage({
+      organizationId: ctx.organizationId,
+      userId: ctx.userId,
+      userRole: ctx.userRole,
+      conversationId: params.conversationId,
+      templateName: params.templateName,
+      languageCode: params.languageCode,
+      bodyParameters: params.bodyParameters || [],
+      headerParameters: params.headerParameters || [],
+      clientIdempotencyKey,
+    });
+  }
 }

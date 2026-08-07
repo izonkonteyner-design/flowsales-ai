@@ -43,3 +43,24 @@ export async function updateConversationAssigneeAction(
   }
   return res;
 }
+
+export async function fetchApprovedTemplatesAction() {
+  const service = new OmnichannelInboxService();
+  return service.getApprovedTemplates();
+}
+
+export async function sendTemplateMessageAction(params: {
+  conversationId: string;
+  templateName: string;
+  languageCode: string;
+  bodyParameters?: string[];
+  headerParameters?: string[];
+}) {
+  const service = new OmnichannelInboxService();
+  const res = await service.sendTemplateMessage(params);
+  if (res.success) {
+    revalidatePath("/inbox");
+    revalidatePath(`/inbox/${params.conversationId}`);
+  }
+  return res;
+}

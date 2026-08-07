@@ -45,6 +45,21 @@ test("Meta messaging webhooks are signature verified and tenant resolution fails
   assert.doesNotMatch(service, /organization.*first|single.*owner/i);
 });
 
+test("Meta outbound replies enforce the standard window and never use HUMAN_AGENT bypass", async () => {
+  const service = await source("server/services/integrations/meta-messaging.ts");
+  const view = await source("components/inbox/meta-conversation-view.tsx");
+  const reply = await source("app/api/inbox/conversations/[conversationId]/reply/route.ts");
+  assert.match(service, /validateCustomerWindow/);
+  assert.match(service, /errorCode: "window_closed"/);
+  assert.match(service, /checkRateLimit/);
+  assert.match(service, /DEMO_ORGANIZATION_ID/);
+  assert.doesNotMatch(service, /HUMAN_AGENT/);
+  assert.match(view, /24h Standard Window/);
+  assert.match(view, /No HUMAN_AGENT or automated bypass is used/);
+  assert.doesNotMatch(view, /Send Approved Template|Approved Meta WhatsApp Templates/);
+  assert.match(reply, /case "window_closed"/);
+});
+
 test("Unified Inbox routes replies for WhatsApp Instagram and Facebook", async () => {
   const reply = await source("app/api/inbox/conversations/[conversationId]/reply/route.ts");
   const shell = await source("components/inbox/inbox-shell.tsx");
@@ -52,6 +67,7 @@ test("Unified Inbox routes replies for WhatsApp Instagram and Facebook", async (
   assert.match(reply, /conversation\.provider === "instagram" \|\| conversation\.provider === "facebook"/);
   assert.match(reply, /sendMetaMessagingReply/);
   assert.match(shell, /\["whatsapp", "instagram", "facebook"\]/);
+  assert.match(shell, /MetaConversationView/);
   assert.match(shell, /ConversationIntelligencePanel/);
 });
 

@@ -24,12 +24,12 @@ export async function POST(request: Request) {
   const supabase = createSupabaseAdminClient();
   let isSessionAuthorized = false;
 
-  if (reqSession.length >= 32) {
+  if (reqSession.startsWith('ingest_session_') && reqSession.length >= 40) {
     const { data: sessionRow } = await supabase
       .from('oauth_states')
       .select('id, expires_at')
       .eq('state_hash', reqSession)
-      .eq('provider', 'whatsapp_token_ingest')
+      .eq('provider', 'whatsapp')
       .gt('expires_at', new Date().toISOString())
       .maybeSingle();
 

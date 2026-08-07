@@ -38,12 +38,27 @@ export async function POST(req: NextRequest, { params }: RouteParams) {
     });
 
     if (!result.success) {
-      const status = result.errorCode === "unauthorized" ? 403
-        : result.errorCode === "not_found" ? 404
-        : result.errorCode === "rate_limit_exceeded" ? 429
-        : result.errorCode === "rate_limit_unavailable" ? 503
-        : result.errorCode === "send_failed" ? 502 : 400;
-      return NextResponse.json({ error: result.errorCode ?? "send_failed", message: result.message }, { status });
+      switch (result.errorCode) {
+        case "template_required":
+          return NextResponse.json({ error: "template_required", message: result.message }, { status: 400 });
+        case "connection_required":
+          return NextResponse.json({ error: "connection_required", message: result.message }, { status: 400 });
+        case "invalid_input":
+          return NextResponse.json({ error: "invalid_input", message: result.message }, { status: 400 });
+        case "unauthorized":
+          return NextResponse.json({ error: "unauthorized", message: result.message }, { status: 403 });
+        case "not_found":
+          return NextResponse.json({ error: "not_found", message: result.message }, { status: 404 });
+        case "rate_limit_exceeded":
+          return NextResponse.json({ error: "rate_limit_exceeded", message: result.message }, { status: 429 });
+        case "rate_limit_unavailable":
+          return NextResponse.json({ error: "rate_limit_unavailable", message: result.message }, { status: 503 });
+        case "unsupported_provider":
+          return NextResponse.json({ error: "unsupported_provider", message: result.message }, { status: 400 });
+        case "send_failed":
+        default:
+          return NextResponse.json({ error: "send_failed", message: result.message }, { status: 502 });
+      }
     }
     return NextResponse.json(result.data, { status: 200 });
   } catch (err: unknown) {

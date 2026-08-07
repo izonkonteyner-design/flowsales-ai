@@ -1,0 +1,68 @@
+import { NextResponse } from 'next/server';
+import { WhatsAppOutboundService } from '@/server/services/integrations/whatsapp-outbound';
+import { createSupabaseAdminClient } from '@/lib/supabase/server-admin';
+
+export const dynamic = 'force-dynamic';
+
+const orgId = 'f11c1551-8b3a-4a18-ad6e-0ab16c061920';
+const userId = '02aeb5a0-b3b3-4d71-8053-e9506d2f5ac0';
+const conversationId = '2c69585a-1afd-4d82-a869-0caefe289d8f';
+
+export async function POST(request: Request) {
+  const reqSession = (request.headers.get('x-ingest-session') || '').trim();
+  const supabase = createSupabaseAdminClient();
+
+  if (!reqSession.startsWith('ingest_session_') || reqSession.length < 40) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data: sessionRow } = await supabase
+    .from('oauth_states')
+    .select('id, expires_at')
+    .eq('state_hash', reqSession)
+    .eq('provider', 'whatsapp')
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+
+  if (!sessionRow) {
+    return NextResponse.json({ error: 'Unauthorized or expired session' }, { status: 401 });
+  }
+
+  // Delete single-use session immediately
+  await supabase.from('oauth_states').delete().eq('id', sessionRow.id);
+
+  try {
+    const outboundService = new WhatsAppOutboundService();
+    const result = await outboundService.sendOutboundReply({
+      organizationId: orgId,
+      userId,
+      userRole: 'owner',
+      conversationId,
+      text: 'FlowSales AI WhatsApp Outbound Reply Test - Verification OK',
+      clientIdempotencyKey: `test_outbound_${Date.now()}`,
+    });
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.errorCode, message: result.message }, { status: 500 });
+    }
+
+    const wamid = result.data.wamid;
+
+    // Verify DB persistence
+    const { data: dbMsg } = await supabase
+      .from('messages')
+      .select('id, conversation_id, organization_id, external_id, status, created_at')
+      .eq('id', result.data.messageId)
+      .single();
+
+    return NextResponse.json({
+      success: true,
+      wamid,
+      messageId: result.data.messageId,
+      status: result.data.status,
+      persistedDbMessage: dbMsg,
+    });
+  } catch (err: unknown) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 });
+  }
+}

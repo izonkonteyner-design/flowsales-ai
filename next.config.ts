@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
+// Deployment refresh marker: reload current Production environment values.
 const nextConfig: NextConfig = {
   /* config options here */
 };

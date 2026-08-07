@@ -4,6 +4,9 @@ import crypto from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { decryptToken } from "@/server/services/integrations/encryption";
 import type { MetaMessagingProvider } from "@/server/services/integrations/meta-messaging-oauth";
+import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/services/integrations/rate-limiter";
+import { validateCustomerWindow } from "@/lib/utils/customer-window";
+import { DEMO_ORGANIZATION_ID } from "@/server/repositories/supabase/omnichannel-inbox";
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || "v21.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -49,7 +52,7 @@ async function findConnectedAccount(provider: MetaMessagingProvider, accountId: 
     .eq("external_account_id", accountId)
     .eq("status", "connected");
   if (error) throw new Error("Failed to resolve Meta messaging connection.");
-  if (!data || data.length !== 1) return null; // fail closed on none or ambiguity
+  if (!data || data.length !== 1) return null;
   return data[0] as { id: string; organization_id: string; external_account_id: string; status: string };
 }
 
@@ -211,7 +214,9 @@ export async function sendMetaMessagingReply(params: {
   text: string;
   clientIdempotencyKey: string;
 }) {
-  if (params.userRole === "viewer") return { success: false as const, errorCode: "unauthorized", message: "Read-only access." };
+  if (params.organizationId === DEMO_ORGANIZATION_ID || params.userRole === "viewer") {
+    return { success: false as const, errorCode: "unauthorized", message: "Read-only access." };
+  }
   const text = params.text?.trim();
   if (!text || text.length > 4000) return { success: false as const, errorCode: "invalid_input", message: "Message text must be between 1 and 4000 characters." };
   if (!params.clientIdempotencyKey || params.clientIdempotencyKey.length > 160) return { success: false as const, errorCode: "invalid_input", message: "A client idempotency key is required." };
@@ -227,6 +232,38 @@ export async function sendMetaMessagingReply(params: {
     .eq("organization_id", params.organizationId).eq("conversation_id", params.conversationId).eq("direction", "outbound")
     .contains("metadata", { client_idempotency_key: params.clientIdempotencyKey }).maybeSingle();
   if (duplicate) return { success: true as const, data: { messageId: duplicate.id, externalMessageId: duplicate.external_id, status: duplicate.status, duplicate: true } };
+
+  const { data: lastInbound } = await admin.from("messages").select("sent_at,created_at")
+    .eq("organization_id", params.organizationId)
+    .eq("conversation_id", params.conversationId)
+    .eq("direction", "inbound")
+    .order("sent_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const window = validateCustomerWindow(lastInbound?.sent_at || lastInbound?.created_at);
+  if (!window.allowed) {
+    return {
+      success: false as const,
+      errorCode: "window_closed",
+      message: "The 24-hour Meta standard messaging window is closed. FlowSales will not send a standard reply outside the permitted window.",
+    };
+  }
+
+  try {
+    const rate = await checkRateLimit(
+      `${params.organizationId}_${params.userId}_${provider}`,
+      "meta_messaging_outbound_reply",
+      30,
+      60_000,
+    );
+    if (!rate.allowed) return { success: false as const, errorCode: "rate_limit_exceeded", message: "Too many outbound replies. Please retry later." };
+  } catch (error) {
+    if (error instanceof DistributedRateLimitUnavailableError) {
+      return { success: false as const, errorCode: "rate_limit_unavailable", message: "Outbound request protection is temporarily unavailable." };
+    }
+    throw error;
+  }
 
   const { data: connection } = await admin.from("channel_connections").select("id,status,external_account_id")
     .eq("id", conversation.connection_id).eq("organization_id", params.organizationId).eq("provider", provider).maybeSingle();

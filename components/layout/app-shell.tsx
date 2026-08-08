@@ -42,8 +42,11 @@ function useThemeMode() {
   useEffect(() => {
     const stored = window.localStorage.getItem("flowsales-theme");
     const nextTheme = stored === "light" || stored === "dark" ? stored : "dark";
-    setTheme(nextTheme);
-    setMounted(true);
+    const frame = window.requestAnimationFrame(() => {
+      setTheme(nextTheme);
+      setMounted(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, []);
   useEffect(() => {
     if (!mounted) return;

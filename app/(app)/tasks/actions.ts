@@ -1,11 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { taskFormSchema } from "@/lib/validations/task";
 import { createWorkspaceTask, updateWorkspaceTaskStatus } from "@/server/services/productivity";
 
-export async function createTaskAction(formData: FormData) {
+export async function createTaskAction(formData: FormData): Promise<void> {
   const parsed = taskFormSchema.safeParse({
     title: formData.get("title"),
     lead_id: formData.get("lead_id") || "",
@@ -13,7 +14,12 @@ export async function createTaskAction(formData: FormData) {
     priority: formData.get("priority"),
     assigned_to: formData.get("assigned_to") || "",
   });
-  if (!parsed.success) return { ok: false, message: "Görev bilgilerini kontrol edin." };
+
+  if (!parsed.success) {
+    redirect("/tasks?toast=Görev%20bilgilerini%20kontrol%20edin.&tone=danger");
+  }
+
+  let failureMessage: string | null = null;
   try {
     await createWorkspaceTask({
       title: parsed.data.title,
@@ -22,14 +28,19 @@ export async function createTaskAction(formData: FormData) {
       leadId: parsed.data.lead_id || null,
       assignedTo: parsed.data.assigned_to || null,
     });
-    revalidatePath("/tasks");
-    return { ok: true, message: "Görev oluşturuldu." };
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Görev oluşturulamadı." };
+    failureMessage = error instanceof Error ? error.message : "Görev oluşturulamadı.";
   }
+
+  if (failureMessage) {
+    redirect(`/tasks?toast=${encodeURIComponent(failureMessage)}&tone=danger`);
+  }
+
+  revalidatePath("/tasks");
+  redirect("/tasks?toast=Görev%20oluşturuldu.&tone=success");
 }
 
-export async function setTaskStatusAction(formData: FormData) {
+export async function setTaskStatusAction(formData: FormData): Promise<void> {
   const id = String(formData.get("id") || "");
   const status = formData.get("status") === "completed" ? "completed" : "open";
   if (!id) return;

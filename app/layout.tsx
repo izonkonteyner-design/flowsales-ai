@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import "./globals.css";
+
+import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://flowsales.ai"),
@@ -7,24 +10,21 @@ export const metadata: Metadata = {
     default: "FlowSales AI",
     template: "%s | FlowSales AI",
   },
-  description:
-    "FlowSales AI is a premium AI CRM for SMEs selling containers, prefabricated buildings, tiny houses, and related products.",
-  alternates: {
-    canonical: "https://flowsales.ai",
-  },
+  description: "KOBİ'ler için yapay zekâ destekli CRM, satış ve çok kanallı müşteri iletişimi çalışma alanı.",
+  alternates: { canonical: "https://flowsales.ai" },
   openGraph: {
     title: "FlowSales AI",
-    description:
-      "A premium AI CRM and sales workspace for SMEs selling industrial and modular products.",
+    description: "KOBİ'ler için yapay zekâ destekli CRM ve satış çalışma alanı.",
     url: "https://flowsales.ai",
     siteName: "FlowSales AI",
     type: "website",
+    locale: "tr_TR",
+    alternateLocale: ["en_US"],
   },
   twitter: {
     card: "summary_large_image",
     title: "FlowSales AI",
-    description:
-      "A premium AI CRM and sales workspace for SMEs selling modular and prefabricated products.",
+    description: "KOBİ'ler için yapay zekâ destekli CRM ve satış çalışma alanı.",
   },
   icons: [{ rel: "icon", url: "/favicon.ico" }],
 };
@@ -38,9 +38,12 @@ const initializeTheme = `
   } catch {}
 `;
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const cookieStore = await cookies();
+  const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+
   return (
-    <html lang="en" className="dark h-full antialiased" suppressHydrationWarning>
+    <html lang={locale} className="dark h-full antialiased" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: initializeTheme }} />
       </head>

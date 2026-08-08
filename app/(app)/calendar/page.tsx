@@ -1,81 +1,50 @@
-import { CalendarDays, Clock3, MapPin, type LucideIcon } from "lucide-react";
+import { CalendarDays, Clock3, MapPin } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { formatDateTime } from "@/lib/utils";
-import { getCalendarEvents } from "@/server/services/workspace-data";
+import { listCalendarEvents } from "@/server/services/productivity";
+import { createCalendarEventAction } from "./actions";
 
-export default function CalendarPage() {
-  const events = getCalendarEvents();
+export default async function CalendarPage() {
+  const events = await listCalendarEvents();
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Operations"
-        title="Calendar"
-        description="See calls, demos, delivery planning, and review meetings in one place."
-        actions={
-          <button className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950">
-            <CalendarDays className="h-4 w-4" />
-            Schedule event
-          </button>
-        }
-      />
+      <PageHeader eyebrow="Operasyonlar" title="Takvim" description="Arama, demo, toplantı, teslimat ve takip planlarını çalışma alanı takviminde yönetin." />
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <SectionCard title="Upcoming events" description="A focused schedule for the next two days.">
-          <div className="space-y-3">
+      <SectionCard title="Etkinlik planla" description="Takvim kaydı ekip ve CRM çalışma alanına bağlı tutulur.">
+        <form action={createCalendarEventAction} className="grid gap-3 xl:grid-cols-6">
+          <Input name="title" required minLength={2} placeholder="Etkinlik başlığı" className="xl:col-span-2" />
+          <Input name="starts_at" type="datetime-local" required />
+          <Input name="ends_at" type="datetime-local" required />
+          <Select name="event_type" defaultValue="meeting">
+            <option value="call">Arama</option><option value="demo">Demo</option><option value="meeting">Toplantı</option><option value="delivery">Teslimat</option><option value="follow_up">Takip</option><option value="other">Diğer</option>
+          </Select>
+          <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950"><CalendarDays className="h-4 w-4" /> Kaydet</button>
+          <Input name="location" placeholder="Konum / görüşme bağlantısı (opsiyonel)" className="xl:col-span-6" />
+        </form>
+      </SectionCard>
+
+      <SectionCard title="Yaklaşan etkinlikler" description="Dün ve sonrasındaki planlar başlangıç zamanına göre sıralanır.">
+        {events.length === 0 ? <EmptyState title="Planlanmış etkinlik yok" description="İlk etkinliği yukarıdaki formdan oluşturabilirsiniz." /> : (
+          <div className="grid gap-4 lg:grid-cols-2">
             {events.map((event) => (
-              <div
-                key={event.id}
-                className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="font-medium text-slate-950 dark:text-white">{event.title}</p>
-                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Owner: {event.owner}</p>
-                  </div>
-                  <StatusBadge tone={event.type === "call" ? "info" : event.type === "demo" ? "warning" : "neutral"}>
-                    {event.type}
-                  </StatusBadge>
-                </div>
-
-                <div className="mt-4 grid gap-3 text-sm text-slate-600 dark:text-slate-400 sm:grid-cols-2">
-                  <Info icon={Clock3} text={`${formatDateTime(event.starts_at)} to ${formatDateTime(event.ends_at)}`} />
-                  <Info icon={MapPin} text={event.type === "delivery" ? "Site planning" : "Workspace calendar"} />
-                </div>
-              </div>
+              <article key={event.id} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4">
+                <div className="flex items-start justify-between gap-4"><div><p className="font-medium text-white">{event.title}</p><p className="mt-1 text-xs uppercase tracking-wide text-violet-300">{eventTypeLabel(event.event_type)}</p></div><CalendarDays className="h-5 w-5 text-slate-500" /></div>
+                <div className="mt-4 space-y-2 text-sm text-slate-400"><p className="flex items-center gap-2"><Clock3 className="h-4 w-4" />{formatDateTime(event.starts_at)} — {formatDateTime(event.ends_at)}</p>{event.location ? <p className="flex items-center gap-2"><MapPin className="h-4 w-4" />{event.location}</p> : null}</div>
+              </article>
             ))}
           </div>
-        </SectionCard>
-
-        <SectionCard title="Scheduling rules" description="Simple operating guardrails for the team.">
-          <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-            <Rule title="Mornings for calls" detail="Keep discovery calls before noon when possible." />
-            <Rule title="Afternoons for demos" detail="Reserve demos for the second half of the day." />
-            <Rule title="Delivery reviews" detail="Add a buffer before on-site work and shipping." />
-          </div>
-        </SectionCard>
-      </div>
+        )}
+      </SectionCard>
     </div>
   );
 }
 
-function Info({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-950/40">
-      <Icon className="h-4 w-4 text-slate-400" />
-      <span>{text}</span>
-    </div>
-  );
-}
-
-function Rule({ title, detail }: { title: string; detail: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-      <p className="font-medium text-slate-950 dark:text-white">{title}</p>
-      <p className="mt-1">{detail}</p>
-    </div>
-  );
+function eventTypeLabel(value: string) {
+  return ({ call: "Arama", demo: "Demo", meeting: "Toplantı", delivery: "Teslimat", follow_up: "Takip", other: "Diğer" } as Record<string, string>)[value] ?? value;
 }

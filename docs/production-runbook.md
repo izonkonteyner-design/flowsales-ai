@@ -1,72 +1,145 @@
 # FlowSales AI - Production Runbook
 
-This runbook contains operational guidelines for maintaining and troubleshooting the FlowSales AI application in production.
+This runbook contains operational guidelines for maintaining and troubleshooting FlowSales AI in production.
 
-## 1. Environment Variables Configuration
+## 1. Critical environment variables
 
-The application requires strict environment variable configuration for authenticated and protected features. The public health endpoint stays lightweight and cacheable, while the protected health probe requires the internal secret and Supabase admin access.
+### Supabase
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` (server only)
 
-### Critical Variables
-* `NEXT_PUBLIC_SUPABASE_URL`: Supabase project URL.
-* `NEXT_PUBLIC_SUPABASE_ANON_KEY` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Client-side safe API key.
-* `SUPABASE_SERVICE_ROLE_KEY`: Admin API key (Server only).
+### Application security
+- `NEXT_PUBLIC_SITE_URL`
+- `TOKEN_ENCRYPTION_KEY` — never rotate casually; stored integration tokens depend on it.
+- `HEALTH_CHECK_SECRET`
 
-### Feature-Specific: Demo Mode
-* `DEMO_USER_EMAIL`: Email for the automated demo account.
-* `DEMO_USER_PASSWORD`: Password for the automated demo account.
-* `DEMO_RATE_LIMIT_SECRET`: Secret token used for rate-limiting demo logins.
+### Demo
+- `DEMO_USER_EMAIL`
+- `DEMO_USER_PASSWORD`
+- `DEMO_RATE_LIMIT_SECRET`
 
-### Feature-Specific: AI
-* `GEMINI_API_KEY`: API Key for Google Gemini.
-* `GEMINI_MODEL`: (Optional) Custom model name. Defaults to `gemini-2.5-flash`.
+### AI
+- `GEMINI_API_KEY`
+- `GEMINI_MODEL` (optional)
 
-### Feature-Specific: Sentry Error Monitoring
-* `NEXT_PUBLIC_SENTRY_DSN`: Required for client/server error tracking. The app will boot safely if missing.
-* `SENTRY_AUTH_TOKEN`: Required in CI to upload source maps.
+### Meta / WhatsApp / Instagram / Messenger
+- `META_APP_ID` (or legacy `META_CLIENT_ID`)
+- `META_APP_SECRET` (or legacy `META_CLIENT_SECRET`)
+- `META_WEBHOOK_VERIFY_TOKEN` (or legacy `WHATSAPP_WEBHOOK_VERIFY_TOKEN`)
+- `META_EMBEDDED_SIGNUP_CONFIG_ID` for WhatsApp Embedded Signup
+- `META_GRAPH_VERSION` (optional)
 
-## 2. Production Health Endpoint
+Meta callback URLs are derived from `NEXT_PUBLIC_SITE_URL`:
+- Facebook: `/api/integrations/meta/callback?provider=facebook`
+- Instagram: `/api/integrations/meta/callback?provider=instagram`
+- Messaging webhook: `/api/webhooks/meta-messaging`
 
-The application exposes a public liveness endpoint at `/api/health` and a protected database probe at `/api/health/internal`.
+Owner/Admin users can inspect boolean-only Meta readiness at `/api/integrations/meta/status`. This endpoint never returns app secrets, verify tokens, encryption keys or access tokens.
 
-### Response Schema
+Required Meta OAuth scopes:
+- Facebook: `pages_show_list`, `pages_manage_metadata`, `pages_messaging`, `pages_read_engagement`
+- Instagram: `pages_show_list`, `pages_manage_metadata`, `pages_read_engagement`, `instagram_basic`, `instagram_manage_messages`
 
-```json
-{
-  "status": "ok"
-}
+### Billing - Lemon Squeezy
+- `LEMONSQUEEZY_API_KEY`
+- `LEMONSQUEEZY_STORE_ID`
+- `LEMONSQUEEZY_STARTER_VARIANT_ID`
+- `LEMONSQUEEZY_GROWTH_VARIANT_ID`
+- `LEMONSQUEEZY_PRO_VARIANT_ID`
+- `BILLING_WEBHOOK_SECRET`
+
+Checkout route: `/api/billing/checkout?plan=starter|growth|pro`
+Customer portal route: `/api/billing/portal`
+Webhook route: `/api/billing/webhook`
+
+## 2. Database migration readiness
+
+Production must be migrated through `0042_productization_i18n_calendar_api.sql` before enabling the new productized surfaces.
+
+Migration 0042 provides:
+- Turkish-first profile language default
+- live calendar events + RLS
+- hashed workspace API keys + RLS
+- application audit log explorer storage
+- workspace seat-limit enforcement at DB boundary
+- AI subscription/monthly-run enforcement at DB boundary
+- Realtime publication for user notifications
+
+Do not enable a UI that depends on 0042 before confirming the migration is applied.
+
+## 3. Turkish / English locale
+
+- Default locale: `tr`
+- Secondary locale: `en`
+- Cookie: `flowsales_locale`
+- Authenticated preferences are persisted to `profiles.language`.
+- Date/number/currency formatting defaults to `tr-TR` and TRY unless the record explicitly carries another currency.
+
+## 4. Public API security
+
+Workspace API keys:
+- begin with `fsa_`
+- raw secret is shown only at creation time
+- only SHA-256 hash + short prefix are stored
+- can be revoked by Owner/Admin
+- are tenant-bound and scope-bound (`crm:read`, `crm:write`)
+- requests are rate-limited
+
+First public resource: `/api/v1/leads`
+- `GET` requires `crm:read`
+- `POST` requires `crm:write`
+- `POST` requires `Idempotency-Key`
+
+Never log Authorization headers or raw API keys.
+
+## 5. Production health
+
+Public liveness: `/api/health`
+Protected database probe: `/api/health/internal`
+
+Public health responses remain minimal. Internal probes require `HEALTH_CHECK_SECRET` and must not expose raw provider/database errors.
+
+## 6. Playwright and release verification
+
+Run:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+PLAYWRIGHT_BASE_URL="https://flowsales-ai-six.vercel.app" npm run test:e2e:production
 ```
 
-* Public `/api/health` always returns `{"status":"ok"}` and is safe to cache at the edge.
-* Protected `/api/health/internal` returns `ok`, `degraded`, or `error` and requires `HEALTH_CHECK_SECRET`.
-* Both endpoints keep responses minimal and never expose raw database errors, stack traces, or secrets.
+For release readiness, also verify:
+1. migrations through 0042 applied
+2. Meta readiness endpoint returns all required booleans true
+3. Facebook OAuth completes with a real managed Page
+4. Instagram OAuth discovers the linked professional account
+5. Meta webhook verification succeeds and signed inbound payloads persist
+6. WhatsApp Embedded Signup can reconnect safely without manual token copying
+7. Omnichannel Inbox receives and replies through the explicitly selected channel
+8. no automated WhatsApp verification send targets a real customer
+9. Lemon Squeezy checkout + webhook update entitlements in a controlled test workspace
+10. Turkish/English switch survives refresh/login and core pages render correctly on desktop/mobile
 
-## 3. Playwright Smoke Tests
+## 7. Troubleshooting
 
-We run continuous smoke tests against the deployed application.
+If Meta integration cards show configuration required:
+1. open `/api/integrations/meta/status` while authenticated as Owner/Admin
+2. verify only the boolean fields; do not paste secret values into support/chat
+3. confirm the production deployment was created after the latest environment changes
+4. verify exact redirect URIs in Meta
+5. verify webhook callback uses the same verify-token value as production env
 
-### Running Manually against Production
-1. Obtain the Production URL.
-2. Run the tests:
-   ```bash
-   PLAYWRIGHT_BASE_URL="https://flowsales-ai-six.vercel.app" npm run test:e2e
-   ```
+If a webhook signature fails, verify `META_APP_SECRET` and inspect server logs for redacted stage/error codes only.
 
-## 4. Troubleshooting and Incident Checklist
+If tasks/calendar/API/audit pages fail after deployment, verify migration 0042 is present before debugging UI code.
 
-If `status: error` or users report issues:
+## 8. Rollback
 
-1. **Verify Environment Variables**: Use the Vercel Dashboard to ensure no environment variables were recently deleted.
-2. **Check Sentry**: Open Sentry to view structured error reports. `lib/logger.ts` ensures passwords and tokens are redacted.
-3. **Database Health**: Verify Supabase is responsive and the `health_check()` RPC exists for `/api/health/internal`.
-   * *Resolution*: Run the idempotent migration `supabase db push`.
-4. **Demo Mode Failure**: If demo login is unavailable, verify `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, and `DEMO_RATE_LIMIT_SECRET` in Vercel and review server logs for the logged stage only.
-
-## 5. Rollback Procedures
-
-If a bad deployment occurs:
-
-1. Open the Vercel Dashboard.
-2. Navigate to the "Deployments" tab.
-3. Find the last known good deployment.
-4. Click the three dots (...) and select **Promote to Production** or **Redeploy**.
-5. Do NOT manually manipulate the Supabase database migrations unless instructed by a DBA, as migrations are idempotent and cumulative.
+1. Open Vercel Deployments.
+2. Promote the last known-good deployment if application code is unhealthy.
+3. Do not delete or manually roll back cumulative Supabase migrations without a reviewed database recovery plan.
+4. If 0042 has already run, leave its additive tables/guards in place unless a dedicated forward migration removes or changes them.

@@ -1,66 +1,43 @@
-import { Code2, PlugZap, ServerCog, type LucideIcon } from "lucide-react";
+import { Braces, KeyRound, ServerCog } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
-import { getApiEndpoints } from "@/server/services/workspace-data";
+import { ApiKeyCreator } from "@/components/api/api-key-creator";
+import { formatDateTime } from "@/lib/utils";
+import { listApiKeys } from "@/server/services/productivity";
+import { revokeApiKeyAction } from "./actions";
 
-export default function ApiLayerPage() {
-  const endpoints = getApiEndpoints();
+const endpoints = [
+  { method: "GET", path: "/api/v1/leads", purpose: "Tenant kapsamlı potansiyel müşteri listesi", auth: "Bearer API key · crm:read" },
+  { method: "POST", path: "/api/v1/leads", purpose: "Idempotent potansiyel müşteri oluşturma", auth: "Bearer API key · crm:write" },
+  { method: "GET", path: "/api/health", purpose: "Servis canlılık kontrolü", auth: "Public" },
+  { method: "GET", path: "/api/integrations/meta/status", purpose: "Secret-free Meta yapılandırma kontrolü", auth: "Session + Owner/Admin" },
+  { method: "GET", path: "/api/integrations/meta/connect", purpose: "Meta OAuth başlatma", auth: "Session + Owner/Admin" },
+  { method: "POST", path: "/api/webhooks/meta-messaging", purpose: "Meta mesajlaşma webhook'u", auth: "HMAC signature" },
+  { method: "POST", path: "/api/billing/webhook", purpose: "Abonelik lifecycle webhook'u", auth: "Provider signature" },
+];
 
+export default async function ApiLayerPage() {
+  const keys = await listApiKeys();
   return (
     <div className="space-y-6">
-      <PageHeader
-        eyebrow="Platform"
-        title="API Layer"
-        description="A product-ready surface for integrations, automation, and AI-powered operations."
-        actions={
-          <div className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-            <ServerCog className="h-4 w-4" />
-            Integration ready
-          </div>
-        }
-      />
+      <PageHeader eyebrow="Platform" title="API ve Entegrasyon Katmanı" description="Çalışma alanı API anahtarlarını güvenli biçimde oluşturun, iptal edin ve doğrulanmış sistem endpoint'lerini izleyin." actions={<div className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-4 text-sm font-medium text-slate-300"><ServerCog className="h-4 w-4" /> Sunucu sınırı aktif</div>} />
 
-      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <SectionCard title="Endpoints" description="Representative endpoints for the CRM and AI workflow.">
-          <div className="space-y-3">
-            {endpoints.map((endpoint) => (
-              <div
-                key={endpoint.id}
-                className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:flex-row lg:items-center lg:justify-between dark:border-white/10 dark:bg-white/5"
-              >
-                <div>
-                  <p className="font-mono text-sm font-medium text-slate-950 dark:text-white">
-                    {endpoint.method} {endpoint.path}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{endpoint.purpose}</p>
-                </div>
-                <div className="text-sm text-slate-500">{endpoint.auth}</div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
+      <SectionCard title="API anahtarı oluştur" description="Ham anahtar yalnız oluşturma anında gösterilir; veritabanında yalnız SHA-256 hash tutulur."><ApiKeyCreator /></SectionCard>
 
-        <SectionCard title="Integration notes" description="Safe defaults before external systems are connected.">
-          <div className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-            <Note icon={Code2} title="Typed contracts" detail="Keep request and response shapes validated." />
-            <Note icon={PlugZap} title="Automation hooks" detail="Use the API for workflows, webhooks, and partner systems." />
-            <Note icon={ServerCog} title="Server boundary" detail="Sensitive operations should stay server-side." />
-          </div>
-        </SectionCard>
-      </div>
+      <SectionCard title={`API anahtarları · ${keys.length}`} description="Owner/Admin anahtarları iptal edebilir; iptal edilen anahtar tekrar etkinleştirilmez.">
+        {keys.length ? <div className="space-y-3">{keys.map((key) => <div key={key.id} className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-4 w-4 text-violet-300" /><div><p className="font-medium text-white">{key.name}</p><p className="mt-1 text-xs text-slate-500">{key.key_prefix}… · {key.scopes.join(", ")} · {key.revoked_at ? "İptal edildi" : "Aktif"}</p><p className="mt-1 text-xs text-slate-600">Oluşturma: {formatDateTime(key.created_at)}{key.last_used_at ? ` · Son kullanım: ${formatDateTime(key.last_used_at)}` : ""}</p></div></div>{!key.revoked_at ? <form action={revokeApiKeyAction}><input type="hidden" name="id" value={key.id} /><button className="rounded-xl border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/[0.06]">İptal et</button></form> : null}</div>)}</div> : <p className="text-sm text-slate-500">Henüz API anahtarı oluşturulmadı.</p>}
+      </SectionCard>
+
+      <SectionCard title="Public API kullanım kuralları" description="Anahtarlar tenant ve scope bazlıdır; istekler rate-limit edilir.">
+        <div className="grid gap-3 md:grid-cols-3"><Rule title="Kimlik doğrulama" detail="Authorization: Bearer fsa_…" /><Rule title="Yazma güvenliği" detail="POST /api/v1/leads için Idempotency-Key zorunlu." /><Rule title="Secret politikası" detail="Ham anahtar yalnız bir kez gösterilir ve loglanmaz." /></div>
+      </SectionCard>
+
+      <SectionCard title="Doğrulanmış endpoint'ler" description="Uygulamada gerçekten bulunan temel platform endpoint'leri."><div className="space-y-3">{endpoints.map((endpoint) => <div key={`${endpoint.method}:${endpoint.path}`} className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 lg:flex-row lg:items-center lg:justify-between"><div className="flex items-center gap-3"><Braces className="h-4 w-4 text-cyan-300" /><div><p className="font-mono text-sm font-medium text-white">{endpoint.method} {endpoint.path}</p><p className="mt-1 text-sm text-slate-500">{endpoint.purpose}</p></div></div><span className="text-xs text-slate-500">{endpoint.auth}</span></div>)}</div></SectionCard>
     </div>
   );
 }
 
-function Note({ icon: Icon, title, detail }: { icon: LucideIcon; title: string; detail: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-      <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-slate-400" />
-        <p className="font-medium text-slate-950 dark:text-white">{title}</p>
-      </div>
-      <p className="mt-1">{detail}</p>
-    </div>
-  );
+function Rule({ title, detail }: { title: string; detail: string }) {
+  return <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4"><p className="text-sm font-semibold text-white">{title}</p><p className="mt-2 text-xs leading-5 text-slate-500">{detail}</p></div>;
 }

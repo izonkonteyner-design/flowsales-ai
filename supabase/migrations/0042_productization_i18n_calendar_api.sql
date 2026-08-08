@@ -69,39 +69,23 @@ create index if not exists app_audit_logs_org_action_idx on public.app_audit_log
 alter table public.app_audit_logs enable row level security;
 drop policy if exists app_audit_logs_member_select on public.app_audit_logs;
 create policy app_audit_logs_member_select on public.app_audit_logs for select to authenticated using (public.is_org_member(organization_id));
--- Inserts are intentionally service-role only. Application mutations write audit events server-side.
 
--- Enforce paid seat limits at the database boundary, not only in UI/service code.
 create or replace function public.enforce_workspace_member_seat_limit()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_limit integer;
-  v_members integer;
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_limit integer; v_members integer;
 begin
   select seat_limit into v_limit from public.organization_entitlements where organization_id = new.organization_id;
   if v_limit is null then return new; end if;
   select count(*) into v_members from public.organization_members where organization_id = new.organization_id;
   if v_members >= v_limit then raise exception 'Workspace seat limit reached'; end if;
   return new;
-end;
-$$;
+end; $$;
 drop trigger if exists enforce_workspace_member_seat_limit_trigger on public.organization_members;
 create trigger enforce_workspace_member_seat_limit_trigger before insert on public.organization_members for each row execute function public.enforce_workspace_member_seat_limit();
 
 create or replace function public.enforce_workspace_invitation_seat_limit()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_limit integer;
-  v_members integer;
-  v_pending integer;
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_limit integer; v_members integer; v_pending integer;
 begin
   select seat_limit into v_limit from public.organization_entitlements where organization_id = new.organization_id;
   if v_limit is null then return new; end if;
@@ -109,47 +93,26 @@ begin
   select count(*) into v_pending from public.workspace_invitations where organization_id = new.organization_id and status = 'pending' and expires_at > now();
   if (v_members + v_pending) >= v_limit then raise exception 'Workspace seat limit reached'; end if;
   return new;
-end;
-$$;
+end; $$;
 drop trigger if exists enforce_workspace_invitation_seat_limit_trigger on public.workspace_invitations;
 create trigger enforce_workspace_invitation_seat_limit_trigger before insert on public.workspace_invitations for each row execute function public.enforce_workspace_invitation_seat_limit();
 
--- All commercial AI executions write an ai_runs row before the provider call. Enforce
--- subscription state and monthly run limits on that boundary so alternate callers cannot bypass it.
 create or replace function public.enforce_ai_run_entitlement()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_status text;
-  v_trial_ends_at timestamptz;
-  v_limit integer;
-  v_used integer;
+returns trigger language plpgsql security definer set search_path = public as $$
+declare v_status text; v_trial_ends_at timestamptz; v_limit integer; v_used integer;
 begin
-  select subscription_status, trial_ends_at, monthly_ai_run_limit
-    into v_status, v_trial_ends_at, v_limit
-  from public.organization_entitlements
-  where organization_id = new.organization_id;
-
+  select subscription_status, trial_ends_at, monthly_ai_run_limit into v_status, v_trial_ends_at, v_limit
+  from public.organization_entitlements where organization_id = new.organization_id;
   if v_status is null then raise exception 'Workspace entitlement is not initialized'; end if;
   if v_status not in ('trialing','active') then raise exception 'Workspace subscription is inactive'; end if;
   if v_status = 'trialing' and v_trial_ends_at <= now() then raise exception 'Workspace trial has expired'; end if;
-
-  select count(*) into v_used
-  from public.ai_runs
-  where organization_id = new.organization_id
-    and created_at >= date_trunc('month', now());
-
+  select count(*) into v_used from public.ai_runs where organization_id = new.organization_id and created_at >= date_trunc('month', now());
   if v_limit is not null and v_used >= v_limit then raise exception 'Monthly AI run limit reached'; end if;
   return new;
-end;
-$$;
+end; $$;
 drop trigger if exists enforce_ai_run_entitlement_trigger on public.ai_runs;
 create trigger enforce_ai_run_entitlement_trigger before insert on public.ai_runs for each row execute function public.enforce_ai_run_entitlement();
 
--- Realtime notifications: add only when the table is not already published.
 do $$
 begin
   if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
@@ -157,3 +120,7 @@ begin
     alter publication supabase_realtime add table public.notifications;
   end if;
 end $$;
+
+insert into public.deployment_migrations(version,name,checksum)
+values ('0042','0042_productization_i18n_calendar_api.sql','productization-i18n-calendar-api-v1')
+on conflict (version) do update set name=excluded.name, checksum=excluded.checksum, executed_at=now();

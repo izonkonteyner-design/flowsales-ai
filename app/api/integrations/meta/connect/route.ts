@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
     const { rawStateToken } = await createOAuthState(provider, ctx.organizationId, ctx.userId, returnPath, false);
     const redirectUri = `${siteUrl}/api/integrations/meta/callback?provider=${provider}`;
     const scopes = provider === "facebook"
-      ? ["pages_show_list", "pages_manage_metadata", "pages_messaging"]
-      : ["pages_show_list", "pages_manage_metadata", "instagram_basic", "instagram_manage_messages"];
+      ? ["pages_show_list", "pages_manage_metadata", "pages_messaging", "pages_read_engagement"]
+      : ["pages_show_list", "pages_manage_metadata", "pages_read_engagement", "instagram_basic", "instagram_manage_messages"];
     const oauth = new URL(`https://www.facebook.com/${process.env.META_GRAPH_VERSION?.trim() || "v21.0"}/dialog/oauth`);
     oauth.searchParams.set("client_id", clientId);
     oauth.searchParams.set("redirect_uri", redirectUri);

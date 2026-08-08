@@ -114,6 +114,41 @@ $$;
 drop trigger if exists enforce_workspace_invitation_seat_limit_trigger on public.workspace_invitations;
 create trigger enforce_workspace_invitation_seat_limit_trigger before insert on public.workspace_invitations for each row execute function public.enforce_workspace_invitation_seat_limit();
 
+-- All commercial AI executions write an ai_runs row before the provider call. Enforce
+-- subscription state and monthly run limits on that boundary so alternate callers cannot bypass it.
+create or replace function public.enforce_ai_run_entitlement()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_status text;
+  v_trial_ends_at timestamptz;
+  v_limit integer;
+  v_used integer;
+begin
+  select subscription_status, trial_ends_at, monthly_ai_run_limit
+    into v_status, v_trial_ends_at, v_limit
+  from public.organization_entitlements
+  where organization_id = new.organization_id;
+
+  if v_status is null then raise exception 'Workspace entitlement is not initialized'; end if;
+  if v_status not in ('trialing','active') then raise exception 'Workspace subscription is inactive'; end if;
+  if v_status = 'trialing' and v_trial_ends_at <= now() then raise exception 'Workspace trial has expired'; end if;
+
+  select count(*) into v_used
+  from public.ai_runs
+  where organization_id = new.organization_id
+    and created_at >= date_trunc('month', now());
+
+  if v_limit is not null and v_used >= v_limit then raise exception 'Monthly AI run limit reached'; end if;
+  return new;
+end;
+$$;
+drop trigger if exists enforce_ai_run_entitlement_trigger on public.ai_runs;
+create trigger enforce_ai_run_entitlement_trigger before insert on public.ai_runs for each row execute function public.enforce_ai_run_entitlement();
+
 -- Realtime notifications: add only when the table is not already published.
 do $$
 begin

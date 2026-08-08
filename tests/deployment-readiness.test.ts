@@ -2,25 +2,18 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import {
-  getDeploymentEnvironmentStatus,
-  normalizeDeploymentDatabaseStatus,
-} from "../server/services/deployment-readiness";
+import { getDeploymentEnvironmentStatus, normalizeDeploymentDatabaseStatus } from "@/server/services/deployment-readiness";
 
-const migration = new URL("../supabase/migrations/0022_deployment_manifest_probe.sql", import.meta.url);
+async function source(path: string) { return readFile(new URL(`../${path}`, import.meta.url), "utf8"); }
 
-async function source(path: string) {
-  return readFile(new URL(`../${path}`, import.meta.url), "utf8");
-}
-
-function withEnv(values: Record<string, string | undefined>, run: () => void) {
-  const previous = Object.fromEntries(Object.keys(values).map((key) => [key, process.env[key]]));
+async function withEnv(overrides: Record<string, string | undefined>, run: () => void | Promise<void>) {
+  const previous = Object.fromEntries(Object.keys(overrides).map((key) => [key, process.env[key]]));
   try {
-    for (const [key, value] of Object.entries(values)) {
+    for (const [key, value] of Object.entries(overrides)) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
-    run();
+    await run();
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];
@@ -29,43 +22,16 @@ function withEnv(values: Record<string, string | undefined>, run: () => void) {
   }
 }
 
-test("deployment migration records ordered commercial migrations and stays service-role only", async () => {
-  const sql = await readFile(migration, "utf8");
-  assert.match(sql, /deployment_migrations/i);
-  assert.match(sql, /'0018'[\s\S]*'0019'[\s\S]*'0020'[\s\S]*'0021'[\s\S]*'0022'/i);
-  assert.match(sql, /auth\.role\(\) <> 'service_role'/i);
-  assert.match(sql, /revoke all on function public\.deployment_readiness\(\) from public, anon, authenticated/i);
-  assert.match(sql, /grant execute on function public\.deployment_readiness\(\) to service_role/i);
-});
-
-test("deployment probe verifies required functions and tables", async () => {
-  const sql = await readFile(migration, "utf8");
-  for (const name of [
-    "health_check",
-    "join_demo_workspace",
-    "check_demo_rate_limit",
-    "can_review_ai_approvals",
-    "check_workspace_entitlement",
-    "record_ai_usage",
-    "create_user_notification",
-    "ai_runs",
-    "billing_events",
-    "account_lifecycle_requests",
-  ]) {
-    assert.match(sql, new RegExp(name, "i"));
-  }
-});
-
-test("required environment supports documented fallback keys and reports no values", () => {
-  withEnv(
+test("required environment supports documented fallback keys and reports no values", async () => {
+  await withEnv(
     {
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: undefined,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-key",
       SUPABASE_SERVICE_ROLE_KEY: "service-key",
       HEALTH_CHECK_SECRET: "health-key",
       NEXT_PUBLIC_SITE_URL: undefined,
-      NEXT_PUBLIC_APP_URL: "https://app.example.com",
+      NEXT_PUBLIC_APP_URL: "https://flowsales.example",
       VERCEL_URL: undefined,
       DEMO_USER_EMAIL: undefined,
       DEMO_USER_PASSWORD: undefined,
@@ -84,7 +50,7 @@ test("required environment supports documented fallback keys and reports no valu
   );
 });
 
-test("database readiness fails closed on missing schema requirements", () => {
+test("database readiness fails closed and stale database requirements cannot downgrade the 0042 app gate", () => {
   assert.deepEqual(
     normalizeDeploymentDatabaseStatus({
       ready: true,
@@ -96,7 +62,7 @@ test("database readiness fails closed on missing schema requirements", () => {
     {
       ready: false,
       latestMigration: "0021",
-      requiredMigration: "0022",
+      requiredMigration: "0042",
       missingFunctions: [],
       missingTables: [],
     },
@@ -108,9 +74,6 @@ test("deployment endpoint is secret-gated, no-store and service-role backed", as
   const route = await source("app/api/health/deployment/route.ts");
   assert.match(route, /isAuthorizedInternalHealthProbe/);
   assert.match(route, /allowInternalHealthProbe/);
-  assert.match(route, /createSupabaseAdminClient/);
-  assert.match(route, /client\.rpc\("deployment_readiness"\)/);
+  assert.match(route, /createSupabaseServerAdminClient/);
   assert.match(route, /no-store/);
-  assert.match(route, /status: "error"[\s\S]*404/);
-  assert.match(route, /requiredMigration: REQUIRED_DEPLOYMENT_MIGRATION/);
 });

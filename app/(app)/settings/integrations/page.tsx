@@ -32,7 +32,14 @@ export default async function IntegrationsPage() {
   for (const conn of connections) connectionByProvider.set(conn.provider as ChannelProvider, conn);
   const providerConfigured = new Map<ChannelProvider, boolean>();
   const metaMessagingConfigured = isMetaMessagingConfigured();
-  for (const provider of PROVIDERS) providerConfigured.set(provider, provider === "instagram" || provider === "facebook" ? metaMessagingConfigured : isProviderConfigured(provider));
+  for (const provider of PROVIDERS) {
+    providerConfigured.set(
+      provider,
+      provider === "whatsapp" || provider === "instagram" || provider === "facebook"
+        ? metaMessagingConfigured
+        : isProviderConfigured(provider),
+    );
+  }
 
   const anyConfigured = PROVIDERS.some((p) => providerConfigured.get(p));
   const whatsappConnection = connectionByProvider.get("whatsapp") ?? null;

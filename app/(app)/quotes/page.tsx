@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { cookies } from "next/headers";
 import { Filter, Plus } from "lucide-react";
 
 import { FlashToast } from "@/components/shared/flash-toast";
@@ -11,29 +11,38 @@ import { QuoteDeleteDialog } from "@/components/quotes/quote-delete-dialog";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { QUOTE_STATUSES } from "@/lib/constants";
+import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import {
-  canManageQuotes,
-  getQuoteRecordRestrictionMessage,
-  normalizeQuoteSearchParams,
-  type QuoteFilterState,
-} from "@/server/services/quote-domain";
+import { canManageQuotes, getQuoteRecordRestrictionMessage, normalizeQuoteSearchParams, type QuoteFilterState } from "@/server/services/quote-domain";
 import { getQuotePageData } from "@/server/services/quotes";
 
-type QuotesPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
+type QuotesPageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+const copy = {
+  tr: {
+    eyebrow: "Ticari", title: "Teklifler", description: "Canlı fiyatlandırma, durum takibi ve güvenli yetkilerle yapılandırılmış teklifleri yönetin.", newQuote: "Yeni teklif",
+    results: "Sonuçlar", recordMode: "Kayıt modu", viewState: "Görünüm", permissions: "Yetkiler", live: "Canlı", demo: "Demo", all: "Tümü", editable: "Düzenlenebilir", readOnly: "Salt okunur", tenant: "Çalışma alanı sınırında",
+    filters: "Teklif filtreleri", filtersDesc: "Teklif numarası, potansiyel müşteri, müşteri veya notlarda arayın.", search: "Ara", placeholder: "Numara, potansiyel müşteri, müşteri, not", status: "Durum", allStatuses: "Tüm durumlar", sort: "Sırala", newest: "En yeni", oldest: "En eski", highest: "En yüksek toplam", expiring: "Yakında sona erecek", apply: "Uygula", reset: "Sıfırla",
+    loadError: "Teklifler yüklenemedi", retry: "Yeniden dene", register: "Teklif listesi", registerDesc: "Her teklif veri kaynağını ve güvenli işlem sınırını korur.", quote: "Teklif", party: "İlgili kişi", issue: "Düzenleme", validUntil: "Geçerlilik", total: "Toplam", actions: "İşlemler", unassigned: "Atanmamış", noCompany: "Şirket yok", noNotes: "Not girilmedi", view: "Görüntüle", edit: "Düzenle", noQuotes: "Henüz teklif yok", noQuotesDesc: "Teklif geçmişi ve tutarlarını görmek için ilk teklifi oluşturun.", previous: "Önceki", next: "Sonraki", page: "Sayfa", of: "/", quotes: "teklif", liveRecord: "Canlı kayıt", demoRecord: "Demo kayıt",
+  },
+  en: {
+    eyebrow: "Commercial", title: "Quotes", description: "Create and manage structured offers with live pricing, status tracking, and safe permissions.", newQuote: "New quote",
+    results: "Results", recordMode: "Record mode", viewState: "View state", permissions: "Permissions", live: "Live", demo: "Demo", all: "All", editable: "Editable", readOnly: "Read only", tenant: "Tenant scoped",
+    filters: "Quote filters", filtersDesc: "Search by quote number, lead, customer, or commercial notes.", search: "Search", placeholder: "Number, lead, customer, notes", status: "Status", allStatuses: "All statuses", sort: "Sort", newest: "Newest", oldest: "Oldest", highest: "Highest total", expiring: "Expiring soon", apply: "Apply", reset: "Reset",
+    loadError: "Unable to load quotes", retry: "Retry", register: "Quote register", registerDesc: "Each quote keeps a live data badge and a strict mutation boundary.", quote: "Quote", party: "Party", issue: "Issue", validUntil: "Valid until", total: "Total", actions: "Actions", unassigned: "Unassigned", noCompany: "No company", noNotes: "No notes provided", view: "View", edit: "Edit", noQuotes: "No quotes yet", noQuotesDesc: "Create the first offer to see quote history and totals appear.", previous: "Previous", next: "Next", page: "Page", of: "of", quotes: "quotes", liveRecord: "Live record", demoRecord: "Demo record",
+  },
+} as const;
+
+const trStatus: Record<string, string> = { draft: "Taslak", sent: "Gönderildi", viewed: "Görüntülendi", accepted: "Kabul edildi", rejected: "Reddedildi", expired: "Süresi doldu", cancelled: "İptal edildi" };
 
 function buildQuoteHref(filters: QuoteFilterState, overrides: Partial<QuoteFilterState> = {}) {
   const merged = { ...filters, ...overrides };
   const params = new URLSearchParams();
-
   if (merged.query) params.set("query", merged.query);
   if (merged.status) params.set("status", merged.status);
   if (merged.sort !== "newest") params.set("sort", merged.sort);
   if (merged.page > 1) params.set("page", String(merged.page));
   if (merged.pageSize !== 8) params.set("pageSize", String(merged.pageSize));
-
   const query = params.toString();
   return query ? `/quotes?${query}` : "/quotes";
 }
@@ -42,326 +51,70 @@ export default async function QuotesPage({ searchParams }: QuotesPageProps) {
   const rawSearchParams = await searchParams;
   const data = await getQuotePageData(rawSearchParams);
   const filters = normalizeQuoteSearchParams(rawSearchParams);
+  const cookieStore = await cookies();
+  const locale = normalizeLocale(cookieStore.get(LOCALE_COOKIE)?.value);
+  const c = copy[locale];
   const toastMessage = typeof rawSearchParams.toast === "string" ? rawSearchParams.toast : "";
-  const toastTone =
-    rawSearchParams.tone === "danger" || rawSearchParams.tone === "warning" || rawSearchParams.tone === "info"
-      ? rawSearchParams.tone
-      : "success";
+  const toastTone = rawSearchParams.tone === "danger" || rawSearchParams.tone === "warning" || rawSearchParams.tone === "info" ? rawSearchParams.tone : "success";
   const currentHref = buildQuoteHref(filters);
   const createHref = `/quotes/new?redirect_to=${encodeURIComponent(currentHref)}`;
   const hasFilters = Boolean(filters.query || filters.status || filters.sort !== "newest" || filters.pageSize !== 8);
+  const statusLabel = (value: string, fallback: string) => locale === "tr" ? trStatus[value] ?? fallback : fallback;
 
   return (
     <div className="space-y-6">
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
-
-      <PageHeader
-        eyebrow="Commercial"
-        title="Quotes"
-        description="Create and manage structured offers with live pricing, status tracking, and safe permissions."
-        actions={
-          <Link
-            href={createHref}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
-          >
-            <Plus className="h-4 w-4" />
-            New quote
-          </Link>
-        }
-      />
+      <PageHeader eyebrow={c.eyebrow} title={c.title} description={c.description} actions={<Link href={createHref} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />{c.newQuote}</Link>} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Results" value={String(data.total)} delta={data.totalPages > 1 ? `Page ${data.page} of ${data.totalPages}` : "Single page"} />
-        <Metric label="Record mode" value={data.context.mode === "live" ? "Live" : "Demo"} delta={data.context.role} />
-        <Metric label="View state" value={filters.status || "All"} delta={filters.sort} />
-        <Metric label="Permissions" value={canManageQuotes(data.context.role) ? "Editable" : "Read only"} delta="Tenant scoped" />
+        <Metric label={c.results} value={String(data.total)} delta={data.totalPages > 1 ? `${c.page} ${data.page} ${c.of} ${data.totalPages}` : c.page} />
+        <Metric label={c.recordMode} value={data.context.mode === "live" ? c.live : c.demo} delta={data.context.role} />
+        <Metric label={c.viewState} value={filters.status ? statusLabel(filters.status, filters.status) : c.all} delta={filters.sort} />
+        <Metric label={c.permissions} value={canManageQuotes(data.context.role) ? c.editable : c.readOnly} delta={c.tenant} />
       </div>
 
-      <SectionCard title="Quote filters" description="Search by quote number, lead, customer, or commercial notes.">
+      <SectionCard title={c.filters} description={c.filtersDesc}>
         <form method="get" className="grid gap-3 xl:grid-cols-[1.8fr_0.8fr_0.8fr_auto]">
           <input type="hidden" name="page" value="1" />
-
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Search</span>
-            <Input name="query" defaultValue={filters.query} placeholder="Number, lead, customer, notes" />
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Status</span>
-            <Select name="status" defaultValue={filters.status}>
-              <option value="">All statuses</option>
-              {QUOTE_STATUSES.map((status) => (
-                <option key={status.value} value={status.value}>
-                  {status.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Sort</span>
-            <Select name="sort" defaultValue={filters.sort}>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-              <option value="total">Highest total</option>
-              <option value="expiring">Expiring soon</option>
-            </Select>
-          </label>
-
-          <div className="flex items-end gap-3">
-            <button
-              type="submit"
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
-            >
-              Apply
-            </button>
-            {hasFilters ? (
-              <Link
-                href="/quotes"
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-              >
-                Reset
-              </Link>
-            ) : null}
-          </div>
+          <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">{c.search}</span><Input name="query" defaultValue={filters.query} placeholder={c.placeholder} /></label>
+          <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">{c.status}</span><Select name="status" defaultValue={filters.status}><option value="">{c.allStatuses}</option>{QUOTE_STATUSES.map((status) => <option key={status.value} value={status.value}>{statusLabel(status.value, status.label)}</option>)}</Select></label>
+          <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">{c.sort}</span><Select name="sort" defaultValue={filters.sort}><option value="newest">{c.newest}</option><option value="oldest">{c.oldest}</option><option value="total">{c.highest}</option><option value="expiring">{c.expiring}</option></Select></label>
+          <div className="flex items-end gap-3"><button type="submit" className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950">{c.apply}</button>{hasFilters ? <Link href="/quotes" className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10">{c.reset}</Link> : null}</div>
         </form>
       </SectionCard>
 
-      {data.error ? (
-        <EmptyState title="Unable to load quotes" description={data.error} actionHref="/quotes" actionLabel="Retry" />
-      ) : data.quotes.length ? (
-        <SectionCard title="Quote register" description="Each quote keeps a live data badge and a strict mutation boundary.">
-          <div className="overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10">
-            <div className="hidden grid-cols-[1.1fr_1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 lg:grid dark:border-white/10 dark:bg-white/5">
-              <span>Quote</span>
-              <span>Party</span>
-              <span>Status</span>
-              <span>Issue</span>
-              <span>Valid until</span>
-              <span>Total</span>
-              <span>Actions</span>
-            </div>
-
-            <div className="divide-y divide-slate-200 dark:divide-white/10">
-              {data.quotes.map((quote) => {
-                const restriction = getQuoteRecordRestrictionMessage(quote.recordMode, data.context.role);
-                const canEdit = canManageQuotes(data.context.role) && quote.recordMode === "live";
-                const partyLabel = quote.lead_name ?? quote.customer_name ?? "Unassigned";
-                const partySub = quote.lead_company ?? quote.customer_company ?? "No company";
-
-                return (
-                  <article key={quote.id} className="block px-4 py-4 transition hover:bg-slate-50 dark:hover:bg-white/5">
-                    <div className="hidden grid-cols-[1.1fr_1fr_0.8fr_0.8fr_0.8fr_0.8fr_0.9fr] gap-4 lg:grid">
-                      <div>
-                        <Link href={`/quotes/${quote.id}`} className="font-medium text-slate-950 underline-offset-4 hover:underline dark:text-white">
-                          {quote.quote_number}
-                        </Link>
-                        <p className="mt-1 text-sm text-slate-500">{quote.notes || "No notes provided"}</p>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <StatusBadge tone={quote.record_badge.tone} title={quote.record_badge.title}>
-                            {quote.record_badge.label}
-                          </StatusBadge>
-                          <StatusBadge tone={quote.follow_up_state.tone}>{quote.follow_up_state.label}</StatusBadge>
-                        </div>
-                      </div>
-
-                      <div>
-                        <p className="font-medium text-slate-700 dark:text-slate-300">{partyLabel}</p>
-                        <p className="mt-1 text-sm text-slate-500">{partySub}</p>
-                      </div>
-
-                      <div>
-                        <StatusBadge tone={quote.status_tone}>{quote.status_label}</StatusBadge>
-                      </div>
-
-                      <div className="text-sm text-slate-600 dark:text-slate-400">{formatDate(quote.issue_date)}</div>
-
-                      <div className="text-sm text-slate-600 dark:text-slate-400">
-                        {formatDate(quote.valid_until ?? quote.expiry_date ?? quote.issue_date)}
-                      </div>
-
-                      <div className="text-sm font-medium text-slate-950 dark:text-white">
-                        {formatCurrency(quote.grand_total ?? quote.total ?? 0, quote.currency)}
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/quotes/${quote.id}`}
-                          className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                        >
-                          View
-                        </Link>
-                        {canEdit ? (
-                          <Link
-                            href={`/quotes/${quote.id}/edit?redirect_to=${encodeURIComponent(currentHref)}`}
-                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                          >
-                            Edit
-                          </Link>
-                        ) : (
-                          <span
-                            title={restriction}
-                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
-                          >
-                            Edit
-                          </span>
-                        )}
-                        <QuoteDeleteDialog
-                          quoteId={quote.id}
-                          quoteNumber={quote.quote_number}
-                          redirectTo={currentHref}
-                          recordMode={quote.recordMode}
-                          role={data.context.role}
-                          restrictionMessage={restriction}
-                        />
-                      </div>
+      {data.error ? <EmptyState title={c.loadError} description={data.error} actionHref="/quotes" actionLabel={c.retry} /> : data.quotes.length ? (
+        <SectionCard title={c.register} description={c.registerDesc}>
+          <div className="space-y-3">
+            {data.quotes.map((quote) => {
+              const restriction = getQuoteRecordRestrictionMessage(quote.recordMode, data.context.role);
+              const canEdit = canManageQuotes(data.context.role) && quote.recordMode === "live";
+              const partyLabel = quote.lead_name ?? quote.customer_name ?? c.unassigned;
+              const partySub = quote.lead_company ?? quote.customer_company ?? c.noCompany;
+              const recordLabel = quote.recordMode === "live" ? c.liveRecord : c.demoRecord;
+              const localizedRestriction = locale === "tr" && restriction ? "Bu teklif rolünüz veya kayıt türü nedeniyle düzenlenemez." : restriction;
+              return (
+                <article key={quote.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2"><Link href={`/quotes/${quote.id}`} className="font-semibold text-slate-950 underline-offset-4 hover:underline dark:text-white">{quote.quote_number}</Link><StatusBadge tone={quote.status_tone}>{statusLabel(quote.status, quote.status_label)}</StatusBadge><StatusBadge tone={quote.record_badge.tone} title={quote.record_badge.title}>{recordLabel}</StatusBadge></div>
+                      <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">{partyLabel} · {partySub}</p><p className="mt-1 text-sm text-slate-500">{quote.notes || c.noNotes}</p>
                     </div>
-
-                    <div className="space-y-4 lg:hidden">
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <Link href={`/quotes/${quote.id}`} className="font-medium text-slate-950 underline-offset-4 hover:underline dark:text-white">
-                            {quote.quote_number}
-                          </Link>
-                          <p className="mt-1 text-sm text-slate-500">{partyLabel}</p>
-                          <p className="mt-1 text-xs text-slate-500">{partySub}</p>
-                        </div>
-                        <StatusBadge tone={quote.status_tone}>{quote.status_label}</StatusBadge>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <StatusBadge tone={quote.record_badge.tone} title={quote.record_badge.title}>
-                          {quote.record_badge.label}
-                        </StatusBadge>
-                        <StatusBadge tone={quote.follow_up_state.tone}>{quote.follow_up_state.label}</StatusBadge>
-                        <StatusBadge tone="neutral">{formatDate(quote.valid_until ?? quote.expiry_date ?? quote.issue_date)}</StatusBadge>
-                      </div>
-
-                      <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">{quote.notes || "No notes provided"}</p>
-
-                      <div className="flex items-center justify-between gap-4">
-                        <div>
-                          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Total</p>
-                          <p className="mt-1 text-sm font-medium text-slate-950 dark:text-white">
-                            {formatCurrency(quote.grand_total ?? quote.total ?? 0, quote.currency)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Issue</p>
-                          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{formatDate(quote.issue_date)}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/quotes/${quote.id}`}
-                          className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                        >
-                          View
-                        </Link>
-                        {canEdit ? (
-                          <Link
-                            href={`/quotes/${quote.id}/edit?redirect_to=${encodeURIComponent(currentHref)}`}
-                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                          >
-                            Edit
-                          </Link>
-                        ) : (
-                          <span
-                            title={restriction}
-                            className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
-                          >
-                            Edit
-                          </span>
-                        )}
-                        <QuoteDeleteDialog
-                          quoteId={quote.id}
-                          quoteNumber={quote.quote_number}
-                          redirectTo={currentHref}
-                          recordMode={quote.recordMode}
-                          role={data.context.role}
-                          restrictionMessage={restriction}
-                        />
-                      </div>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
+                    <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[440px]"><Mini label={c.issue} value={formatDate(quote.issue_date)} /><Mini label={c.validUntil} value={formatDate(quote.valid_until ?? quote.expiry_date ?? quote.issue_date)} /><Mini label={c.total} value={formatCurrency(quote.grand_total ?? quote.total ?? 0, quote.currency)} /></div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2"><Link href={`/quotes/${quote.id}`} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{c.view}</Link>{canEdit ? <Link href={`/quotes/${quote.id}/edit?redirect_to=${encodeURIComponent(currentHref)}`} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{c.edit}</Link> : <span title={localizedRestriction} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">{c.edit}</span>}<QuoteDeleteDialog quoteId={quote.id} quoteNumber={quote.quote_number} redirectTo={currentHref} recordMode={quote.recordMode} role={data.context.role} restrictionMessage={localizedRestriction} /></div>
+                </article>
+              );
+            })}
           </div>
         </SectionCard>
-      ) : (
-        <EmptyState
-          title="No quotes yet"
-          description="Create the first offer from a lead or customer to see quote history and totals appear."
-          actionHref={createHref}
-          actionLabel="New quote"
-        />
-      )}
+      ) : <EmptyState title={c.noQuotes} description={c.noQuotesDesc} actionHref={createHref} actionLabel={c.newQuote} />}
 
-      {data.totalPages > 1 ? (
-        <SectionCard>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-slate-600 dark:text-slate-400">
-              Page {data.page} of {data.totalPages} - {data.total} quote{data.total === 1 ? "" : "s"}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <PageNavLink href={buildQuoteHref(filters, { page: Math.max(1, data.page - 1) })} disabled={data.page === 1}>
-                Previous
-              </PageNavLink>
-              {Array.from({ length: data.totalPages }, (_, index) => index + 1).map((page) => (
-                <PageNavLink key={page} href={buildQuoteHref(filters, { page })} active={page === data.page}>
-                  {page}
-                </PageNavLink>
-              ))}
-              <PageNavLink href={buildQuoteHref(filters, { page: Math.min(data.totalPages, data.page + 1) })} disabled={data.page === data.totalPages}>
-                Next
-              </PageNavLink>
-            </div>
-          </div>
-        </SectionCard>
-      ) : null}
+      {data.totalPages > 1 ? <SectionCard><div className="flex items-center justify-between gap-3"><p className="text-sm text-slate-500">{c.page} {data.page} {c.of} {data.totalPages} · {data.total} {c.quotes}</p><div className="flex gap-2"><Nav href={buildQuoteHref(filters, { page: Math.max(1, data.page - 1) })} disabled={data.page === 1}>{c.previous}</Nav><Nav href={buildQuoteHref(filters, { page: Math.min(data.totalPages, data.page + 1) })} disabled={data.page === data.totalPages}>{c.next}</Nav></div></div></SectionCard> : null}
     </div>
   );
 }
 
-function Metric({ label, value, delta }: { label: string; value: string; delta: string }) {
-  return (
-    <div className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-slate-500">{label}</p>
-        <Filter className="h-4 w-4 text-slate-300" />
-      </div>
-      <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">{value}</p>
-      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">{delta}</p>
-    </div>
-  );
-}
-
-function PageNavLink({
-  href,
-  children,
-  active,
-  disabled,
-}: {
-  href: string;
-  children: ReactNode;
-  active?: boolean;
-  disabled?: boolean;
-}) {
-  const className = [
-    "inline-flex h-10 min-w-10 items-center justify-center rounded-2xl border px-3 text-sm font-medium transition",
-    active
-      ? "border-slate-950 bg-slate-950 text-white dark:border-white dark:bg-white dark:text-slate-950"
-      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10",
-    disabled ? "pointer-events-none opacity-50" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  return (
-    <Link href={href} className={className} aria-disabled={disabled}>
-      {children}
-    </Link>
-  );
-}
+function Metric({ label, value, delta }: { label: string; value: string; delta: string }) { return <div className="rounded-3xl border border-slate-200/80 bg-white p-5 dark:border-white/10 dark:bg-slate-950/60"><div className="flex items-center justify-between"><p className="text-sm text-slate-500">{label}</p><Filter className="h-4 w-4 text-slate-300" /></div><p className="mt-3 text-2xl font-semibold text-slate-950 dark:text-white">{value}</p><p className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">{delta}</p></div>; }
+function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 dark:border-white/10 dark:bg-slate-950/40"><p className="text-xs uppercase tracking-[0.18em] text-slate-500">{label}</p><p className="mt-1 text-sm font-medium text-slate-950 dark:text-white">{value}</p></div>; }
+function Nav({ href, children, disabled }: { href: string; children: React.ReactNode; disabled?: boolean }) { return <Link href={href} aria-disabled={disabled} className={`inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 ${disabled ? "pointer-events-none opacity-50" : ""}`}>{children}</Link>; }

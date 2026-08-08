@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createCalendarEvent } from "@/server/services/productivity";
@@ -13,7 +14,7 @@ const eventSchema = z.object({
   location: z.string().trim().max(200).optional(),
 });
 
-export async function createCalendarEventAction(formData: FormData) {
+export async function createCalendarEventAction(formData: FormData): Promise<void> {
   const parsed = eventSchema.safeParse({
     title: formData.get("title"),
     starts_at: formData.get("starts_at"),
@@ -21,7 +22,12 @@ export async function createCalendarEventAction(formData: FormData) {
     event_type: formData.get("event_type"),
     location: formData.get("location") || "",
   });
-  if (!parsed.success) return { ok: false, message: "Etkinlik bilgilerini kontrol edin." };
+
+  if (!parsed.success) {
+    redirect("/calendar?toast=Etkinlik%20bilgilerini%20kontrol%20edin.&tone=danger");
+  }
+
+  let failureMessage: string | null = null;
   try {
     await createCalendarEvent({
       title: parsed.data.title,
@@ -30,9 +36,14 @@ export async function createCalendarEventAction(formData: FormData) {
       eventType: parsed.data.event_type,
       location: parsed.data.location || null,
     });
-    revalidatePath("/calendar");
-    return { ok: true, message: "Etkinlik oluşturuldu." };
   } catch (error) {
-    return { ok: false, message: error instanceof Error ? error.message : "Etkinlik oluşturulamadı." };
+    failureMessage = error instanceof Error ? error.message : "Etkinlik oluşturulamadı.";
   }
+
+  if (failureMessage) {
+    redirect(`/calendar?toast=${encodeURIComponent(failureMessage)}&tone=danger`);
+  }
+
+  revalidatePath("/calendar");
+  redirect("/calendar?toast=Etkinlik%20oluşturuldu.&tone=success");
 }

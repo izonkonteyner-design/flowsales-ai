@@ -154,8 +154,8 @@ export async function stageMetaMessagingConnection(params: {
   if (accounts.length === 0) throw new Error(`No eligible ${params.provider} messaging account was found.`);
 
   const scopes = params.provider === "facebook"
-    ? ["pages_manage_metadata", "pages_messaging"]
-    : ["instagram_business_basic", "instagram_business_manage_messages", "instagram_business_manage_comments"];
+    ? ["pages_show_list", "pages_read_engagement", "pages_manage_metadata", "pages_messaging"]
+    : ["instagram_business_basic", "instagram_business_manage_messages"];
 
   const connection = await upsertChannelConnection({
     organizationId: params.organizationId,

@@ -39,7 +39,6 @@ export async function GET(request: NextRequest) {
       oauth.searchParams.set("scope", [
         "instagram_business_basic",
         "instagram_business_manage_messages",
-        "instagram_business_manage_comments",
       ].join(","));
       oauth.searchParams.set("state", rawStateToken);
       oauth.searchParams.set("response_type", "code");

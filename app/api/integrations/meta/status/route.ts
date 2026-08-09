@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     } : null,
     requestedScopes: {
       facebook: ["pages_show_list", "pages_manage_metadata", "pages_messaging", "pages_read_engagement"],
-      instagram: ["instagram_business_basic", "instagram_business_manage_messages", "instagram_business_manage_comments"],
+      instagram: ["instagram_business_basic", "instagram_business_manage_messages"],
     },
   }, { headers: { "Cache-Control": "no-store" } });
 }

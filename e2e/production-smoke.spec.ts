@@ -111,7 +111,7 @@ test.describe('Production Smoke & Security Tests', () => {
       await expect(firstNameInput).toBeDisabled();
     }
 
-    await page.getByRole('button', { name: 'Log out' }).click();
+    await page.getByRole('button', { name: 'Çıkış yap' }).click();
     await waitAndAssertPath(page, '/login');
   });
 });

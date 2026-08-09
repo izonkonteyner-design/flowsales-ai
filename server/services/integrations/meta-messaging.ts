@@ -7,9 +7,11 @@ import type { MetaMessagingProvider } from "@/server/services/integrations/meta-
 import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/services/integrations/rate-limiter";
 import { validateCustomerWindow } from "@/lib/utils/customer-window";
 import { DEMO_ORGANIZATION_ID } from "@/server/repositories/supabase/omnichannel-inbox";
+import { logger } from "@/lib/logger";
 
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || "v21.0";
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || "v26.0";
+const FACEBOOK_GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const INSTAGRAM_GRAPH_BASE = `https://graph.instagram.com/${GRAPH_VERSION}`;
 const MAX_WEBHOOK_ATTEMPTS = 5;
 
 export type MetaMessagingWebhookPayload = Record<string, unknown>;
@@ -54,6 +56,16 @@ async function findConnectedAccount(provider: MetaMessagingProvider, accountId: 
   if (error) throw new Error("Failed to resolve Meta messaging connection.");
   if (!data || data.length !== 1) return null;
   return data[0] as { id: string; organization_id: string; external_account_id: string; status: string };
+}
+
+async function findConnectionForEvent(provider: MetaMessagingProvider, entryId: string, event: MessagingEvent) {
+  const candidates = [entryId, event.recipient?.id, event.sender?.id]
+    .filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
+  for (const accountId of candidates) {
+    const connection = await findConnectedAccount(provider, accountId);
+    if (connection) return { connection, accountId };
+  }
+  return null;
 }
 
 async function persistInbound(params: {
@@ -172,15 +184,20 @@ export async function handleMetaMessagingWebhook(payload: MetaMessagingWebhookPa
   const entries = Array.isArray(payload.entry) ? payload.entry as Array<Record<string, unknown>> : [];
   let processed = 0;
   let duplicates = 0;
+  let unmatched = 0;
   for (const entry of entries) {
     const entryId = typeof entry.id === "string" ? entry.id : "";
     const events = Array.isArray(entry.messaging) ? entry.messaging as MessagingEvent[] : [];
     for (const event of events) {
-      const accountId = event.recipient?.id || entryId;
       const senderId = event.sender?.id || "";
-      if (!accountId || !senderId) continue;
-      const connection = await findConnectedAccount(provider, accountId);
-      if (!connection) continue;
+      if (!entryId || !senderId) continue;
+      const resolved = await findConnectionForEvent(provider, entryId, event);
+      if (!resolved) {
+        unmatched += 1;
+        logger.warn("meta_messaging_webhook.connection_not_found", { provider, entryId, hasRecipient: Boolean(event.recipient?.id), hasSender: Boolean(event.sender?.id) });
+        continue;
+      }
+      const { connection, accountId } = resolved;
 
       const externalEventId = event.message?.mid
         || `${provider}_${senderId}_${accountId}_${event.timestamp || ""}_${crypto.createHash("sha256").update(JSON.stringify(event)).digest("hex").slice(0, 16)}`;
@@ -199,11 +216,13 @@ export async function handleMetaMessagingWebhook(payload: MetaMessagingWebhookPa
           status: "failed", retry_count: 1, error_message: "meta_messaging_processing_failed", last_attempt_at: new Date().toISOString(),
           next_retry_at: new Date(Date.now() + 120_000).toISOString(), dead_lettered_at: null,
         }).eq("id", stored.id).eq("organization_id", connection.organization_id);
+        logger.error("meta_messaging_webhook.processing_failed", error, { provider, organizationId: connection.organization_id });
         throw error;
       }
     }
   }
-  return Response.json({ received: true, provider, processed, duplicates }, { status: 200 });
+  logger.info("meta_messaging_webhook.processed", { provider, entries: entries.length, processed, duplicates, unmatched });
+  return Response.json({ received: true, provider, processed, duplicates, unmatched }, { status: 200 });
 }
 
 export async function sendMetaMessagingReply(params: {
@@ -273,7 +292,8 @@ export async function sendMetaMessagingReply(params: {
   if (!tokenRow?.access_token_cipher) return { success: false as const, errorCode: "connection_required", message: "Encrypted Meta messaging token is missing." };
   const token = decryptToken(tokenRow.access_token_cipher);
 
-  const response = await fetch(`${GRAPH_BASE}/${encodeURIComponent(connection.external_account_id)}/messages`, {
+  const graphBase = provider === "instagram" ? INSTAGRAM_GRAPH_BASE : FACEBOOK_GRAPH_BASE;
+  const response = await fetch(`${graphBase}/${encodeURIComponent(connection.external_account_id)}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ recipient: { id: conversation.external_id }, message: { text }, ...(provider === "facebook" ? { messaging_type: "RESPONSE" } : {}) }),

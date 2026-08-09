@@ -5,9 +5,46 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 
+const scoreFactorSchema = z.enum([
+  "product_interest",
+  "pricing_intent",
+  "availability_intent",
+  "location_known",
+  "budget_known",
+  "timeline_known",
+  "use_case_known",
+  "repeat_engagement",
+  "quote_requested",
+  "purchase_commitment",
+  "explicit_objection",
+  "low_intent",
+]);
+
+type ScoreFactor = z.infer<typeof scoreFactorSchema>;
+
+const SCORE_WEIGHTS: Record<ScoreFactor, number> = {
+  product_interest: 15,
+  pricing_intent: 10,
+  availability_intent: 10,
+  location_known: 10,
+  budget_known: 15,
+  timeline_known: 15,
+  use_case_known: 5,
+  repeat_engagement: 10,
+  quote_requested: 20,
+  purchase_commitment: 30,
+  explicit_objection: -10,
+  low_intent: -20,
+};
+
+const scoreEvidenceSchema = z.object({
+  factor: scoreFactorSchema,
+  evidence: z.string().trim().min(1).max(240),
+});
+
 const scoreBreakdownSchema = z.object({
-  factor: z.string().trim().min(1).max(80),
-  points: z.number().int().min(-30).max(40),
+  factor: scoreFactorSchema,
+  points: z.number().int(),
   evidence: z.string().trim().min(1).max(240),
 });
 
@@ -28,16 +65,17 @@ const outputSchema = z.object({
     objections: z.array(z.string().trim().min(1).max(180)).max(8),
   }),
   missingInformation: z.array(z.string().trim().min(1).max(160)).max(8),
-  scoreBreakdown: z.array(scoreBreakdownSchema).min(1).max(12),
+  scoreEvidence: z.array(scoreEvidenceSchema).max(12),
   nextBestAction: z.string().trim().min(1).max(500),
   nextBestActionType: z.enum(["ask_question", "share_information", "create_quote", "follow_up", "call", "no_action"]),
   nextBestActionRationale: z.string().trim().min(1).max(500),
   followUpHours: z.number().int().min(1).max(720).nullable(),
 });
 
-export type ConversationQualification = z.infer<typeof outputSchema> & {
+export type ConversationQualification = Omit<z.infer<typeof outputSchema>, "scoreEvidence"> & {
   id: string;
   score: number;
+  scoreBreakdown: Array<z.infer<typeof scoreBreakdownSchema>>;
   createdAt: string;
   status: "suggested" | "accepted" | "dismissed";
 };
@@ -68,6 +106,17 @@ function safeMessages(rows: Array<{ direction?: string; body?: string | null; cr
     text: (row.body || "[non-text message]").slice(0, 1600),
     at: row.created_at,
   }));
+}
+
+function calculateScoreBreakdown(evidence: Array<z.infer<typeof scoreEvidenceSchema>>) {
+  const seen = new Set<ScoreFactor>();
+  const breakdown: Array<z.infer<typeof scoreBreakdownSchema>> = [];
+  for (const item of evidence) {
+    if (seen.has(item.factor)) continue;
+    seen.add(item.factor);
+    breakdown.push({ factor: item.factor, points: SCORE_WEIGHTS[item.factor], evidence: item.evidence });
+  }
+  return breakdown;
 }
 
 function calculateScore(breakdown: Array<{ points: number }>) {
@@ -144,8 +193,10 @@ export async function generateConversationQualification(params: {
         "Extract productInterest, location, budget, timeline and useCase only when evidenced; otherwise use null.",
         "List concrete buyingSignals and objections with no speculation. missingInformation must contain only facts that would materially improve the next sales step.",
         "salesStage is new_lead|discovery|qualified|quote_ready|quote_sent|negotiation|won|lost|support. Do not claim quote_sent, won or lost without explicit evidence.",
-        "scoreBreakdown must be evidence-backed. Use positive points for commercial readiness and negative points only for explicit disqualification/low intent. The application deterministically sums these points and clamps the score to 0-100, so do not return a separate score.",
-        "Use concise factor names and quote/paraphrase the exact evidence supporting every factor. Never award points for information that is missing.",
+        "For scoreEvidence, return only evidence-backed factor identifiers from: product_interest, pricing_intent, availability_intent, location_known, budget_known, timeline_known, use_case_known, repeat_engagement, quote_requested, purchase_commitment, explicit_objection, low_intent.",
+        "Do not assign points. FlowSales owns the fixed scoring weights and deduplicates factors. Never include a factor when its evidence is missing or speculative.",
+        "quote_requested requires an explicit request for a quote/offer. purchase_commitment requires explicit readiness to buy, order, pay, reserve or proceed. repeat_engagement requires evidence of continued/repeated engagement, not merely multiple messages in one exchange.",
+        "explicit_objection requires a concrete objection such as price, timing or fit. low_intent requires explicit low/no commercial intent, not simply missing information.",
         "priority is high only when the evidence supports prompt human attention. confidence reflects confidence in the analysis, not purchase probability.",
         "nextBestAction must be one concrete action a human sales rep can take now. nextBestActionType is ask_question|share_information|create_quote|follow_up|call|no_action.",
         "Never automatically mutate CRM stage, create a quote, call, or send a customer message. AI recommends; a human decides.",
@@ -157,7 +208,8 @@ export async function generateConversationQualification(params: {
   let decoded: unknown;
   try { decoded = JSON.parse(response.text || "{}"); } catch { throw new Error("AI satış analizi geçersiz JSON döndürdü."); }
   const parsed = outputSchema.parse(decoded);
-  const score = calculateScore(parsed.scoreBreakdown);
+  const scoreBreakdown = calculateScoreBreakdown(parsed.scoreEvidence);
+  const score = calculateScore(scoreBreakdown);
   const recommended = parsed.followUpHours ? new Date(Date.now() + parsed.followUpHours * 3_600_000).toISOString() : null;
 
   const { data: row, error } = await admin.from("conversation_ai_qualifications").insert({
@@ -174,13 +226,13 @@ export async function generateConversationQualification(params: {
     summary: parsed.summary,
     signals: parsed.signals,
     missing_information: parsed.missingInformation,
-    score_breakdown: parsed.scoreBreakdown,
+    score_breakdown: scoreBreakdown,
     next_best_action: parsed.nextBestAction,
     next_best_action_type: parsed.nextBestActionType,
     next_best_action_rationale: parsed.nextBestActionRationale,
     recommended_follow_up_at: recommended,
     model,
-    prompt_version: "2026-08-09.2",
+    prompt_version: "2026-08-10.1",
     input_hash: inputHash,
     status: "suggested",
   }).select("id,created_at,status").single();
@@ -200,11 +252,13 @@ export async function generateConversationQualification(params: {
       sales_stage: parsed.salesStage,
       priority: parsed.priority,
       model,
-      prompt_version: "2026-08-09.2",
+      prompt_version: "2026-08-10.1",
     },
   });
 
-  return { ...parsed, score, id: row.id, status: row.status, createdAt: row.created_at };
+  const { scoreEvidence: _scoreEvidence, ...result } = parsed;
+  void _scoreEvidence;
+  return { ...result, score, scoreBreakdown, id: row.id, status: row.status, createdAt: row.created_at };
 }
 
 export async function getLatestConversationQualification(organizationId: string, conversationId: string) {

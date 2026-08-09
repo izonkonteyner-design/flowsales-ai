@@ -47,9 +47,9 @@ test("AI sales agent remains human-approved from qualification through follow-up
   const intelligence = await source("components/inbox/conversation-intelligence-panel.tsx");
   const followUp = await source("server/services/sales-follow-up-engine.ts");
   const reply = await source("components/inbox/ai-reply-suggestion.tsx");
-  assert.match(intelligence, /AI recommends; humans decide and approve follow-ups/);
-  assert.match(intelligence, /Accept/);
-  assert.match(intelligence, /Create approved follow-up plan/);
+  assert.match(intelligence, /AI önerir; CRM değişikliği ve müşteri iletişimi insan onayı olmadan yapılmaz/);
+  assert.match(intelligence, /review\("accepted"\)/);
+  assert.match(intelligence, /createPlan/);
   assert.match(followUp, /Qualification must be accepted by a human/);
   assert.doesNotMatch(followUp, /sendMetaMessagingReply|sendOutboundReply/);
   assert.match(reply, /Copy for review/);

@@ -54,15 +54,17 @@ test.describe('Production Smoke & Security Tests', () => {
     await demoButton.click();
 
     await waitAndAssertPath(page, '/dashboard');
-    await expect(page.getByRole('heading', { name: /your sales operation/i })).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('link', { name: /ask ai/i })).toBeVisible();
-    await expect(page.getByRole('link', { name: /approvals/i }).first()).toBeVisible();
-    await expect(page.getByRole('link', { name: 'New lead', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Satış operasyonunuzu tek ekranda önceliklendirin.' })).toBeVisible({ timeout: 15000 });
+    const dashboardHero = page.locator('section').first();
+    const askAi = dashboardHero.locator('a[href="/ai"]');
+    await expect(askAi).toBeVisible();
+    await expect(dashboardHero.locator('a[href="/approvals"]')).toBeVisible();
+    await expect(dashboardHero.locator('a[href="/leads/new"]')).toBeVisible();
 
-    await page.getByRole('link', { name: /ask ai/i }).click();
+    await askAi.click();
     await waitAndAssertPath(page, '/ai');
-    await expect(page.getByRole('heading', { name: 'AI sales workspace' })).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Select a lead', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'YZ aksiyonları doğrulanmış potansiyel müşteri bağlamından çalışır.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Fırsat seçin', exact: true })).toBeVisible();
     const aiLeadLinks = page.locator('a[href^="/leads/"][href$="/ai"]');
     await expect(aiLeadLinks.first()).toBeVisible();
 

@@ -4,12 +4,14 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { decryptToken, encryptToken } from "@/server/services/integrations/encryption";
 import { upsertChannelConnection } from "@/server/services/integrations/channel-connections";
 import type { ChannelProvider } from "@/server/services/integrations/provider-adapter";
+import { logger } from "@/lib/logger";
 
 export type MetaMessagingProvider = Extract<ChannelProvider, "instagram" | "facebook">;
 
 type MetaTokenResponse = { access_token?: string; token_type?: string; expires_in?: number; error?: { message?: string } };
 type PageAccount = { id: string; name?: string; access_token?: string; instagram_business_account?: { id?: string; username?: string; name?: string } };
 type InstagramAccount = { id?: string; user_id?: string; username?: string; name?: string; account_type?: string; error?: { message?: string } };
+type SubscriptionResponse = { data?: Array<{ id?: string; subscribed_fields?: string[] }> };
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || "v26.0";
 const FACEBOOK_GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -48,6 +50,18 @@ async function instagramGraphJson<T>(path: string, token: string, init?: Request
   const data = (await response.json().catch(() => ({}))) as T & { error?: { message?: string } };
   if (!response.ok || data.error) throw new Error(`Instagram Graph request failed (${response.status}).`);
   return data;
+}
+
+async function verifyMessagingSubscription(provider: MetaMessagingProvider, externalAccountId: string, token: string) {
+  const path = `/${encodeURIComponent(externalAccountId)}/subscribed_apps`;
+  const result = provider === "instagram"
+    ? await instagramGraphJson<SubscriptionResponse>(path, token)
+    : await facebookGraphJson<SubscriptionResponse>(path, token);
+  const subscriptions = Array.isArray(result.data) ? result.data : [];
+  const fields = new Set(subscriptions.flatMap((item) => Array.isArray(item.subscribed_fields) ? item.subscribed_fields : []));
+  if (!fields.has("messages")) throw new Error(`${provider} messages webhook subscription could not be verified.`);
+  logger.info("meta_messaging.subscription_verified", { provider, externalAccountId, subscribedFields: Array.from(fields).sort() });
+  return Array.from(fields).sort();
 }
 
 export async function exchangeMetaCode(params: { provider: MetaMessagingProvider; code: string; redirectUri: string }) {
@@ -222,6 +236,7 @@ export async function selectMetaMessagingAccount(params: {
   } else {
     await instagramGraphJson(`/${params.externalAccountId}/subscribed_apps?subscribed_fields=${encodeURIComponent("messages,messaging_postbacks,messaging_seen,message_reactions,message_edit,messaging_referral")}`, accountToken, { method: "POST", body: "{}" });
   }
+  const subscribedFields = await verifyMessagingSubscription(params.provider, params.externalAccountId, accountToken);
 
   const { error: tokenError } = await admin.from("integration_tokens").update({
     access_token_cipher: encryptToken(accountToken), updated_at: new Date().toISOString(),
@@ -234,7 +249,11 @@ export async function selectMetaMessagingAccount(params: {
   }).eq("id", connection.id).eq("organization_id", params.organizationId);
   if (connectionError) throw new Error("Failed to activate Meta messaging connection.");
 
-  await admin.from("channel_accounts").update({ metadata: pageId ? { page_id: pageId, selection_status: "selected" } : { selection_status: "selected" }, updated_at: new Date().toISOString() })
-    .eq("organization_id", params.organizationId).eq("connection_id", connection.id).eq("provider", params.provider).eq("external_id", params.externalAccountId);
-  return { connectionId: connection.id, externalAccountId: params.externalAccountId, displayName };
+  await admin.from("channel_accounts").update({
+    metadata: pageId
+      ? { page_id: pageId, selection_status: "selected", subscribed_fields: subscribedFields }
+      : { selection_status: "selected", subscribed_fields: subscribedFields },
+    updated_at: new Date().toISOString(),
+  }).eq("organization_id", params.organizationId).eq("connection_id", connection.id).eq("provider", params.provider).eq("external_id", params.externalAccountId);
+  return { connectionId: connection.id, externalAccountId: params.externalAccountId, displayName, subscribedFields };
 }

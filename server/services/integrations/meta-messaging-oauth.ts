@@ -9,19 +9,25 @@ export type MetaMessagingProvider = Extract<ChannelProvider, "instagram" | "face
 
 type MetaTokenResponse = { access_token?: string; token_type?: string; expires_in?: number; error?: { message?: string } };
 type PageAccount = { id: string; name?: string; access_token?: string; instagram_business_account?: { id?: string; username?: string; name?: string } };
+type InstagramAccount = { id?: string; user_id?: string; username?: string; name?: string; account_type?: string; error?: { message?: string } };
 
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || "v21.0";
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || "v26.0";
+const FACEBOOK_GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+const INSTAGRAM_GRAPH_BASE = "https://graph.instagram.com";
 
-function metaCredentials() {
-  const clientId = process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim();
-  const clientSecret = process.env.META_CLIENT_SECRET?.trim() || process.env.META_APP_SECRET?.trim();
+function metaCredentials(provider: MetaMessagingProvider) {
+  const clientId = provider === "instagram"
+    ? process.env.INSTAGRAM_APP_ID?.trim() || process.env.META_INSTAGRAM_APP_ID?.trim() || process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim()
+    : process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim();
+  const clientSecret = provider === "instagram"
+    ? process.env.INSTAGRAM_APP_SECRET?.trim() || process.env.META_INSTAGRAM_APP_SECRET?.trim() || process.env.META_CLIENT_SECRET?.trim() || process.env.META_APP_SECRET?.trim()
+    : process.env.META_CLIENT_SECRET?.trim() || process.env.META_APP_SECRET?.trim();
   if (!clientId || !clientSecret) throw new Error("Meta OAuth credentials are not configured.");
   return { clientId, clientSecret };
 }
 
-async function graphJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${GRAPH_BASE}${path}`, {
+async function facebookGraphJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${FACEBOOK_GRAPH_BASE}${path}`, {
     ...init,
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init?.headers || {}) },
     cache: "no-store",
@@ -31,9 +37,52 @@ async function graphJson<T>(path: string, token: string, init?: RequestInit): Pr
   return data;
 }
 
-export async function exchangeMetaCode(params: { code: string; redirectUri: string }) {
-  const { clientId, clientSecret } = metaCredentials();
-  const url = new URL(`${GRAPH_BASE}/oauth/access_token`);
+async function instagramGraphJson<T>(path: string, token: string, init?: RequestInit): Promise<T> {
+  const url = new URL(`${INSTAGRAM_GRAPH_BASE}${path}`);
+  url.searchParams.set("access_token", token);
+  const response = await fetch(url, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    cache: "no-store",
+  });
+  const data = (await response.json().catch(() => ({}))) as T & { error?: { message?: string } };
+  if (!response.ok || data.error) throw new Error(`Instagram Graph request failed (${response.status}).`);
+  return data;
+}
+
+export async function exchangeMetaCode(params: { provider: MetaMessagingProvider; code: string; redirectUri: string }) {
+  const { clientId, clientSecret } = metaCredentials(params.provider);
+
+  if (params.provider === "instagram") {
+    const body = new URLSearchParams();
+    body.set("client_id", clientId);
+    body.set("client_secret", clientSecret);
+    body.set("grant_type", "authorization_code");
+    body.set("redirect_uri", params.redirectUri);
+    body.set("code", params.code);
+
+    const response = await fetch("https://api.instagram.com/oauth/access_token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      cache: "no-store",
+    });
+    const first = (await response.json().catch(() => ({}))) as MetaTokenResponse;
+    if (!response.ok || !first.access_token) throw new Error("Instagram authorization code exchange failed.");
+
+    const longUrl = new URL(`${INSTAGRAM_GRAPH_BASE}/access_token`);
+    longUrl.searchParams.set("grant_type", "ig_exchange_token");
+    longUrl.searchParams.set("client_secret", clientSecret);
+    longUrl.searchParams.set("access_token", first.access_token);
+    const longRes = await fetch(longUrl, { cache: "no-store" });
+    const long = (await longRes.json().catch(() => ({}))) as MetaTokenResponse;
+    return {
+      accessToken: longRes.ok && long.access_token ? long.access_token : first.access_token,
+      expiresIn: longRes.ok && typeof long.expires_in === "number" ? long.expires_in : first.expires_in,
+    };
+  }
+
+  const url = new URL(`${FACEBOOK_GRAPH_BASE}/oauth/access_token`);
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("client_secret", clientSecret);
   url.searchParams.set("redirect_uri", params.redirectUri);
@@ -42,8 +91,7 @@ export async function exchangeMetaCode(params: { code: string; redirectUri: stri
   const first = (await response.json().catch(() => ({}))) as MetaTokenResponse;
   if (!response.ok || !first.access_token) throw new Error("Meta authorization code exchange failed.");
 
-  // Exchange short-lived user token for a long-lived token when Meta supports it.
-  const longUrl = new URL(`${GRAPH_BASE}/oauth/access_token`);
+  const longUrl = new URL(`${FACEBOOK_GRAPH_BASE}/oauth/access_token`);
   longUrl.searchParams.set("grant_type", "fb_exchange_token");
   longUrl.searchParams.set("client_id", clientId);
   longUrl.searchParams.set("client_secret", clientSecret);
@@ -57,26 +105,28 @@ export async function exchangeMetaCode(params: { code: string; redirectUri: stri
 }
 
 async function getPages(userToken: string): Promise<PageAccount[]> {
-  const result = await graphJson<{ data?: PageAccount[] }>(
+  const result = await facebookGraphJson<{ data?: PageAccount[] }>(
     "/me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name}&limit=100",
     userToken,
   );
   return Array.isArray(result.data) ? result.data.filter((item) => typeof item.id === "string") : [];
 }
 
+async function getInstagramAccount(userToken: string) {
+  const account = await instagramGraphJson<InstagramAccount>("/me?fields=id,user_id,username,name,account_type", userToken);
+  const externalId = account.id || account.user_id;
+  if (!externalId) throw new Error("No eligible Instagram professional account was found.");
+  return {
+    externalId,
+    displayName: account.name || account.username || "Instagram Professional Account",
+    username: account.username || null,
+  };
+}
+
 export async function discoverMetaMessagingAccounts(provider: MetaMessagingProvider, userToken: string) {
+  if (provider === "instagram") return [await getInstagramAccount(userToken)];
   const pages = await getPages(userToken);
-  if (provider === "facebook") {
-    return pages.map((page) => ({ externalId: page.id, displayName: page.name || "Facebook Page", username: null }));
-  }
-  return pages
-    .filter((page) => page.instagram_business_account?.id)
-    .map((page) => ({
-      externalId: page.instagram_business_account!.id!,
-      displayName: page.instagram_business_account?.name || page.instagram_business_account?.username || page.name || "Instagram Professional Account",
-      username: page.instagram_business_account?.username || null,
-      pageId: page.id,
-    }));
+  return pages.map((page) => ({ externalId: page.id, displayName: page.name || "Facebook Page", username: null }));
 }
 
 export async function stageMetaMessagingConnection(params: {
@@ -89,13 +139,17 @@ export async function stageMetaMessagingConnection(params: {
   const accounts = await discoverMetaMessagingAccounts(params.provider, params.userToken);
   if (accounts.length === 0) throw new Error(`No eligible ${params.provider} messaging account was found.`);
 
+  const scopes = params.provider === "facebook"
+    ? ["pages_manage_metadata", "pages_messaging"]
+    : ["instagram_business_basic", "instagram_business_manage_messages", "instagram_business_manage_comments"];
+
   const connection = await upsertChannelConnection({
     organizationId: params.organizationId,
     provider: params.provider,
     status: "connecting",
     displayName: accounts.length === 1 ? accounts[0].displayName : `${accounts.length} accounts available`,
     externalAccountId: null,
-    scopes: params.provider === "facebook" ? ["pages_manage_metadata", "pages_messaging"] : ["instagram_basic", "instagram_manage_messages", "pages_show_list"],
+    scopes,
     createdByUserId: params.userId,
   });
   if ("error" in connection) throw new Error(connection.error);
@@ -109,12 +163,11 @@ export async function stageMetaMessagingConnection(params: {
     access_token_cipher: encryptToken(params.userToken),
     token_type: "Bearer",
     expires_at: expiresAt,
-    scopes: params.provider === "facebook" ? ["pages_manage_metadata", "pages_messaging"] : ["instagram_basic", "instagram_manage_messages", "pages_show_list"],
+    scopes,
     updated_at: new Date().toISOString(),
   }, { onConflict: "connection_id" });
   if (tokenError) throw new Error("Failed to store encrypted Meta OAuth token.");
 
-  // Store display-safe candidates only. Never persist page access tokens in channel_accounts metadata.
   await admin.from("channel_accounts").delete().eq("organization_id", params.organizationId).eq("provider", params.provider).eq("connection_id", connection.id);
   const { error: accountError } = await admin.from("channel_accounts").insert(accounts.map((account) => ({
     organization_id: params.organizationId,
@@ -123,7 +176,7 @@ export async function stageMetaMessagingConnection(params: {
     external_id: account.externalId,
     external_username: account.username,
     display_name: account.displayName,
-    metadata: "pageId" in account && account.pageId ? { page_id: account.pageId, selection_status: "candidate" } : { selection_status: "candidate" },
+    metadata: { selection_status: "candidate" },
   })));
   if (accountError) throw new Error("Failed to persist Meta account candidates.");
 
@@ -145,28 +198,30 @@ export async function selectMetaMessagingAccount(params: {
     .select("access_token_cipher").eq("organization_id", params.organizationId).eq("connection_id", connection.id).maybeSingle();
   if (!tokenRow?.access_token_cipher) throw new Error("Encrypted Meta OAuth token not found.");
   const userToken = decryptToken(tokenRow.access_token_cipher);
-  const pages = await getPages(userToken);
 
-  let accountToken: string | undefined;
+  let accountToken: string;
   let displayName = "Meta Messaging";
   let pageId: string | null = null;
+
   if (params.provider === "facebook") {
+    const pages = await getPages(userToken);
     const page = pages.find((item) => item.id === params.externalAccountId);
     if (!page?.access_token) throw new Error("Selected Facebook Page is no longer available.");
-    accountToken = page.access_token; displayName = page.name || "Facebook Page"; pageId = page.id;
-  } else {
-    const page = pages.find((item) => item.instagram_business_account?.id === params.externalAccountId);
-    if (!page?.access_token || !page.instagram_business_account?.id) throw new Error("Selected Instagram account is no longer available.");
     accountToken = page.access_token;
-    displayName = page.instagram_business_account.name || page.instagram_business_account.username || page.name || "Instagram Professional Account";
+    displayName = page.name || "Facebook Page";
     pageId = page.id;
+  } else {
+    const account = await getInstagramAccount(userToken);
+    if (account.externalId !== params.externalAccountId) throw new Error("Selected Instagram account is no longer available.");
+    accountToken = userToken;
+    displayName = account.displayName;
   }
 
-  const subscribeTarget = params.provider === "facebook" ? params.externalAccountId : params.externalAccountId;
-  const subscribedFields = params.provider === "facebook"
-    ? "messages,messaging_postbacks,message_deliveries,message_reads"
-    : "messages,messaging_postbacks";
-  await graphJson(`/${subscribeTarget}/subscribed_apps?subscribed_fields=${encodeURIComponent(subscribedFields)}`, accountToken, { method: "POST", body: "{}" });
+  if (params.provider === "facebook") {
+    await facebookGraphJson(`/${params.externalAccountId}/subscribed_apps?subscribed_fields=${encodeURIComponent("messages,messaging_postbacks,message_deliveries,message_reads")}`, accountToken, { method: "POST", body: "{}" });
+  } else {
+    await instagramGraphJson(`/${params.externalAccountId}/subscribed_apps?subscribed_fields=${encodeURIComponent("messages,messaging_postbacks,messaging_seen,message_reactions,message_edit,messaging_referral")}`, accountToken, { method: "POST", body: "{}" });
+  }
 
   const { error: tokenError } = await admin.from("integration_tokens").update({
     access_token_cipher: encryptToken(accountToken), updated_at: new Date().toISOString(),
@@ -179,7 +234,7 @@ export async function selectMetaMessagingAccount(params: {
   }).eq("id", connection.id).eq("organization_id", params.organizationId);
   if (connectionError) throw new Error("Failed to activate Meta messaging connection.");
 
-  await admin.from("channel_accounts").update({ metadata: { page_id: pageId, selection_status: "selected" }, updated_at: new Date().toISOString() })
+  await admin.from("channel_accounts").update({ metadata: pageId ? { page_id: pageId, selection_status: "selected" } : { selection_status: "selected" }, updated_at: new Date().toISOString() })
     .eq("organization_id", params.organizationId).eq("connection_id", connection.id).eq("provider", params.provider).eq("external_id", params.externalAccountId);
   return { connectionId: connection.id, externalAccountId: params.externalAccountId, displayName };
 }

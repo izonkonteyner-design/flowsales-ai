@@ -16,9 +16,20 @@ type Connection = {
 };
 
 type SubscriptionResponse = {
-  data?: Array<{ subscribed_fields?: string[] }>;
+  data?: Array<{ id?: string; name?: string; subscribed_fields?: string[] }>;
   error?: { message?: string; code?: number };
 };
+
+function configuredAppId(provider: Provider) {
+  if (provider === "instagram") {
+    return process.env.INSTAGRAM_APP_ID?.trim()
+      || process.env.META_INSTAGRAM_APP_ID?.trim()
+      || process.env.META_CLIENT_ID?.trim()
+      || process.env.META_APP_ID?.trim()
+      || null;
+  }
+  return process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim() || null;
+}
 
 async function repairProvider(
   provider: Provider,
@@ -34,9 +45,8 @@ async function repairProvider(
     : ["messages", "messaging_postbacks", "message_deliveries", "message_reads"];
 
   const accountId = encodeURIComponent(connection.external_account_id);
-  const subscribedFields = encodeURIComponent(fields.join(","));
   const base = provider === "instagram"
-    ? `https://graph.instagram.com/${accountId}/subscribed_apps`
+    ? `https://graph.instagram.com/${GRAPH_VERSION}/${accountId}/subscribed_apps`
     : `https://graph.facebook.com/${GRAPH_VERSION}/${accountId}/subscribed_apps`;
 
   const subscribeUrl = new URL(base);
@@ -60,15 +70,25 @@ async function repairProvider(
     cache: "no-store",
   });
   const verifyBody = (await verifyResponse.json().catch(() => ({}))) as SubscriptionResponse;
+  const subscriptions = Array.isArray(verifyBody.data) ? verifyBody.data : [];
   const actualFields = Array.from(new Set(
-    (Array.isArray(verifyBody.data) ? verifyBody.data : [])
-      .flatMap((item) => Array.isArray(item.subscribed_fields) ? item.subscribed_fields : []),
+    subscriptions.flatMap((item) => Array.isArray(item.subscribed_fields) ? item.subscribed_fields : []),
   )).sort();
+  const messagingSubscriptions = subscriptions
+    .filter((item) => Array.isArray(item.subscribed_fields) && item.subscribed_fields.includes("messages"))
+    .map((item) => ({ appId: item.id ?? null, appName: item.name ?? null }));
+  const appId = configuredAppId(provider);
+  const webhookOwnedByConfiguredApp = Boolean(
+    appId && messagingSubscriptions.some((item) => item.appId === appId),
+  );
   const verified = verifyResponse.ok && actualFields.includes("messages");
 
   logger.info("meta_messaging.subscription_repair", {
     provider,
     organizationAccountConfigured: Boolean(connection.external_account_id),
+    configuredAppId: appId,
+    messagingSubscriptionAppIds: messagingSubscriptions.map((item) => item.appId),
+    webhookOwnedByConfiguredApp,
     subscribeStatus: subscribeResponse.status,
     verifyStatus: verifyResponse.status,
     verified,
@@ -83,6 +103,9 @@ async function repairProvider(
     subscribeStatus: subscribeResponse.status,
     verifyStatus: verifyResponse.status,
     fields: actualFields,
+    configuredAppId: appId,
+    messagingSubscriptions,
+    webhookOwnedByConfiguredApp,
     errorCode: subscribeBody.error?.code ?? verifyBody.error?.code ?? null,
   };
 }
@@ -90,7 +113,7 @@ async function repairProvider(
 /**
  * Authenticated repair endpoint for the current organization.
  * Re-applies and verifies Facebook + Instagram messaging webhook subscriptions.
- * No access tokens or secrets are returned.
+ * Returns only non-secret app IDs/names to diagnose webhook ownership mismatches.
  */
 export async function GET(request: NextRequest) {
   const guard = await runOAuthGuard(request);

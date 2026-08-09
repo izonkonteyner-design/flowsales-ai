@@ -42,6 +42,26 @@ export type ConversationQualification = z.infer<typeof outputSchema> & {
   status: "suggested" | "accepted" | "dismissed";
 };
 
+type StoredQualification = {
+  id: string;
+  score: number;
+  intent: ConversationQualification["intent"];
+  temperature: ConversationQualification["temperature"];
+  sales_stage?: ConversationQualification["salesStage"] | null;
+  priority?: ConversationQualification["priority"] | null;
+  confidence?: number | string | null;
+  summary: string;
+  signals?: ConversationQualification["signals"] | null;
+  missing_information?: ConversationQualification["missingInformation"] | null;
+  score_breakdown?: ConversationQualification["scoreBreakdown"] | null;
+  next_best_action: string;
+  next_best_action_type?: ConversationQualification["nextBestActionType"] | null;
+  next_best_action_rationale?: string | null;
+  recommended_follow_up_at?: string | null;
+  status: ConversationQualification["status"];
+  created_at: string;
+};
+
 function safeMessages(rows: Array<{ direction?: string; body?: string | null; created_at?: string }>) {
   return rows.slice(-40).map((row) => ({
     direction: row.direction === "outbound" ? "agent" : "customer",
@@ -54,7 +74,7 @@ function calculateScore(breakdown: Array<{ points: number }>) {
   return Math.max(0, Math.min(100, breakdown.reduce((total, item) => total + item.points, 0)));
 }
 
-function mapStoredQualification(row: Record<string, any>): ConversationQualification {
+function mapStoredQualification(row: StoredQualification): ConversationQualification {
   return {
     id: row.id,
     score: row.score,
@@ -106,7 +126,7 @@ export async function generateConversationQualification(params: {
   const { data: cached } = await admin.from("conversation_ai_qualifications").select("*")
     .eq("organization_id", params.organizationId).eq("conversation_id", params.conversationId).eq("input_hash", inputHash)
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (cached) return mapStoredQualification(cached);
+  if (cached) return mapStoredQualification(cached as StoredQualification);
 
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) throw new Error("AI satış analizi yapılandırılmamış.");

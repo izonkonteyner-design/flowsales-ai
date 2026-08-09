@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { NextRequest } from "next/server";
-import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 import { runOAuthGuard, handleOAuthRouteError, jsonError } from "@/server/services/integrations/oauth-route-guard";
 import { validateReturnPath, OAuthConfigurationRequiredError, type ChannelProvider } from "@/server/services/integrations/provider-adapter";
 import { createOAuthState } from "@/server/services/integrations/oauth-state";
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     logger.info("oauth.connect_initiated", { provider, organizationId: ctx.organizationId });
-    redirect(oauth.toString());
+    return NextResponse.redirect(oauth);
   } catch (error) {
     return handleOAuthRouteError(error, { provider, route: "meta/connect" });
   }

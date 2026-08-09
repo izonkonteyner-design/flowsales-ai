@@ -20,21 +20,37 @@ export async function GET(request: NextRequest) {
 
   try {
     const returnPath = validateReturnPath(rawReturnPath);
-    const clientId = process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim();
+    const clientId = provider === "instagram"
+      ? process.env.INSTAGRAM_APP_ID?.trim() || process.env.META_INSTAGRAM_APP_ID?.trim() || process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim()
+      : process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
     if (!clientId || !siteUrl) throw new OAuthConfigurationRequiredError(provider);
 
     const { rawStateToken } = await createOAuthState(provider, ctx.organizationId, ctx.userId, returnPath, false);
     const redirectUri = `${siteUrl}/api/integrations/meta/callback?provider=${provider}`;
-    const scopes = provider === "facebook"
-      ? ["pages_show_list", "pages_manage_metadata", "pages_messaging", "pages_read_engagement"]
-      : ["pages_show_list", "pages_manage_metadata", "pages_read_engagement", "instagram_basic", "instagram_manage_messages"];
-    const oauth = new URL(`https://www.facebook.com/${process.env.META_GRAPH_VERSION?.trim() || "v21.0"}/dialog/oauth`);
-    oauth.searchParams.set("client_id", clientId);
-    oauth.searchParams.set("redirect_uri", redirectUri);
-    oauth.searchParams.set("scope", scopes.join(","));
-    oauth.searchParams.set("state", rawStateToken);
-    oauth.searchParams.set("response_type", "code");
+
+    let oauth: URL;
+    if (provider === "instagram") {
+      oauth = new URL("https://www.instagram.com/oauth/authorize");
+      oauth.searchParams.set("client_id", clientId);
+      oauth.searchParams.set("redirect_uri", redirectUri);
+      oauth.searchParams.set("scope", [
+        "instagram_business_basic",
+        "instagram_business_manage_messages",
+        "instagram_business_manage_comments",
+      ].join(","));
+      oauth.searchParams.set("state", rawStateToken);
+      oauth.searchParams.set("response_type", "code");
+      oauth.searchParams.set("force_reauth", "true");
+    } else {
+      const scopes = ["pages_show_list", "pages_manage_metadata", "pages_messaging", "pages_read_engagement"];
+      oauth = new URL(`https://www.facebook.com/${process.env.META_GRAPH_VERSION?.trim() || "v26.0"}/dialog/oauth`);
+      oauth.searchParams.set("client_id", clientId);
+      oauth.searchParams.set("redirect_uri", redirectUri);
+      oauth.searchParams.set("scope", scopes.join(","));
+      oauth.searchParams.set("state", rawStateToken);
+      oauth.searchParams.set("response_type", "code");
+    }
 
     logger.info("oauth.connect_initiated", { provider, organizationId: ctx.organizationId });
     redirect(oauth.toString());

@@ -74,7 +74,8 @@ test("Unified Inbox routes replies for WhatsApp Instagram and Facebook", async (
 test("AI qualification is evidence-backed and cannot auto-send or mutate CRM stage", async () => {
   const service = await source("server/services/conversation-qualification.ts");
   assert.match(service, /inputHash/);
-  assert.match(service, /Never recommend automatically sending a customer message without human review/);
+  assert.match(service, /Never automatically mutate CRM stage, create a quote, call, or send a customer message/);
+  assert.match(service, /AI recommends; a human decides/);
   assert.match(service, /status: "suggested"/);
   assert.doesNotMatch(service, /\.from\("leads"\)\.update/);
   assert.doesNotMatch(service, /\/messages.*method:\s*"POST"/);

@@ -2,12 +2,14 @@ import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
 import { handleMetaMessagingWebhook } from "@/server/services/integrations/meta-messaging";
 import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/services/integrations/rate-limiter";
+import { logger } from "@/lib/logger";
 
 function secrets() {
   return [
     process.env.META_APP_SECRET?.trim(),
     process.env.META_CLIENT_SECRET?.trim(),
     process.env.INSTAGRAM_APP_SECRET?.trim(),
+    process.env.META_INSTAGRAM_APP_SECRET?.trim(),
   ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
 }
 
@@ -17,7 +19,8 @@ function hasValidSignature(rawBody: string, signature: string | null) {
 
   return secrets().some((appSecret) => {
     const expected = crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
-    return supplied.length === expected.length && crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+    return supplied.length === expected.length
+      && crypto.timingSafeEqual(Buffer.from(supplied, "utf8"), Buffer.from(expected, "utf8"));
   });
 }
 
@@ -27,7 +30,11 @@ export async function GET(request: NextRequest) {
   const token = url.searchParams.get("hub.verify_token");
   const challenge = url.searchParams.get("hub.challenge") || "";
   const expected = process.env.META_WEBHOOK_VERIFY_TOKEN?.trim() || process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim();
-  if (mode === "subscribe" && expected && token === expected) return new Response(challenge, { status: 200 });
+  if (mode === "subscribe" && expected && token === expected) {
+    logger.info("meta_messaging_webhook.verify_success");
+    return new Response(challenge, { status: 200 });
+  }
+  logger.warn("meta_messaging_webhook.verify_failed");
   return Response.json({ error: "forbidden" }, { status: 403 });
 }
 
@@ -43,10 +50,20 @@ export async function POST(request: NextRequest) {
 
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
-  if (!hasValidSignature(rawBody, signature)) return Response.json({ error: "invalid_signature" }, { status: 401 });
+  if (!hasValidSignature(rawBody, signature)) {
+    logger.warn("meta_messaging_webhook.invalid_signature", { configuredSecrets: secrets().length });
+    return Response.json({ error: "invalid_signature" }, { status: 401 });
+  }
 
   let payload: Record<string, unknown>;
   try { payload = JSON.parse(rawBody) as Record<string, unknown>; }
-  catch { return Response.json({ error: "invalid_json" }, { status: 400 }); }
+  catch {
+    logger.warn("meta_messaging_webhook.invalid_json");
+    return Response.json({ error: "invalid_json" }, { status: 400 });
+  }
+
+  const object = typeof payload.object === "string" ? payload.object : "unknown";
+  const entryCount = Array.isArray(payload.entry) ? payload.entry.length : 0;
+  logger.info("meta_messaging_webhook.accepted", { object, entryCount });
   return handleMetaMessagingWebhook(payload);
 }

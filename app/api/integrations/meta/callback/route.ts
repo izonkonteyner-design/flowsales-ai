@@ -27,11 +27,14 @@ export async function GET(request: NextRequest) {
   try {
     const stateRecord = await consumeOAuthState(rawStateToken, provider, ctx.organizationId, ctx.userId);
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-    if (!(process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim()) || !siteUrl) throw new OAuthConfigurationRequiredError(provider);
+    const clientId = provider === "instagram"
+      ? process.env.INSTAGRAM_APP_ID?.trim() || process.env.META_INSTAGRAM_APP_ID?.trim() || process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim()
+      : process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim();
+    if (!clientId || !siteUrl) throw new OAuthConfigurationRequiredError(provider);
     if (!process.env.TOKEN_ENCRYPTION_KEY?.trim()) throw new OAuthTokenEncryptionNotConfiguredError();
 
     const redirectUri = `${siteUrl}/api/integrations/meta/callback?provider=${provider}`;
-    const token = await exchangeMetaCode({ code: searchParams.get("code")!, redirectUri });
+    const token = await exchangeMetaCode({ provider, code: searchParams.get("code")!, redirectUri });
     const staged = await stageMetaMessagingConnection({ organizationId: ctx.organizationId, userId: ctx.userId, provider, userToken: token.accessToken, expiresIn: token.expiresIn });
 
     if (staged.candidates.length === 1) {

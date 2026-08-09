@@ -50,7 +50,7 @@ test("required environment supports documented fallback keys and reports no valu
   );
 });
 
-test("database readiness fails closed and stale database requirements cannot downgrade the 0042 app gate", () => {
+test("database readiness fails closed and stale database requirements cannot downgrade the 0045 app gate", () => {
   assert.deepEqual(
     normalizeDeploymentDatabaseStatus({
       ready: true,
@@ -62,7 +62,7 @@ test("database readiness fails closed and stale database requirements cannot dow
     {
       ready: false,
       latestMigration: "0021",
-      requiredMigration: "0042",
+      requiredMigration: "0045",
       missingFunctions: [],
       missingTables: [],
     },

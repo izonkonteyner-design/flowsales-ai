@@ -74,6 +74,6 @@ test("deployment endpoint is secret-gated, no-store and service-role backed", as
   const route = await source("app/api/health/deployment/route.ts");
   assert.match(route, /isAuthorizedInternalHealthProbe/);
   assert.match(route, /allowInternalHealthProbe/);
-  assert.match(route, /createSupabaseServerAdminClient/);
+  assert.match(route, /createSupabaseAdminClient/);
   assert.match(route, /no-store/);
 });

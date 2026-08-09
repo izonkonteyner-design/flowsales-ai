@@ -20,11 +20,12 @@ describe("FlowSales productization + Turkish locale", () => {
     assert.ok(src.includes("response.cookies.set"));
   });
 
-  it("requests the Page engagement permission required by Meta discovery", () => {
+  it("requests only the Meta messaging scopes the Inbox implements", () => {
     const src = read("app/api/integrations/meta/connect/route.ts");
     assert.ok(src.includes('"pages_read_engagement"'));
-    assert.ok(src.includes('"instagram_manage_messages"'));
+    assert.ok(src.includes('"instagram_business_manage_messages"'));
     assert.ok(src.includes('"pages_messaging"'));
+    assert.ok(!src.includes('"instagram_business_manage_comments"'));
   });
 
   it("keeps Meta readiness diagnostics secret-free", () => {

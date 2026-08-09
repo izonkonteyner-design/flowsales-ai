@@ -33,15 +33,14 @@ test("release persistence runs only after verified main push", async () => {
   assert.match(workflow, /npm run eval:ai:persist/);
 });
 
-test("production migration workflow verifies the latest 0044 migration while app readiness remains at 0042", async () => {
+test("production migration workflow verifies Conversation Intelligence 2.0 at 0045", async () => {
   const workflow = await source(".github/workflows/supabase-production-migrate.yml");
   const readiness = await source("server/services/deployment-readiness.ts");
-  assert.match(workflow, /Apply and verify migrations through 0044/);
+  assert.match(workflow, /Apply and verify migrations through 0045/);
   assert.match(workflow, /supabase\/migrations\/\*\*/);
-  assert.match(workflow, /test "\$latest" = "0044"/);
-  assert.match(workflow, /calendar_events/);
-  assert.match(workflow, /api_keys/);
-  assert.match(workflow, /app_audit_logs/);
-  assert.match(workflow, /enforce_ai_run_entitlement_trigger/);
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0042"/);
+  assert.match(workflow, /test "\$latest" = "0045"/);
+  assert.match(workflow, /0045_conversation_intelligence_v2\.sql/);
+  assert.match(workflow, /conversation_ai_qualifications[^\n]*sales_stage/);
+  assert.match(workflow, /conversation_ai_qualifications[^\n]*score_breakdown/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0045"/);
 });

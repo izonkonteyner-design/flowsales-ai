@@ -27,7 +27,9 @@ export async function GET(request: NextRequest) {
     if (!clientId || !siteUrl) throw new OAuthConfigurationRequiredError(provider);
 
     const { rawStateToken } = await createOAuthState(provider, ctx.organizationId, ctx.userId, returnPath, false);
-    const redirectUri = `${siteUrl}/api/integrations/meta/callback?provider=${provider}`;
+    const redirectUri = provider === "instagram"
+      ? `${siteUrl}/api/integrations/meta/callback/instagram`
+      : `${siteUrl}/api/integrations/meta/callback?provider=facebook`;
 
     let oauth: URL;
     if (provider === "instagram") {

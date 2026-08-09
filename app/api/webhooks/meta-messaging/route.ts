@@ -3,8 +3,22 @@ import type { NextRequest } from "next/server";
 import { handleMetaMessagingWebhook } from "@/server/services/integrations/meta-messaging";
 import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/services/integrations/rate-limiter";
 
-function secret() {
-  return process.env.META_APP_SECRET?.trim() || process.env.META_CLIENT_SECRET?.trim() || "";
+function secrets() {
+  return [
+    process.env.META_APP_SECRET?.trim(),
+    process.env.META_CLIENT_SECRET?.trim(),
+    process.env.INSTAGRAM_APP_SECRET?.trim(),
+  ].filter((value, index, values): value is string => Boolean(value) && values.indexOf(value) === index);
+}
+
+function hasValidSignature(rawBody: string, signature: string | null) {
+  if (!signature?.startsWith("sha256=")) return false;
+  const supplied = signature.slice(7);
+
+  return secrets().some((appSecret) => {
+    const expected = crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
+    return supplied.length === expected.length && crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
+  });
 }
 
 export async function GET(request: NextRequest) {
@@ -29,12 +43,7 @@ export async function POST(request: NextRequest) {
 
   const rawBody = await request.text();
   const signature = request.headers.get("x-hub-signature-256");
-  const appSecret = secret();
-  if (!appSecret || !signature?.startsWith("sha256=")) return Response.json({ error: "invalid_signature" }, { status: 401 });
-  const expected = crypto.createHmac("sha256", appSecret).update(rawBody).digest("hex");
-  const supplied = signature.slice(7);
-  const valid = supplied.length === expected.length && crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
-  if (!valid) return Response.json({ error: "invalid_signature" }, { status: 401 });
+  if (!hasValidSignature(rawBody, signature)) return Response.json({ error: "invalid_signature" }, { status: 401 });
 
   let payload: Record<string, unknown>;
   try { payload = JSON.parse(rawBody) as Record<string, unknown>; }

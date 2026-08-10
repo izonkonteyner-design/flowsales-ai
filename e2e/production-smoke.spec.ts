@@ -54,8 +54,9 @@ test.describe('Production Smoke & Security Tests', () => {
     await demoButton.click();
 
     await waitAndAssertPath(page, '/dashboard');
-    await expect(page.getByRole('heading', { name: 'Satış operasyonunuzu tek ekranda önceliklendirin.' })).toBeVisible({ timeout: 15000 });
-    const dashboardHero = page.locator('section').first();
+    const dashboardHeading = page.getByRole('heading', { name: 'Satış operasyonunuzu tek ekranda önceliklendirin.' });
+    await expect(dashboardHeading).toBeVisible({ timeout: 15000 });
+    const dashboardHero = dashboardHeading.locator('xpath=ancestor::section[1]');
     const askAi = dashboardHero.locator('a[href="/ai"]');
     await expect(askAi).toBeVisible();
     await expect(dashboardHero.locator('a[href="/leads/new"]')).toBeVisible();

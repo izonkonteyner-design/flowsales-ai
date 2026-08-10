@@ -16,7 +16,7 @@ export default async function FollowUpsPage() {
   const ctx = await loadWorkspaceContext();
   if (!ctx?.userId) return <EmptyState title="Oturum gerekli" description="Takip kuyruğunu görmek için giriş yapın." actionHref="/login" actionLabel="Giriş yap" />;
   let items;
-  try { items = await listSalesExecutionPriorities(ctx.organization.id, 25); }
+  try { items = await listSalesExecutionPriorities({ organizationId: ctx.organization.id, userId: ctx.userId, userRole: ctx.role, limit: 25 }); }
   catch { return <EmptyState title="Takip kuyruğu yüklenemedi" description="Satış öncelikleri şu anda alınamıyor." actionHref="/dashboard" actionLabel="Kontrol paneline dön" />; }
 
   return <div className="space-y-6">

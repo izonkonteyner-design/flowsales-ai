@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { salesChannelSchema } from "@/server/services/sales-session/domain";
 import { aiCapabilitySchema } from "./domain";
 
 export const aiContextRequestSchema = z.object({
@@ -7,6 +8,8 @@ export const aiContextRequestSchema = z.object({
   actorId: z.string().uuid(),
   leadId: z.string().uuid(),
   capability: aiCapabilitySchema,
+  channel: salesChannelSchema.default("web_chat"),
+  salesSessionId: z.string().uuid().nullable().default(null),
 });
 
 export type AiContextRequest = z.infer<typeof aiContextRequestSchema>;
@@ -41,6 +44,8 @@ export const aiProductContextSchema = z.object({
 export const aiSalesContextSchema = z.object({
   workspaceId: z.string().uuid(),
   actorId: z.string().uuid(),
+  channel: salesChannelSchema,
+  salesSessionId: z.string().uuid().nullable(),
   isDemoWorkspace: z.boolean(),
   generatedAt: z.string().datetime(),
   lead: aiLeadContextSchema,
@@ -97,6 +102,8 @@ export async function buildAiSalesContext(
   return aiSalesContextSchema.parse({
     workspaceId: request.workspaceId,
     actorId: request.actorId,
+    channel: request.channel,
+    salesSessionId: request.salesSessionId,
     isDemoWorkspace,
     generatedAt: now().toISOString(),
     lead,

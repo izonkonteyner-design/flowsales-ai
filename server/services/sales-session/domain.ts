@@ -29,9 +29,20 @@ export const salesQualificationSchema = z.object({
   budget: z.number().finite().nonnegative().nullable().default(null),
   currency: z.string().trim().length(3).nullable().default(null),
   location: z.string().trim().min(1).max(300).nullable().default(null),
+  deliveryLocation: z.string().trim().min(1).max(300).nullable().default(null),
   landReady: z.boolean().nullable().default(null),
+  siteAccessKnown: z.boolean().nullable().default(null),
   usagePurpose: z.string().trim().min(1).max(500).nullable().default(null),
   purchaseTiming: z.string().trim().min(1).max(160).nullable().default(null),
+  decisionRole: z.enum(["decision_maker", "influencer", "researcher", "unknown"]).nullable().default(null),
+  showroomVisitIntent: z.boolean().nullable().default(null),
+  preferredVisitDate: z.string().datetime().nullable().default(null),
+  preferredContactTime: z.string().trim().min(1).max(160).nullable().default(null),
+  quoteRequested: z.boolean().default(false),
+  pricingIntent: z.boolean().default(false),
+  availabilityIntent: z.boolean().default(false),
+  purchaseCommitment: z.boolean().default(false),
+  explicitObjection: z.string().trim().min(1).max(300).nullable().default(null),
 });
 
 const emptyQualification = {
@@ -44,9 +55,20 @@ const emptyQualification = {
   budget: null,
   currency: null,
   location: null,
+  deliveryLocation: null,
   landReady: null,
+  siteAccessKnown: null,
   usagePurpose: null,
   purchaseTiming: null,
+  decisionRole: null,
+  showroomVisitIntent: null,
+  preferredVisitDate: null,
+  preferredContactTime: null,
+  quoteRequested: false,
+  pricingIntent: false,
+  availabilityIntent: false,
+  purchaseCommitment: false,
+  explicitObjection: null,
 } as const;
 
 export const salesSessionSchema = z.object({

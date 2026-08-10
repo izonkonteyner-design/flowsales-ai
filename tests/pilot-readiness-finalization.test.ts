@@ -52,5 +52,7 @@ test("AI sales agent remains human-approved from qualification through follow-up
   assert.match(intelligence, /createPlan/);
   assert.match(followUp, /Qualification must be accepted by a human/);
   assert.doesNotMatch(followUp, /sendMetaMessagingReply|sendOutboundReply/);
-  assert.match(reply, /Copy for review/);
+  assert.match(reply, /navigator\.clipboard\.writeText/);
+  assert.match(reply, /ai_suggestion_reviewed/);
+  assert.match(reply, /otomatik göndermez/);
 });

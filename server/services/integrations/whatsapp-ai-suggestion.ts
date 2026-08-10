@@ -36,15 +36,18 @@ export async function generateWhatsAppReplySuggestion(params: {
   }).join("\n").slice(-MAX_CONTEXT_CHARS);
 
   const admin = createSupabaseAdminClient();
-  const { data: qualification } = await admin.from("conversation_ai_qualifications")
-    .select("score,priority,sales_stage,summary,signals,missing_information,next_best_action,next_best_action_type,next_best_action_rationale,status")
-    .eq("organization_id", params.organizationId).eq("conversation_id", params.conversationId)
-    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const [{ data: qualification }, { data: conversationRow }] = await Promise.all([
+    admin.from("conversation_ai_qualifications")
+      .select("score,priority,sales_stage,summary,signals,missing_information,next_best_action,next_best_action_type,next_best_action_rationale,status")
+      .eq("organization_id", params.organizationId).eq("conversation_id", params.conversationId)
+      .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("conversations").select("lead_id").eq("organization_id", params.organizationId).eq("id", params.conversationId).maybeSingle(),
+  ]);
 
   let lead: Record<string, unknown> | null = null;
-  if (conversation.leadId) {
+  if (conversationRow?.lead_id) {
     const result = await admin.from("leads").select("id,full_name,company,city,status,notes,estimated_value,currency,next_follow_up_at")
-      .eq("organization_id", params.organizationId).eq("id", conversation.leadId).maybeSingle();
+      .eq("organization_id", params.organizationId).eq("id", conversationRow.lead_id).maybeSingle();
     lead = result.data as Record<string, unknown> | null;
   }
 

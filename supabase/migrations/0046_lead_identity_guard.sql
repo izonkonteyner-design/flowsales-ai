@@ -73,3 +73,7 @@ drop trigger if exists leads_identity_guard_before_insert on public.leads;
 create trigger leads_identity_guard_before_insert
 before insert on public.leads
 for each row execute function public.guard_duplicate_lead_identity();
+
+insert into public.deployment_migrations(version,name,checksum)
+values ('0046','0046_lead_identity_guard.sql','lead-identity-guard-2026-08-10')
+on conflict (version) do update set name=excluded.name, checksum=excluded.checksum, executed_at=now();

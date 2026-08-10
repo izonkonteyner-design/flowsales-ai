@@ -17,10 +17,13 @@ export const voiceCallContextSchema = z.object({
 export type VoiceCallContext = z.infer<typeof voiceCallContextSchema>;
 
 export const voiceInboundEventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("call_started"), call: voiceCallContextSchema }),
-  z.object({ type: z.literal("speech_final"), call: voiceCallContextSchema, transcript: z.string().trim().min(1).max(5000) }),
-  z.object({ type: z.literal("call_ended"), call: voiceCallContextSchema, reason: z.string().trim().max(500).nullable() }),
-  z.object({ type: z.literal("provider_error"), call: voiceCallContextSchema, code: z.string().trim().max(120), message: z.string().trim().max(500) }),
+  z.object({ type: z.literal("call_started"), call: voiceCallContextSchema, providerEventId: z.string().nullable().default(null) }),
+  z.object({ type: z.literal("call_answered"), call: voiceCallContextSchema, providerEventId: z.string().nullable().default(null) }),
+  z.object({ type: z.literal("speech_started"), call: voiceCallContextSchema, providerEventId: z.string().nullable().default(null) }),
+  z.object({ type: z.literal("speech_final"), call: voiceCallContextSchema, transcript: z.string().trim().min(1).max(5000), providerEventId: z.string().nullable().default(null) }),
+  z.object({ type: z.literal("barge_in"), call: voiceCallContextSchema, transcript: z.string().trim().max(5000).nullable().default(null), providerEventId: z.string().nullable().default(null) }),
+  z.object({ type: z.literal("call_ended"), call: voiceCallContextSchema, reason: z.string().trim().max(500).nullable(), providerEventId: z.string().nullable().default(null) }),
+  z.object({ type: z.literal("provider_error"), call: voiceCallContextSchema, code: z.string().trim().max(120), message: z.string().trim().max(500), providerEventId: z.string().nullable().default(null) }),
 ]);
 
 export type VoiceInboundEvent = z.infer<typeof voiceInboundEventSchema>;
@@ -31,6 +34,7 @@ export interface VoiceChannelAdapter {
   parseInboundEvent(input: { rawBody: string; headers: Headers }): Promise<VoiceInboundEvent | null>;
   answerCall(call: VoiceCallContext): Promise<void>;
   speak(call: VoiceCallContext, text: string): Promise<void>;
+  stopSpeaking(call: VoiceCallContext): Promise<void>;
   transferCall(call: VoiceCallContext, destination: string): Promise<void>;
   hangup(call: VoiceCallContext): Promise<void>;
 }

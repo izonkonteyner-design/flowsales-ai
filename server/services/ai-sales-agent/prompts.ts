@@ -1,5 +1,5 @@
 import type { AiCapability } from "./domain";
-import { aiSalesContextSchema, type AiSalesContextInput } from "./context";
+import type { AiSalesContextInput } from "./context";
 
 export const AI_PROMPT_VERSION = "2026-08-10.1";
 export const AI_OUTPUT_SCHEMA_VERSION = "1";
@@ -33,7 +33,12 @@ export type CapabilityPrompt = {
 };
 
 export function buildCapabilityPrompt(capability: AiCapability, rawContext: AiSalesContextInput): CapabilityPrompt {
-  const context = aiSalesContextSchema.parse(rawContext);
+  const context = {
+    ...rawContext,
+    channel: rawContext.channel ?? "web_chat",
+    salesSessionId: rawContext.salesSessionId ?? null,
+  };
+
   return {
     systemPrompt: `${BASE_RULES}\n\nPrompt version: ${AI_PROMPT_VERSION}\nCapability rules:\n${CAPABILITY_RULES[capability]}`,
     userPrompt: JSON.stringify({

@@ -42,8 +42,9 @@ test("Customer 360 unifies phone, CRM activity and Conversation Intelligence", a
   assert.match(service, /voice_calls/);
   assert.match(service, /activities/);
   assert.match(service, /conversation_ai_qualifications/);
+  assert.match(service, /AI telefon görüşmesi/);
   assert.match(page, /Customer 360 zaman çizelgesi/);
-  assert.match(page, /AI telefon görüşmesi/);
+  assert.match(page, /event\.kind === "phone"/);
 });
 
 test("manager cockpit combines forecast, pipeline, win loss, missed opportunities and phone metrics", async () => {

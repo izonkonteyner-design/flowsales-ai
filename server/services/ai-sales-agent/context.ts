@@ -12,7 +12,7 @@ export const aiContextRequestSchema = z.object({
   salesSessionId: z.string().uuid().nullable().default(null),
 });
 
-export type AiContextRequest = z.infer<typeof aiContextRequestSchema>;
+export type AiContextRequest = z.input<typeof aiContextRequestSchema>;
 
 export const aiLeadContextSchema = z.object({
   id: z.string().uuid(),

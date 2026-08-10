@@ -4,7 +4,6 @@ import { ArrowLeft, FileText, MessageSquareText, ShieldCheck, Target } from "luc
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
-import { StatusBadge } from "@/components/shared/status-badge";
 import { formatCurrency } from "@/lib/utils";
 import { getQuoteIntelligence } from "@/server/services/revenue-intelligence-v4";
 import { loadWorkspaceContext } from "@/server/services/workspace-context";
@@ -19,10 +18,10 @@ export default async function QuoteIntelligencePage({params}:{params:Promise<{id
   if (!data) return <EmptyState title="Lead bulunamadı" description="Bu kayıt mevcut çalışma alanında bulunmuyor veya erişim sınırınızın dışında." actionHref="/leads" actionLabel="Lead listesine dön" />;
   const createQuoteHref = `/quotes/new?lead_id=${encodeURIComponent(id)}`;
   return <div className="space-y-6">
-    <PageHeader eyebrow="Quote Intelligence" title={`${data.lead.full_name} için teklif hazırlığı`} description="Conversation Intelligence ve CRM bağlamını teklif öncesi kontrol listesine dönüştürür. Fiyat ve ticari koşullar kullanıcı onayı olmadan oluşturulmaz." actions={<Link href={`/leads/${id}`} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm text-slate-300"><ArrowLeft className="h-4 w-4"/>Lead'e dön</Link>} />
+    <PageHeader eyebrow="Quote Intelligence" title={`${data.lead.full_name} için teklif hazırlığı`} description="Conversation Intelligence ve CRM bağlamını teklif öncesi kontrol listesine dönüştürür. Fiyat ve ticari koşullar kullanıcı onayı olmadan oluşturulmaz." actions={<Link href={`/leads/${id}`} className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm text-slate-300"><ArrowLeft className="h-4 w-4"/>Lead’e dön</Link>} />
     <div className="grid gap-4 md:grid-cols-4"><Metric label="Lead Score" value={String(data.score)} /><Metric label="Satış aşaması" value={stageLabels[data.salesStage] || data.salesStage} /><Metric label="Tahmini değer" value={formatCurrency(Number(data.lead.estimated_value||0),data.lead.currency||"TRY")} /><Metric label="Teklif hazırlığı" value={data.readiness === "ready" ? "Hazır" : "İnceleme gerekli"} /></div>
     <div className="grid gap-6 xl:grid-cols-2">
-      <SectionCard title="Teklif girdileri" description="AI'nin konuşma ve CRM verilerinden güvenli şekilde çıkardığı bağlam.">
+      <SectionCard title="Teklif girdileri" description="AI tarafından konuşma ve CRM verilerinden güvenli şekilde çıkarılan bağlam.">
         <dl className="space-y-3 text-sm"><Row label="Ürün / hizmet" value={data.productInterest || "Netleşmedi"}/><Row label="Lokasyon" value={data.location || "Netleşmedi"}/><Row label="Bütçe" value={data.budget || "Netleşmedi"}/><Row label="Zamanlama" value={data.timeline || "Netleşmedi"}/><Row label="Sonraki en iyi aksiyon" value={data.nextBestAction}/></dl>
       </SectionCard>
       <SectionCard title="Ticari güvenlik kontrolü" description="Eksik veya riskli bilgi teklif öncesinde görünür hale getirilir.">

@@ -1,15 +1,17 @@
 import type { AiCapability } from "./domain";
 import type { AiSalesContext } from "./context";
 
-export const AI_PROMPT_VERSION = "2026-08-01.1";
+export const AI_PROMPT_VERSION = "2026-08-10.1";
 export const AI_OUTPUT_SCHEMA_VERSION = "1";
 
-const BASE_RULES = `You are FlowSales AI, a sales decision-support agent.
+const BASE_RULES = `You are FlowSales AI, a channel-independent sales decision-support agent.
 Return one JSON object only. Never return markdown.
+The channel is context only; do not change commercial truth or policy based on channel.
 Never invent facts, prices, discounts, product availability, identities, or activity history.
-Use only the supplied workspace-scoped context.
+Use only the supplied workspace-scoped context and trusted records.
 Every claim must be supported by evidence from that context.
 Monetary recommendations must reference an existing product, quote, or workspace rule source ID.
+If a verified product price is unavailable, state that pricing is unavailable and recommend human review instead of estimating.
 Do not execute actions. Recommend actions only.
 Use decision=approval_required for high-risk or mutating recommendations.
 Use decision=blocked when the requested result cannot be produced safely.`;
@@ -35,6 +37,8 @@ export function buildCapabilityPrompt(capability: AiCapability, context: AiSales
     systemPrompt: `${BASE_RULES}\n\nPrompt version: ${AI_PROMPT_VERSION}\nCapability rules:\n${CAPABILITY_RULES[capability]}`,
     userPrompt: JSON.stringify({
       requestedCapability: capability,
+      channel: context.channel,
+      salesSessionId: context.salesSessionId,
       context,
       requiredOutputVersion: AI_OUTPUT_SCHEMA_VERSION,
       promptVersion: AI_PROMPT_VERSION,

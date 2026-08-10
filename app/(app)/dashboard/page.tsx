@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUpRight, Bot, ShieldCheck, Sparkles, Zap } from "lucide-react";
 
 import { DashboardReportView } from "@/components/dashboard/dashboard-report";
+import { PipelineIntelligence } from "@/components/dashboard/pipeline-intelligence";
 import { TodaysPriorities } from "@/components/dashboard/todays-priorities";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SectionCard } from "@/components/shared/section-card";
@@ -31,11 +32,12 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">Satış hunisi sağlığını, teklif ekonomisini ve YZ destekli aksiyonları doğrulanmış çalışma alanı verileriyle izleyin.</p>
             <div className="mt-6 flex flex-wrap gap-2"><StatusBadge tone={result.ok && result.report.sourceTone === "success" ? "success" : "neutral"}>{result.ok ? result.report.sourceLabel : "Kontrol Paneli"}</StatusBadge><StatusBadge tone="neutral">{filters.currency}</StatusBadge><StatusBadge tone="info">Canlı raporlama</StatusBadge></div>
           </div>
-          <div className="grid gap-3 sm:grid-cols-3 xl:w-[470px]"><QuickAction href="/ai" icon={Bot} label="YZ'ye Sor" detail="Sonraki aksiyonları üret" /><QuickAction href="/approvals" icon={ShieldCheck} label="Onaylar" detail="Kontrollü aksiyonları incele" /><QuickAction href="/leads/new" icon={Zap} label="Yeni fırsat" detail="Potansiyel müşteri ekle" /></div>
+          <div className="grid gap-3 sm:grid-cols-3 xl:w-[470px]"><QuickAction href="/ai" icon={Bot} label="YZ'ye Sor" detail="Sonraki aksiyonları üret" /><QuickAction href="/opportunities/risk" icon={ShieldCheck} label="Riskli fırsatlar" detail="Kaçan satışları yakala" /><QuickAction href="/leads/new" icon={Zap} label="Yeni fırsat" detail="Potansiyel müşteri ekle" /></div>
         </div>
       </section>
 
       <TodaysPriorities />
+      <PipelineIntelligence />
 
       <SectionCard title="Rapor kontrolleri" description="Tarih aralığı ve para birimi seçin. Filtreler URL'de paylaşılabilir kalır.">
         <form method="get" className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_0.9fr_0.8fr_auto]">

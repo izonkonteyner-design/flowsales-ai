@@ -44,8 +44,8 @@ export const aiProductContextSchema = z.object({
 export const aiSalesContextSchema = z.object({
   workspaceId: z.string().uuid(),
   actorId: z.string().uuid(),
-  channel: salesChannelSchema,
-  salesSessionId: z.string().uuid().nullable(),
+  channel: salesChannelSchema.default("web_chat"),
+  salesSessionId: z.string().uuid().nullable().default(null),
   isDemoWorkspace: z.boolean(),
   generatedAt: z.string().datetime(),
   lead: aiLeadContextSchema,
@@ -54,6 +54,7 @@ export const aiSalesContextSchema = z.object({
   workspaceRules: z.array(z.string().trim().min(1).max(500)).max(50),
 });
 
+export type AiSalesContextInput = z.input<typeof aiSalesContextSchema>;
 export type AiSalesContext = z.infer<typeof aiSalesContextSchema>;
 
 export interface AiContextRepository {

@@ -1,15 +1,16 @@
 import Link from "next/link";
 import { ArrowUpRight, Bot, ShieldCheck, Sparkles, Zap } from "lucide-react";
 
-import { StatusBadge } from "@/components/shared/status-badge";
+import { DashboardReportView } from "@/components/dashboard/dashboard-report";
+import { TodaysPriorities } from "@/components/dashboard/todays-priorities";
 import { EmptyState } from "@/components/shared/empty-state";
 import { SectionCard } from "@/components/shared/section-card";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { CURRENCY_CODES } from "@/lib/constants";
-import { DashboardReportView } from "@/components/dashboard/dashboard-report";
-import { getDashboardReportData } from "@/server/services/dashboard-reporting";
 import { normalizeDashboardSearchParams } from "@/server/services/dashboard-domain";
+import { getDashboardReportData } from "@/server/services/dashboard-reporting";
 
 type DashboardPageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
@@ -33,6 +34,8 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
           <div className="grid gap-3 sm:grid-cols-3 xl:w-[470px]"><QuickAction href="/ai" icon={Bot} label="YZ'ye Sor" detail="Sonraki aksiyonları üret" /><QuickAction href="/approvals" icon={ShieldCheck} label="Onaylar" detail="Kontrollü aksiyonları incele" /><QuickAction href="/leads/new" icon={Zap} label="Yeni fırsat" detail="Potansiyel müşteri ekle" /></div>
         </div>
       </section>
+
+      <TodaysPriorities />
 
       <SectionCard title="Rapor kontrolleri" description="Tarih aralığı ve para birimi seçin. Filtreler URL'de paylaşılabilir kalır.">
         <form method="get" className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr_0.9fr_0.8fr_auto]">

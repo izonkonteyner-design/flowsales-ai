@@ -34,7 +34,7 @@ export interface VoiceChannelAdapter {
   parseInboundEvent(input: { rawBody: string; headers: Headers }): Promise<VoiceInboundEvent | null>;
   answerCall(call: VoiceCallContext): Promise<void>;
   speak(call: VoiceCallContext, text: string): Promise<void>;
-  stopSpeaking(call: VoiceCallContext): Promise<void>;
+  stopSpeaking?(call: VoiceCallContext): Promise<void>;
   transferCall(call: VoiceCallContext, destination: string): Promise<void>;
   hangup(call: VoiceCallContext): Promise<void>;
 }

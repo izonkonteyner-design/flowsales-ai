@@ -34,6 +34,21 @@ export const salesQualificationSchema = z.object({
   purchaseTiming: z.string().trim().min(1).max(160).nullable().default(null),
 });
 
+const emptyQualification = {
+  customerName: null,
+  phone: null,
+  email: null,
+  productInterest: null,
+  areaM2: null,
+  roomCount: null,
+  budget: null,
+  currency: null,
+  location: null,
+  landReady: null,
+  usagePurpose: null,
+  purchaseTiming: null,
+} as const;
+
 export const salesSessionSchema = z.object({
   id: z.string().uuid(),
   workspaceId: z.string().uuid(),
@@ -43,7 +58,7 @@ export const salesSessionSchema = z.object({
   channel: salesChannelSchema,
   channelSessionId: z.string().trim().min(1).max(500),
   currentIntent: z.string().trim().min(1).max(500).nullable().default(null),
-  qualification: salesQualificationSchema.default({}),
+  qualification: salesQualificationSchema.default(emptyQualification),
   referencedProductIds: z.array(z.string().uuid()).max(20).default([]),
   currentLeadScore: z.number().int().min(0).max(100).nullable().default(null),
   nextBestAction: z.string().trim().min(1).max(1000).nullable().default(null),

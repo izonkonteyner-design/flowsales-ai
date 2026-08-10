@@ -1,7 +1,42 @@
-import { expect, test } from '@playwright/test';
-import { assertExactPath, waitAndAssertPath } from './helpers/navigation';
+import { test, expect } from '@playwright/test';
+import { assertExactPath, waitAndAssertPath } from './test-utils';
 
 test.describe('Production Smoke & Security Tests', () => {
+  let errors: string[] = [];
+  let pageErrors: string[] = [];
+  let failedRequests: string[] = [];
+
+  test.beforeEach(async ({ page }) => {
+    errors = [];
+    pageErrors = [];
+    failedRequests = [];
+
+    page.on('console', msg => {
+      if (msg.type() === 'error') {
+        const text = msg.text();
+        if (!text.includes('favicon') && !text.includes('extension') && !text.includes('chrome-extension')) {
+          errors.push(text);
+        }
+      }
+    });
+
+    page.on('pageerror', err => {
+      pageErrors.push(err.message);
+    });
+
+    page.on('response', response => {
+      if (response.status() >= 500) {
+        failedRequests.push(`[${response.status()}] ${response.url()}`);
+      }
+    });
+  });
+
+  test.afterEach(() => {
+    expect(errors, `Console errors found: ${errors.join(', ')}`).toHaveLength(0);
+    expect(pageErrors, `Page errors found: ${pageErrors.join(', ')}`).toHaveLength(0);
+    expect(failedRequests, `500 Server errors found: ${failedRequests.join(', ')}`).toHaveLength(0);
+  });
+
   test('Complete production flow: auth, navigation, AI, security and logout @production', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/FlowSales AI/);

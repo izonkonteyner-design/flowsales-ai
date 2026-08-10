@@ -10,12 +10,13 @@ test("WhatsApp AI reply suggestion is human-in-loop and never sends automaticall
   const service = await source("server/services/integrations/whatsapp-ai-suggestion.ts");
   const route = await source("app/api/inbox/conversations/[conversationId]/ai-suggestion/route.ts");
   const panel = await source("components/inbox/ai-reply-suggestion.tsx");
-  assert.match(service, /A human will review and explicitly send it/i);
+  assert.match(service, /A human must review and explicitly send it/i);
   assert.match(service, /Never invent prices, stock, delivery dates, discounts, guarantees/i);
   assert.match(route, /requiresHumanSend: true/);
   assert.doesNotMatch(route, /WhatsAppOutboundService|sendOutboundReply|sendTemplateMessage/);
-  assert.match(panel, /Draft only — never auto-sends/);
-  assert.match(panel, /Copy for review/);
+  assert.match(panel, /otomatik göndermez/);
+  assert.match(panel, /navigator\.clipboard\.writeText/);
+  assert.match(panel, /ai_suggestion_reviewed/);
 });
 
 test("WhatsApp media retrieval is authenticated, tenant scoped, bounded and no-store", async () => {

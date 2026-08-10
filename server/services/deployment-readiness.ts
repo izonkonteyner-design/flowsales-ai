@@ -1,4 +1,4 @@
-export const REQUIRED_DEPLOYMENT_MIGRATION = "0045";
+export const REQUIRED_DEPLOYMENT_MIGRATION = "0046";
 
 const REQUIRED_ENV_GROUPS = [
   { label: "NEXT_PUBLIC_SUPABASE_URL", keys: ["NEXT_PUBLIC_SUPABASE_URL"] },
@@ -55,8 +55,6 @@ export function normalizeDeploymentDatabaseStatus(value: unknown): DeploymentDat
   const missingFunctions = Array.isArray(record.missingFunctions) ? record.missingFunctions.filter((item): item is string => typeof item === "string") : [];
   const missingTables = Array.isArray(record.missingTables) ? record.missingTables.filter((item): item is string => typeof item === "string") : [];
   const latestMigration = typeof record.latestMigration === "string" ? record.latestMigration : null;
-  // The application release contract is authoritative. Older database RPCs may report
-  // their historical requiredMigration value, but a newer app must never downgrade its gate.
   const requiredMigration = REQUIRED_DEPLOYMENT_MIGRATION;
   return {
     ready: record.ready === true && latestMigration !== null && latestMigration >= requiredMigration && missingFunctions.length === 0 && missingTables.length === 0,

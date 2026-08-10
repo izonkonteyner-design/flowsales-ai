@@ -1,4 +1,4 @@
-export const REQUIRED_DEPLOYMENT_MIGRATION = "0046";
+export const REQUIRED_DEPLOYMENT_MIGRATION = "0047";
 
 const REQUIRED_ENV_GROUPS = [
   { label: "NEXT_PUBLIC_SUPABASE_URL", keys: ["NEXT_PUBLIC_SUPABASE_URL"] },
@@ -18,6 +18,7 @@ const FEATURE_ENV_GROUPS = [
   { feature: "demo", keys: ["DEMO_USER_EMAIL", "DEMO_USER_PASSWORD", "DEMO_RATE_LIMIT_SECRET"] },
   { feature: "ai", keys: ["GEMINI_API_KEY"] },
   { feature: "meta-messaging", keys: ["TOKEN_ENCRYPTION_KEY", "META_APP_SECRET"] },
+  { feature: "voice-telnyx", keys: ["TELNYX_API_KEY", "TELNYX_PUBLIC_KEY"] },
   {
     feature: "billing-lemonsqueezy",
     keys: [

@@ -9,16 +9,13 @@ export default function NotFound() {
           <SearchX className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-3xl font-semibold text-slate-950 dark:text-white">Page not found</h1>
+          <h1 className="text-3xl font-semibold text-slate-950 dark:text-white">Sayfa bulunamadı</h1>
           <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-            The page you requested does not exist or may have been moved.
+            İstediğiniz sayfa bulunmuyor veya başka bir adrese taşınmış olabilir.
           </p>
         </div>
-        <Link
-          href="/dashboard"
-          className="inline-flex h-10 items-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white dark:bg-white dark:text-slate-950"
-        >
-          Back to dashboard
+        <Link href="/dashboard" className="inline-flex h-10 items-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white dark:bg-white dark:text-slate-950">
+          Kontrol paneline dön
         </Link>
       </div>
     </main>

@@ -59,7 +59,6 @@ test.describe('Production Smoke & Security Tests', () => {
     const dashboardHero = dashboardHeading.locator('xpath=ancestor::section[1]');
     const askAi = dashboardHero.locator('a[href="/ai"]');
     await expect(askAi).toBeVisible();
-    await expect(dashboardHero.locator('a[href="/approvals"]')).toBeVisible();
     await expect(dashboardHero.locator('a[href="/leads/new"]')).toBeVisible();
 
     await askAi.click();

@@ -39,6 +39,7 @@ test("required environment supports documented fallback keys and reports no valu
       GEMINI_API_KEY: undefined,
       TELNYX_API_KEY: undefined,
       TELNYX_PUBLIC_KEY: undefined,
+      CRON_SECRET: undefined,
       BILLING_WEBHOOK_SECRET: undefined,
     },
     () => {
@@ -47,13 +48,14 @@ test("required environment supports documented fallback keys and reports no valu
       assert.deepEqual(status.missingRequired, []);
       assert.equal(status.features.demo.configured, false);
       assert.equal(status.features["voice-telnyx"].configured, false);
+      assert.equal(status.features["sales-automation"].configured, false);
       assert.equal(JSON.stringify(status).includes("service-key"), false);
       assert.equal(JSON.stringify(status).includes("health-key"), false);
     },
   );
 });
 
-test("database readiness fails closed and stale database requirements cannot downgrade the 0047 app gate", () => {
+test("database readiness fails closed and stale database requirements cannot downgrade the 0049 app gate", () => {
   assert.deepEqual(
     normalizeDeploymentDatabaseStatus({
       ready: true,
@@ -65,7 +67,7 @@ test("database readiness fails closed and stale database requirements cannot dow
     {
       ready: false,
       latestMigration: "0021",
-      requiredMigration: "0047",
+      requiredMigration: "0049",
       missingFunctions: [],
       missingTables: [],
     },

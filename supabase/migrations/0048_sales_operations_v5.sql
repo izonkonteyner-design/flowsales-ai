@@ -68,6 +68,7 @@ create table if not exists public.lead_intent_history (
   dedupe_key text,
   created_at timestamptz not null default now()
 );
+alter table public.lead_intent_history add column if not exists dedupe_key text;
 create index if not exists lead_intent_history_lead_idx on public.lead_intent_history(organization_id,lead_id,created_at desc);
 create unique index if not exists lead_intent_history_dedupe_idx on public.lead_intent_history(organization_id,dedupe_key) where dedupe_key is not null;
 alter table public.lead_intent_history enable row level security;
@@ -149,6 +150,7 @@ create table if not exists public.sales_automation_drafts (
   dedupe_key text,
   created_at timestamptz not null default now()
 );
+alter table public.sales_automation_drafts add column if not exists dedupe_key text;
 create index if not exists sales_automation_drafts_org_status_idx on public.sales_automation_drafts(organization_id,status,scheduled_for);
 create unique index if not exists sales_automation_drafts_dedupe_idx on public.sales_automation_drafts(organization_id,dedupe_key) where dedupe_key is not null;
 alter table public.sales_automation_drafts enable row level security;
@@ -159,5 +161,5 @@ alter table public.tasks add column if not exists automation_draft_id uuid refer
 create unique index if not exists tasks_automation_draft_id_idx on public.tasks(automation_draft_id) where automation_draft_id is not null;
 
 insert into public.deployment_migrations(version,name,checksum)
-values ('0048','0048_sales_operations_v5.sql','sales-operations-v5-2026-08-11.2')
+values ('0048','0048_sales_operations_v5.sql','sales-operations-v5-2026-08-11.3')
 on conflict(version) do update set name=excluded.name,checksum=excluded.checksum,executed_at=now();

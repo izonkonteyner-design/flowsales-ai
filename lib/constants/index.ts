@@ -48,6 +48,7 @@ export const APP_NAVIGATION = [
   { label: "Sales Operations", href: "/sales-operations", icon: "check-circle-2" },
   { label: "Command Center", href: "/command-center", icon: "braces" },
   { label: "Sales Analyst", href: "/sales-analyst", icon: "bot" },
+  { label: "Growth Control", href: "/growth-control", icon: "bar-chart-3" },
   { label: "Sales Cockpit", href: "/sales-cockpit", icon: "bar-chart-3" },
   { label: "Revenue Intelligence", href: "/revenue-intelligence", icon: "bot" },
   { label: "Reports", href: "/reports", icon: "bar-chart-3" },

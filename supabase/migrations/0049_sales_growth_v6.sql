@@ -1,6 +1,12 @@
 -- 0049_sales_growth_v6.sql
 -- SLA, routing, data quality, approvals, forecast snapshots and growth opportunities.
 
+alter table public.products
+  add column if not exists unit_cost numeric(14,2) check (unit_cost is null or unit_cost >= 0);
+
+alter table public.quote_items
+  add column if not exists cost_snapshot numeric(14,2) check (cost_snapshot is null or cost_snapshot >= 0);
+
 create table if not exists public.sales_sla_policies (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -101,5 +107,5 @@ create policy "members_read_pipeline_snapshots" on public.pipeline_snapshots for
 create policy "service_manage_pipeline_snapshots" on public.pipeline_snapshots for all using (auth.role()='service_role') with check (auth.role()='service_role');
 
 insert into public.deployment_migrations(version,name,checksum)
-values ('0049','0049_sales_growth_v6.sql','sales-growth-v6-2026-08-11')
+values ('0049','0049_sales_growth_v6.sql','sales-growth-v6-2026-08-11-r2')
 on conflict(version) do update set name=excluded.name,checksum=excluded.checksum,executed_at=now();

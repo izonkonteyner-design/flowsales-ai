@@ -40,17 +40,20 @@ export async function postProcessCompletedVoiceCall(input: {
   if (dispositionError) throw new Error(`Görüşme sonucu kaydedilemedi: ${dispositionError.message}`);
 
   for (const key of objections) {
-    const { data: existing } = await admin.from("sales_objection_library").select("id,times_detected").eq("organization_id", input.organizationId).eq("objection_key", key).maybeSingle();
+    const { data: existing, error: lookupError } = await admin.from("sales_objection_library").select("id,times_detected").eq("organization_id", input.organizationId).eq("objection_key", key).maybeSingle();
+    if (lookupError) throw new Error("İtiraz kütüphanesi okunamadı.");
     if (existing) {
-      await admin.from("sales_objection_library").update({ times_detected: Number(existing.times_detected || 0) + 1, updated_at: new Date().toISOString() }).eq("id", existing.id);
+      const { error: updateError } = await admin.from("sales_objection_library").update({ times_detected: Number(existing.times_detected || 0) + 1, updated_at: new Date().toISOString() }).eq("id", existing.id);
+      if (updateError) throw new Error("İtiraz kütüphanesi güncellenemedi.");
     } else {
-      await admin.from("sales_objection_library").insert({ organization_id: input.organizationId, objection_key: key, label: key.replaceAll("_", " "), times_detected: 1 });
+      const { error: insertError } = await admin.from("sales_objection_library").insert({ organization_id: input.organizationId, objection_key: key, label: key.replaceAll("_", " "), times_detected: 1 });
+      if (insertError) throw new Error("İtiraz kütüphanesi oluşturulamadı.");
     }
   }
 
   let intent: { score: number; temperature: string } | null = null;
   if (input.leadId) {
-    const score = explainLeadScore({ baseScore: input.baseScore, objections, buyingSignals, inactivityHours: 0, quoteRequested: disposition === "quote_requested" });
+    const score = explainLeadScore({ baseScore: input.baseScore, objections, buyingSignals, inactiveHours: 0, quoteRequested: disposition === "quote_requested" });
     const temperature = score.score >= 70 ? "hot" : score.score >= 40 ? "warm" : "cold";
     const { data, error } = await admin.from("lead_intent_history").insert({
       organization_id: input.organizationId,
@@ -75,6 +78,7 @@ export async function postProcessCompletedVoiceCall(input: {
       scheduledFor: input.baseScore >= 70
         ? new Date(Date.now() + 2 * 3_600_000).toISOString()
         : new Date(Date.now() + 24 * 3_600_000).toISOString(),
+      dedupeKey: `voice_call:${input.callId}:next_action`,
     });
   }
 

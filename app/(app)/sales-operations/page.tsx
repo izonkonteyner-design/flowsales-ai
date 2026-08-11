@@ -4,6 +4,13 @@ import { getSalesOperationsOverview } from "@/server/services/sales-operations-v
 
 function money(value: number) { return `${Math.round(value).toLocaleString("tr-TR")} TL`; }
 
+function callbackLeadName(value: unknown) {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || typeof candidate !== "object" || !("full_name" in candidate)) return "Lead";
+  const fullName = (candidate as { full_name?: unknown }).full_name;
+  return typeof fullName === "string" && fullName.trim() ? fullName : "Lead";
+}
+
 export default async function SalesOperationsPage() {
   const context = await getWorkspaceContext();
   const overview = context.mode === "live" && context.userId
@@ -24,7 +31,7 @@ export default async function SalesOperationsPage() {
     <div className="grid gap-4 lg:grid-cols-2">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between"><h2 className="font-semibold text-slate-900">Öncelikli callback</h2><Link className="text-sm font-medium text-blue-600" href="/sales-operations/callbacks">Tümünü aç</Link></div>
-        <div className="mt-4 space-y-3">{overview.callbacks.slice(0,6).map((row) => <div key={row.id} className="rounded-xl border border-slate-100 p-3"><div className="font-medium text-slate-900">{Array.isArray(row.leads) ? row.leads[0]?.full_name || "Lead" : row.leads?.full_name || "Lead"}</div><div className="text-sm text-slate-500">{new Date(row.scheduled_for).toLocaleString("tr-TR")} · {row.reason || "Geri arama"}</div></div>)}{!overview.callbacks.length && <p className="text-sm text-slate-500">Bekleyen callback yok.</p>}</div>
+        <div className="mt-4 space-y-3">{overview.callbacks.slice(0,6).map((row) => <div key={row.id} className="rounded-xl border border-slate-100 p-3"><div className="font-medium text-slate-900">{callbackLeadName(row.leads)}</div><div className="text-sm text-slate-500">{new Date(row.scheduled_for).toLocaleString("tr-TR")} · {row.reason || "Geri arama"}</div></div>)}{!overview.callbacks.length && <p className="text-sm text-slate-500">Bekleyen callback yok.</p>}</div>
       </section>
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between"><h2 className="font-semibold text-slate-900">Gelir kaçağı</h2><Link className="text-sm font-medium text-blue-600" href="/reports/funnel">Huni raporu</Link></div>

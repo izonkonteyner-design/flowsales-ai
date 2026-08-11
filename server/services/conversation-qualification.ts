@@ -114,7 +114,7 @@ function calculateScoreBreakdown(evidence: Array<z.infer<typeof scoreEvidenceSch
   for (const item of evidence) {
     if (seen.has(item.factor)) continue;
     seen.add(item.factor);
-    breakdown.push({ factor: item.factor, points: SCORE_WEIGHTS[item.factor], evidence: item.evidence });
+    breakdown.push(scoreBreakdownSchema.parse({ factor: item.factor, points: SCORE_WEIGHTS[item.factor], evidence: item.evidence }));
   }
   return breakdown;
 }

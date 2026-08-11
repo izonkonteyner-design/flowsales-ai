@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, ArrowUpRight, Clock3, Flame, History, Target } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Clock3, History, Target } from "lucide-react";
 
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";

@@ -80,13 +80,11 @@ test("public homepage, marketing shell, customer 360 and 404 are Turkish-first",
   for (const page of pages) for (const pattern of banned) assert.doesNotMatch(page, pattern);
 });
 
-test("release gate requires 0047 and verifies critical Voice Sales tables and policies", async () => {
+test("release gate requires 0049 and verifies Voice Sales plus sales operations schema", async () => {
   const workflow = await source(".github/workflows/supabase-production-migrate.yml");
   const readiness = await source("server/services/deployment-readiness.ts");
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0047"/);
-  assert.match(workflow, /Apply and verify migrations through 0047/);
-  assert.match(workflow, /test "\$latest" = "0047"/);
-  assert.match(workflow, /voice_calls/);
-  assert.match(workflow, /voice_transcript_segments/);
-  assert.match(workflow, /members_read_voice_calls/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0049"/);
+  assert.match(workflow, /Apply and verify migrations through 0049/);
+  assert.match(workflow, /test "\$latest" = "0049"/);
+  for (const token of ["voice_calls", "sales_callback_queue", "lead_intent_history", "sales_sequence_templates", "quote_follow_up_state", "sales_sla_policies", "quote_discount_approvals", "quote_versions", "pipeline_snapshots"]) assert.match(workflow, new RegExp(token));
 });

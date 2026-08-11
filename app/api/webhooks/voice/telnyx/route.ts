@@ -3,6 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { TelnyxVoiceAdapter } from "@/server/services/voice-channel/telnyx-adapter";
 import { salesQualificationSchema } from "@/server/services/sales-session/domain";
 import { VoiceSalesRepository, orchestratePhoneTurn, finalizeCallIntelligence, requestHumanHandoff } from "@/server/services/voice-sales-v1";
+import { postProcessCompletedVoiceCall } from "@/server/services/voice-sales-postprocessor-v5";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,7 +69,10 @@ export async function POST(request: Request) {
       const qualification = salesQualificationSchema.parse(call.qualification ?? {});
       const endedAt = new Date();
       const startedAt = new Date(call.started_at);
-      await finalizeCallIntelligence({ organizationId: event.call.workspaceId, callId: call.id, salesSessionId: call.sales_session_id, leadId: call.lead_id, qualification });
+      const intelligence = await finalizeCallIntelligence({ organizationId: event.call.workspaceId, callId: call.id, salesSessionId: call.sales_session_id, leadId: call.lead_id, qualification });
+      const transcriptRows = await repo.transcript(call.id, event.call.workspaceId);
+      const customerText = transcriptRows.filter((row) => row.speaker === "customer").map((row) => row.text).join(" ");
+      await postProcessCompletedVoiceCall({ organizationId: event.call.workspaceId, callId: call.id, leadId: call.lead_id, assignedUserId: call.assigned_user_id, baseScore: intelligence.score, nextBestAction: intelligence.nextBestAction, customerText });
       await repo.updateCall(call.id, event.call.workspaceId, { duration_seconds: Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)), ended_at: endedAt.toISOString(), state: "completed" });
       return NextResponse.json({ ok: true });
     }

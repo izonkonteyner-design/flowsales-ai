@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { assertExactPath, waitAndAssertPath } from './test-utils';
 
+const SIGN_IN = /sign in|giriş yap/i;
+const START_DEMO = /start demo|demoyu dene|demo/i;
+const NEW_QUOTE = /new quote|yeni teklif/i;
+const SAVE = /save|kaydet/i;
+
 test.describe('Production Smoke & Security Tests', () => {
   let errors: string[] = [];
   let pageErrors: string[] = [];
@@ -40,16 +45,16 @@ test.describe('Production Smoke & Security Tests', () => {
   test('Complete production flow: auth, navigation, AI, security and logout @production', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveTitle(/FlowSales AI/);
-    await expect(page.getByRole('link', { name: /sign in/i })).toBeVisible();
+    await expect(page.getByRole('link', { name: SIGN_IN }).first()).toBeVisible();
 
     await page.goto('/dashboard');
     await expect(page).toHaveURL(/\/login\?next=%2Fdashboard$/);
 
     await page.goto('/login');
     await assertExactPath(page, '/login');
-    await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(page.getByRole('button', { name: SIGN_IN })).toBeVisible();
 
-    const demoButton = page.getByRole('button', { name: 'Start Demo' });
+    const demoButton = page.getByRole('button', { name: START_DEMO }).first();
     await expect(demoButton).toBeVisible();
     await demoButton.click();
 
@@ -83,8 +88,8 @@ test.describe('Production Smoke & Security Tests', () => {
     await page.goto('/quotes/new');
     await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(/\/quotes\/new$/);
-    await expect(page.getByRole('heading', { name: 'New quote' }).first()).toBeVisible();
-    const saveQuoteBtn = page.locator('button:has-text("Save")').first();
+    await expect(page.getByRole('heading', { name: NEW_QUOTE }).first()).toBeVisible();
+    const saveQuoteBtn = page.getByRole('button', { name: SAVE }).first();
     if (await saveQuoteBtn.isVisible()) {
       await expect(saveQuoteBtn).toBeDisabled();
     }

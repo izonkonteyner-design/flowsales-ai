@@ -65,9 +65,11 @@ create table if not exists public.lead_intent_history (
   reason text not null,
   factors jsonb not null default '{}'::jsonb,
   source text not null default 'system',
+  dedupe_key text,
   created_at timestamptz not null default now()
 );
 create index if not exists lead_intent_history_lead_idx on public.lead_intent_history(organization_id,lead_id,created_at desc);
+create unique index if not exists lead_intent_history_dedupe_idx on public.lead_intent_history(organization_id,dedupe_key) where dedupe_key is not null;
 alter table public.lead_intent_history enable row level security;
 create policy "members_read_lead_intent_history" on public.lead_intent_history for select using (public.is_org_member(organization_id));
 create policy "service_manage_lead_intent_history" on public.lead_intent_history for all using (auth.role()='service_role') with check (auth.role()='service_role');
@@ -144,13 +146,18 @@ create table if not exists public.sales_automation_drafts (
   status text not null default 'approval_required' check (status in ('approval_required','approved','completed','cancelled')),
   approved_by uuid references auth.users(id) on delete set null,
   approved_at timestamptz,
+  dedupe_key text,
   created_at timestamptz not null default now()
 );
 create index if not exists sales_automation_drafts_org_status_idx on public.sales_automation_drafts(organization_id,status,scheduled_for);
+create unique index if not exists sales_automation_drafts_dedupe_idx on public.sales_automation_drafts(organization_id,dedupe_key) where dedupe_key is not null;
 alter table public.sales_automation_drafts enable row level security;
 create policy "members_read_sales_automation_drafts" on public.sales_automation_drafts for select using (public.is_org_member(organization_id));
 create policy "sales_manage_sales_automation_drafts" on public.sales_automation_drafts for all using (public.has_org_role(organization_id,array['owner','admin','sales'])) with check (public.has_org_role(organization_id,array['owner','admin','sales']));
 
+alter table public.tasks add column if not exists automation_draft_id uuid references public.sales_automation_drafts(id) on delete set null;
+create unique index if not exists tasks_automation_draft_id_idx on public.tasks(automation_draft_id) where automation_draft_id is not null;
+
 insert into public.deployment_migrations(version,name,checksum)
-values ('0048','0048_sales_operations_v5.sql','sales-operations-v5-2026-08-11')
+values ('0048','0048_sales_operations_v5.sql','sales-operations-v5-2026-08-11.2')
 on conflict(version) do update set name=excluded.name,checksum=excluded.checksum,executed_at=now();

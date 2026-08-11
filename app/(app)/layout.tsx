@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { AppShell } from "@/components/layout/app-shell";
+import { GlobalCommandShortcut } from "@/components/shared/global-command-shortcut";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 
 export default async function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -14,5 +15,5 @@ export default async function AppLayout({ children }: Readonly<{ children: React
     redirect("/onboarding");
   }
 
-  return <AppShell workspace={workspace} locale={locale}>{children}</AppShell>;
+  return <><GlobalCommandShortcut /><AppShell workspace={workspace} locale={locale}>{children}</AppShell></>;
 }

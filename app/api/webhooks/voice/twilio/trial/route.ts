@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { salesQualificationSchema } from "@/server/services/sales-session/domain";
-import { VoiceSalesRepository, orchestratePhoneTurn } from "@/server/services/voice-sales-v1";
+import { VoiceSalesRepository, orchestratePhoneTurn, recommendProductsV2 } from "@/server/services/voice-sales-v1";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +56,12 @@ function gather(text: string, secret: string) {
 
 function normalizeNumber(value: string) {
   return value.replace(/[\s()-]/g, "");
+}
+
+function compactProductText(value: string | null | undefined, maxLength = 180) {
+  const clean = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!clean) return "";
+  return clean.length <= maxLength ? clean : `${clean.slice(0, maxLength).replace(/\s+\S*$/, "")}…`;
 }
 
 async function resolveWorkspaceByTwilioNumber(from: string, to: string) {
@@ -141,6 +147,42 @@ export async function POST(request: Request) {
     }
 
     const qualification = salesQualificationSchema.parse(call.qualification ?? {});
+    const pricingQuestion = /fiyat|ne kadar|kaç para/.test(lower);
+    const productQuestion = /konteyner|prefabrik|tiny\s*house|ürün|model|metrekare|m2|m²|oda/.test(lower);
+
+    if (productQuestion && !pricingQuestion) {
+      const areaMatch = speech.match(/(\d{2,3})\s*(?:m2|m²|metrekare)/i);
+      const roomMatch = speech.match(/(\d\s*\+\s*\d)/);
+      const areaM2 = areaMatch ? Number(areaMatch[1]) : qualification.areaM2 ?? undefined;
+      const roomCount = roomMatch ? roomMatch[1].replace(/\s/g, "") : qualification.roomCount ?? undefined;
+      const matches = await recommendProductsV2({
+        organizationId: connection.organization_id,
+        areaM2,
+        roomCount,
+        query: speech,
+        budget: qualification.budget,
+        limit: 1,
+      });
+
+      if (matches.length) {
+        const product = matches[0].product;
+        const description = compactProductText(product.description);
+        const features = product.features.slice(0, 3).map((item) => compactProductText(item, 70)).filter(Boolean);
+        const details = [
+          product.areaM2 !== null ? `${product.areaM2} metrekare` : "",
+          description,
+          features.length ? `Öne çıkan özellikleri ${features.join(", ")}.` : "",
+        ].filter(Boolean).join(". ");
+        qualification.productInterest = product.name;
+        if (product.areaM2 !== null) qualification.areaM2 = product.areaM2;
+        const reply = `${product.name} için kataloğumuzdaki doğrulanmış bilgi şu şekilde: ${details || "ürün aktif kataloğumuzda yer alıyor."} Teslimat yapılacak il veya ilçeyi söyler misiniz?`;
+        await repo.updateSession(call.sales_session_id, connection.organization_id, { qualification, referenced_product_ids: [product.id] });
+        await repo.updateCall(call.id, connection.organization_id, { qualification, state: "speaking" });
+        await repo.appendTranscript({ organizationId: connection.organization_id, callId: call.id, salesSessionId: call.sales_session_id, speaker: "assistant", text: reply });
+        return twiml(`${gather(reply, secret)}${gather("Teslimat yapılacak il veya ilçeyi söyleyebilirsiniz.", secret)}`);
+      }
+    }
+
     const result = await orchestratePhoneTurn({
       organizationId: connection.organization_id,
       callId: call.id,

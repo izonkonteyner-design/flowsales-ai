@@ -3,7 +3,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { TelnyxVoiceAdapter } from "@/server/services/voice-channel/telnyx-adapter";
 import { salesQualificationSchema } from "@/server/services/sales-session/domain";
 import { VoiceSalesRepository, orchestratePhoneTurn, finalizeCallIntelligence, requestHumanHandoff } from "@/server/services/voice-sales-v1";
-import { createAutomationDraft, recordLeadIntent, saveCallDisposition, type CallDisposition } from "@/server/services/sales-operations-v5";
+import { postProcessCompletedVoiceCall } from "@/server/services/voice-sales-postprocessor-v5";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,13 +72,7 @@ export async function POST(request: Request) {
       const intelligence = await finalizeCallIntelligence({ organizationId: event.call.workspaceId, callId: call.id, salesSessionId: call.sales_session_id, leadId: call.lead_id, qualification });
       const transcriptRows = await repo.transcript(call.id, event.call.workspaceId);
       const customerText = transcriptRows.filter((row) => row.speaker === "customer").map((row) => row.text).join(" ");
-      const lower = customerText.toLocaleLowerCase("tr-TR");
-      const disposition: CallDisposition = /teklif/.test(lower) ? "quote_requested" : intelligence.score >= 70 ? "sales_opportunity" : /ilgilenmiyorum|istemiyorum/.test(lower) ? "not_interested" : "follow_up";
-      await saveCallDisposition({ organizationId: event.call.workspaceId, callId: call.id, leadId: call.lead_id, disposition, transcript: customerText, userId: call.assigned_user_id || call.lead_id || event.call.workspaceId, source: "ai" });
-      if (call.lead_id) {
-        const intent = await recordLeadIntent({ organizationId: event.call.workspaceId, leadId: call.lead_id, baseScore: intelligence.score, transcript: customerText, lastActivityAt: endedAt.toISOString(), source: "voice" });
-        await createAutomationDraft({ organizationId: event.call.workspaceId, leadId: call.lead_id, sourceType: "voice_call", sourceId: call.id, actionType: intelligence.score >= 70 ? "call" : "task", title: intelligence.nextBestAction, payload: { disposition, intentScore: intent.score, callId: call.id }, scheduledFor: intelligence.score >= 70 ? new Date(Date.now() + 2 * 3_600_000).toISOString() : new Date(Date.now() + 24 * 3_600_000).toISOString() });
-      }
+      await postProcessCompletedVoiceCall({ organizationId: event.call.workspaceId, callId: call.id, leadId: call.lead_id, assignedUserId: call.assigned_user_id, baseScore: intelligence.score, nextBestAction: intelligence.nextBestAction, customerText });
       await repo.updateCall(call.id, event.call.workspaceId, { duration_seconds: Math.max(0, Math.round((endedAt.getTime() - startedAt.getTime()) / 1000)), ended_at: endedAt.toISOString(), state: "completed" });
       return NextResponse.json({ ok: true });
     }

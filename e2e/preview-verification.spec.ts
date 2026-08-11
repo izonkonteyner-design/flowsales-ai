@@ -1,6 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { assertExactPath } from "./test-utils";
 
+const SIGN_IN = /sign in|giriş yap/i;
+const START_DEMO = /start demo|demoyu dene|demo/i;
+const TOTAL_REVENUE = /total revenue|toplam gelir/i;
+const CREATE_OR_SAVE_QUOTE = /create quote|save changes|teklif oluştur|değişiklikleri kaydet|kaydet/i;
+
 test("Verify production deployment and protected demo surfaces @production", async ({ page, request }) => {
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
@@ -19,24 +24,24 @@ test("Verify production deployment and protected demo surfaces @production", asy
 
   await page.goto("/");
   await assertExactPath(page, "/");
-  await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: SIGN_IN }).first()).toBeVisible();
 
   await page.goto("/login");
   await assertExactPath(page, "/login");
-  await expect(page.getByRole("button", { name: "Start Demo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: START_DEMO }).first()).toBeVisible();
 
   const email = process.env.E2E_DEMO_EMAIL?.trim();
   const password = process.env.E2E_DEMO_PASSWORD?.trim();
 
   if (email && password) {
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
+    await page.getByLabel(/email|e-posta/i).fill(email);
+    await page.getByLabel(/password|şifre/i).fill(password);
     await Promise.all([
       page.waitForURL((url) => url.pathname === "/dashboard", { timeout: 20_000 }),
-      page.getByRole("button", { name: "Sign in" }).click(),
+      page.getByRole("button", { name: SIGN_IN }).click(),
     ]);
     await assertExactPath(page, "/dashboard");
-    await expect(page.locator("text=Total Revenue").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText(TOTAL_REVENUE).first()).toBeVisible({ timeout: 10_000 });
 
     await page.goto("/account");
     await assertExactPath(page, "/account");
@@ -44,9 +49,7 @@ test("Verify production deployment and protected demo surfaces @production", asy
 
     await page.goto("/quotes/new");
     await assertExactPath(page, "/quotes/new");
-    await expect(
-      page.locator("button:has-text('Create quote'), button:has-text('Save changes')").first(),
-    ).toBeDisabled();
+    await expect(page.getByRole("button", { name: CREATE_OR_SAVE_QUOTE }).first()).toBeDisabled();
   } else {
     console.log("Authenticated production demo checks skipped: E2E_DEMO_EMAIL/PASSWORD are not configured.");
   }

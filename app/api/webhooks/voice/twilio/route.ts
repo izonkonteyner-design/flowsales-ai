@@ -24,38 +24,62 @@ function gather(text: string) {
   return `<Gather input="speech" action="${WEBHOOK_PATH}" method="POST" language="tr-TR" speechTimeout="auto" actionOnEmptyResult="true"><Say language="tr-TR">${xmlEscape(text)}</Say></Gather>`;
 }
 
-function requestUrl(request: Request) {
+function requestUrls(request: Request) {
+  const parsed = new URL(request.url);
+  const urls = new Set<string>([request.url]);
   const forwardedHost = request.headers.get("x-forwarded-host")?.trim();
   const host = forwardedHost || request.headers.get("host")?.trim();
   const proto = request.headers.get("x-forwarded-proto")?.trim() || "https";
-  return host ? `${proto}://${host}${new URL(request.url).pathname}${new URL(request.url).search}` : request.url;
+  if (host) urls.add(`${proto}://${host}${parsed.pathname}${parsed.search}`);
+
+  const publicSite = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/$/, "");
+  if (publicSite) urls.add(`${publicSite}${parsed.pathname}${parsed.search}`);
+  return Array.from(urls);
 }
 
 function verifyTwilioSignature(request: Request, params: URLSearchParams) {
   const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
   const signature = request.headers.get("x-twilio-signature")?.trim();
   if (!authToken || !signature) return false;
-  let signed = requestUrl(request);
+
   const pairs = Array.from(params.entries()).sort(([a], [b]) => a.localeCompare(b));
-  for (const [key, value] of pairs) signed += `${key}${value}`;
-  const expected = crypto.createHmac("sha1", authToken).update(signed).digest("base64");
-  const left = Buffer.from(expected);
   const right = Buffer.from(signature);
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
+  for (const url of requestUrls(request)) {
+    let signed = url;
+    for (const [key, value] of pairs) signed += `${key}${value}`;
+    const expected = crypto.createHmac("sha1", authToken).update(signed).digest("base64");
+    const left = Buffer.from(expected);
+    if (left.length === right.length && crypto.timingSafeEqual(left, right)) return true;
+  }
+  return false;
 }
 
-async function resolveWorkspaceByDestination(to: string) {
+function normalizeNumber(value: string) {
+  return value.replace(/[\s()-]/g, "");
+}
+
+async function resolveWorkspaceByTwilioNumber(from: string, to: string) {
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("voice_provider_connections")
     .select("organization_id,transfer_destination,settings")
     .eq("provider", "call_forwarding");
   if (error) throw new Error(`Voice connection lookup failed: ${error.message}`);
-  const normalizedTo = to.replace(/\s+/g, "");
-  return (data ?? []).find((row) => {
+
+  const normalizedFrom = normalizeNumber(from);
+  const normalizedTo = normalizeNumber(to);
+  for (const row of data ?? []) {
     const settings = (row.settings ?? {}) as Record<string, unknown>;
-    return String(settings.destinationNumber ?? "").replace(/\s+/g, "") === normalizedTo;
-  }) ?? null;
+    const destinationNumber = normalizeNumber(String(settings.destinationNumber ?? ""));
+    if (!destinationNumber) continue;
+    if (destinationNumber === normalizedTo) {
+      return { connection: row, direction: "inbound" as const, customerNumber: from, providerNumber: to };
+    }
+    if (destinationNumber === normalizedFrom) {
+      return { connection: row, direction: "outbound" as const, customerNumber: to, providerNumber: from };
+    }
+  }
+  return null;
 }
 
 export async function POST(request: Request) {
@@ -69,16 +93,17 @@ export async function POST(request: Request) {
   const speech = params.get("SpeechResult")?.trim() || "";
   if (!callSid || !to) return twiml("<Hangup/>", 400);
 
-  const connection = await resolveWorkspaceByDestination(to);
-  if (!connection) return twiml('<Say language="tr-TR">Bu telefon numarası FlowSales çalışma alanına bağlı değil.</Say><Hangup/>', 404);
+  const resolved = await resolveWorkspaceByTwilioNumber(from, to);
+  if (!resolved) return twiml('<Say language="tr-TR">Bu Twilio numarası FlowSales çalışma alanına bağlı değil.</Say><Hangup/>', 404);
+  const { connection, direction, customerNumber } = resolved;
 
   const repo = new VoiceSalesRepository();
   try {
     let call = await repo.getCall(connection.organization_id, "twilio", callSid);
     if (!call) {
-      const identity = await repo.resolveIdentity(connection.organization_id, from);
+      const identity = await repo.resolveIdentity(connection.organization_id, customerNumber);
       const session = await repo.createSession({ organizationId: connection.organization_id, channelSessionId: callSid, leadId: identity.leadId, customerId: identity.customerId });
-      call = await repo.createCall({ organizationId: connection.organization_id, salesSessionId: session.id, provider: "twilio", providerCallId: callSid, direction: "inbound", from, to, leadId: identity.leadId, customerId: identity.customerId });
+      call = await repo.createCall({ organizationId: connection.organization_id, salesSessionId: session.id, provider: "twilio", providerCallId: callSid, direction, from, to, leadId: identity.leadId, customerId: identity.customerId });
       await repo.updateCall(call.id, connection.organization_id, { state: "answered", answered_at: new Date().toISOString() });
       const greeting = "Merhaba, İZON Konteyner satış asistanına hoş geldiniz. Size nasıl yardımcı olabilirim?";
       await repo.appendTranscript({ organizationId: connection.organization_id, callId: call.id, salesSessionId: session.id, speaker: "assistant", text: greeting });

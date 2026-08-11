@@ -23,7 +23,7 @@ function twiml(body: string, status = 200) {
 }
 
 function say(text: string) {
-  return `<Say language="tr-TR" voice="${TURKISH_TTS_VOICE}"><prosody rate="96%">${xmlEscape(text)}</prosody></Say>`;
+  return `<Say language="tr-TR" voice="${TURKISH_TTS_VOICE}">${xmlEscape(text)}</Say>`;
 }
 
 function safeEqual(left: string, right: string) {

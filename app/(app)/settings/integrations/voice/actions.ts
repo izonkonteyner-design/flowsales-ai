@@ -9,6 +9,11 @@ function text(formData: FormData, key: string) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function voiceSettingsRedirect(toast: string, tone: "success" | "danger") {
+  const params = new URLSearchParams({ toast, tone });
+  redirect(`/settings/integrations/voice?${params.toString()}`);
+}
+
 export async function saveVoiceConnectionAction(formData: FormData) {
   try {
     await saveCallForwardingProfile({
@@ -20,8 +25,11 @@ export async function saveVoiceConnectionAction(formData: FormData) {
       status: formData.get("connected") === "on" ? "connected" : "disconnected",
     });
   } catch (error) {
-    redirect(`/settings/integrations/voice?toast=${encodeURIComponent(error instanceof Error ? error.message : "Telefon yönlendirme kaydı kaydedilemedi")}&tone=danger`);
+    voiceSettingsRedirect(
+      error instanceof Error ? error.message : "Telefon yönlendirme kaydı kaydedilemedi",
+      "danger",
+    );
   }
   revalidatePath("/settings/integrations/voice");
-  redirect("/settings/integrations/voice?toast=Telefon%20yönlendirme%20kaydı%20kaydedildi&tone=success");
+  voiceSettingsRedirect("Telefon yönlendirme kaydı kaydedildi", "success");
 }

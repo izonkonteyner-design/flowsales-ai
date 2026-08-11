@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const WEBHOOK_PATH = "/api/webhooks/voice/twilio";
+const TWILIO_API_BASE = "https://api.twilio.com/2010-04-01";
 
 function xmlEscape(value: string) {
   return value.replace(/[<>&'\"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[char] ?? char);
@@ -58,6 +59,37 @@ function normalizeNumber(value: string) {
   return value.replace(/[\s()-]/g, "");
 }
 
+async function verifyTwilioCallResource(params: URLSearchParams) {
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
+  const accountSid = params.get("AccountSid")?.trim() || "";
+  const callSid = params.get("CallSid")?.trim() || "";
+  const from = normalizeNumber(params.get("From")?.trim() || "");
+  const to = normalizeNumber(params.get("To")?.trim() || "");
+  if (!authToken || !/^AC[0-9a-fA-F]{32}$/.test(accountSid) || !/^CA[0-9a-fA-F]{32}$/.test(callSid)) return false;
+
+  const response = await fetch(`${TWILIO_API_BASE}/Accounts/${encodeURIComponent(accountSid)}/Calls/${encodeURIComponent(callSid)}.json`, {
+    method: "GET",
+    headers: { Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}` },
+    cache: "no-store",
+    signal: AbortSignal.timeout(3500),
+  });
+  if (!response.ok) return false;
+
+  const call = (await response.json()) as { sid?: string; account_sid?: string; from?: string; to?: string };
+  if (call.sid !== callSid || call.account_sid !== accountSid) return false;
+  return normalizeNumber(String(call.from ?? "")) === from && normalizeNumber(String(call.to ?? "")) === to;
+}
+
+async function isTrustedTwilioRequest(request: Request, params: URLSearchParams) {
+  if (verifyTwilioSignature(request, params)) return true;
+  try {
+    return await verifyTwilioCallResource(params);
+  } catch (error) {
+    console.warn("voice_twilio_rest_verification_failed", error instanceof Error ? error.message : "unknown");
+    return false;
+  }
+}
+
 async function resolveWorkspaceByTwilioNumber(from: string, to: string) {
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
@@ -85,7 +117,7 @@ async function resolveWorkspaceByTwilioNumber(from: string, to: string) {
 export async function POST(request: Request) {
   const raw = await request.text();
   const params = new URLSearchParams(raw);
-  if (!verifyTwilioSignature(request, params)) return NextResponse.json({ error: "invalid_signature" }, { status: 403 });
+  if (!(await isTrustedTwilioRequest(request, params))) return NextResponse.json({ error: "invalid_twilio_request" }, { status: 403 });
 
   const callSid = params.get("CallSid")?.trim() || "";
   const from = params.get("From")?.trim() || "unknown";

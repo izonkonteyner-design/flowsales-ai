@@ -1,9 +1,14 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
-import { applyLeadScoreDecay, materializeDueSequenceSteps } from "@/server/services/sales-operations-v5";
+import { applyLeadScoreDecay, calculateDealRisk, materializeDueSequenceSteps } from "@/server/services/sales-operations-v5";
 import { persistWeeklyPipelineSnapshot } from "@/server/services/sales-growth-v6";
 import { createSalesHealthAlerts } from "@/server/services/sales-alerts-v6";
+
+function hoursSince(value?: string | null) {
+  if (!value) return 9999;
+  return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 3_600_000));
+}
 
 export async function markOverdueCallbacks(organizationId: string) {
   const admin = createSupabaseAdminClient();
@@ -18,6 +23,36 @@ export async function markOverdueCallbacks(organizationId: string) {
   return data?.length || 0;
 }
 
+export async function refreshQuoteFollowUpState(organizationId: string) {
+  const admin = createSupabaseAdminClient();
+  const { data: quotes, error } = await admin.from("quotes")
+    .select("id,lead_id,status,created_at,updated_at")
+    .eq("organization_id", organizationId)
+    .in("status", ["sent", "viewed"])
+    .limit(1000);
+  if (error) throw new Error("Teklif takip durumu yüklenemedi.");
+  let updated = 0;
+  for (const quote of quotes || []) {
+    const ageDays = Math.floor(hoursSince(quote.created_at) / 24);
+    const inactivityHours = hoursSince(quote.updated_at);
+    const riskScore = calculateDealRisk({ inactivityHours, quoteAgeDays: ageDays, objectionCount: 0, score: 50, followUpOverdue: ageDays >= 3 });
+    const reasons = [ageDays >= 15 && "Teklif 15+ gündür açık.", inactivityHours >= 72 && "72+ saattir teklif aktivitesi yok."].filter((value): value is string => Boolean(value));
+    const nextFollowUpAt = new Date(Date.now() + (riskScore >= 70 ? 4 : riskScore >= 40 ? 24 : 72) * 3_600_000).toISOString();
+    const { error: upsertError } = await admin.from("quote_follow_up_state").upsert({
+      quote_id: quote.id,
+      organization_id: organizationId,
+      last_customer_activity_at: quote.updated_at,
+      next_follow_up_at: nextFollowUpAt,
+      risk_score: riskScore,
+      risk_reasons: reasons,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "quote_id" });
+    if (upsertError) throw new Error("Teklif takip durumu kaydedilemedi.");
+    updated += 1;
+  }
+  return { evaluated: quotes?.length || 0, updated };
+}
+
 export async function materializeApprovedAutomationDrafts(organizationId: string) {
   const admin = createSupabaseAdminClient();
   const { data: drafts, error } = await admin.from("sales_automation_drafts")
@@ -30,18 +65,17 @@ export async function materializeApprovedAutomationDrafts(organizationId: string
   let created = 0;
   for (const draft of drafts || []) {
     const dueAt = draft.scheduled_for || new Date().toISOString();
-    if (["task", "call", "reminder"].includes(draft.action_type)) {
-      const { error: taskError } = await admin.from("tasks").insert({
-        organization_id: organizationId,
-        lead_id: draft.lead_id || null,
-        title: draft.title,
-        due_at: dueAt,
-        priority: draft.action_type === "call" ? "high" : "medium",
-        status: "open",
-      });
-      if (taskError) throw new Error("Otomasyon görevi oluşturulamadı.");
-      created += 1;
-    }
+    const prefix = draft.action_type === "reply_draft" ? "Mesaj taslağını gözden geçir: " : "";
+    const { error: taskError } = await admin.from("tasks").insert({
+      organization_id: organizationId,
+      lead_id: draft.lead_id || null,
+      title: `${prefix}${draft.title}`.slice(0, 250),
+      due_at: dueAt,
+      priority: draft.action_type === "call" ? "high" : "medium",
+      status: "open",
+    });
+    if (taskError) throw new Error("Otomasyon görevi oluşturulamadı.");
+    created += 1;
     await admin.from("sales_automation_drafts").update({ status: "completed" }).eq("id", draft.id).eq("organization_id", organizationId).eq("status", "approved");
   }
   return { processed: drafts?.length || 0, tasksCreated: created };
@@ -82,8 +116,9 @@ export async function applyDailyIntentDecay(organizationId: string) {
 }
 
 export async function runSalesAutomationCycle(organizationId: string, options?: { includeWeeklySnapshot?: boolean }) {
-  const [missedCallbacks, sequences, drafts, scoreDecay] = await Promise.all([
+  const [missedCallbacks, quoteTracker, sequences, drafts, scoreDecay] = await Promise.all([
     markOverdueCallbacks(organizationId),
+    refreshQuoteFollowUpState(organizationId),
     materializeDueSequenceSteps(organizationId),
     materializeApprovedAutomationDrafts(organizationId),
     applyDailyIntentDecay(organizationId),
@@ -92,5 +127,5 @@ export async function runSalesAutomationCycle(organizationId: string, options?: 
     options?.includeWeeklySnapshot ? persistWeeklyPipelineSnapshot(organizationId) : Promise.resolve(null),
     createSalesHealthAlerts(organizationId),
   ]);
-  return { missedCallbacks, sequences, drafts, scoreDecay, alerts, snapshot };
+  return { missedCallbacks, quoteTracker, sequences, drafts, scoreDecay, alerts, snapshot };
 }

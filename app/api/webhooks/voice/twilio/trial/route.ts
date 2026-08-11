@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TRIAL_WEBHOOK_PATH = "/api/webhooks/voice/twilio/trial";
+const DEFAULT_PUBLIC_SITE = "https://flowsales-ai-six.vercel.app";
 
 function xmlEscape(value: string) {
   return value.replace(/[<>&'\"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[char] ?? char);
@@ -36,8 +37,12 @@ function isTrustedTrialRequest(request: Request) {
   return expected.length >= 32 && supplied.length >= 32 && safeEqual(expected, supplied);
 }
 
+function publicSiteUrl() {
+  return (process.env.NEXT_PUBLIC_SITE_URL?.trim() || DEFAULT_PUBLIC_SITE).replace(/\/$/, "");
+}
+
 function trialAction(secret: string) {
-  return `${TRIAL_WEBHOOK_PATH}?secret=${encodeURIComponent(secret)}`;
+  return `${publicSiteUrl()}${TRIAL_WEBHOOK_PATH}?secret=${encodeURIComponent(secret)}`;
 }
 
 function gather(text: string, secret: string) {

@@ -95,7 +95,9 @@ export async function saveCallDisposition(params: { organizationId: string; call
   const { data, error } = await admin.from("sales_call_dispositions").upsert({ organization_id: params.organizationId, call_id: params.callId, lead_id: params.leadId || null, disposition: params.disposition, call_reason: reason.reason, objections, buying_signals: buyingSignals, confidence: reason.confidence, source: params.source || "human", created_by: params.userId }, { onConflict: "organization_id,call_id" }).select("id,disposition,call_reason,objections,buying_signals").single();
   if (error || !data) throw new Error("Görüşme sonucu kaydedilemedi.");
   for (const key of objections) {
-    await admin.from("sales_objection_library").upsert({ organization_id: params.organizationId, objection_key: key, label: key.replaceAll("_", " "), times_detected: 1 }, { onConflict: "organization_id,objection_key", ignoreDuplicates: true });
+    const { data: existing } = await admin.from("sales_objection_library").select("times_detected").eq("organization_id", params.organizationId).eq("objection_key", key).maybeSingle();
+    const { error: objectionError } = await admin.from("sales_objection_library").upsert({ organization_id: params.organizationId, objection_key: key, label: key.replaceAll("_", " "), times_detected: Number(existing?.times_detected || 0) + 1 }, { onConflict: "organization_id,objection_key" });
+    if (objectionError) throw new Error("İtiraz kütüphanesi güncellenemedi.");
   }
   return data;
 }
@@ -118,11 +120,15 @@ export async function getLeadIntentHistory(organizationId: string, leadId: strin
   return data || [];
 }
 
-export async function createAutomationDraft(params: { organizationId: string; leadId?: string | null; sourceType: string; sourceId?: string | null; actionType: "task" | "call" | "reply_draft" | "reminder"; title: string; payload?: Record<string, unknown>; scheduledFor?: string | null }) {
+export async function createAutomationDraft(params: { organizationId: string; leadId?: string | null; sourceType: string; sourceId?: string | null; actionType: "task" | "call" | "reply_draft" | "reminder"; title: string; payload?: Record<string, unknown>; scheduledFor?: string | null; dedupeKey?: string | null }) {
   const admin = createSupabaseAdminClient();
-  const { data, error } = await admin.from("sales_automation_drafts").insert({ organization_id: params.organizationId, lead_id: params.leadId || null, source_type: params.sourceType, source_id: params.sourceId || null, action_type: params.actionType, title: params.title, payload: params.payload || {}, scheduled_for: params.scheduledFor || null, status: "approval_required" }).select("id,status,title,action_type").single();
-  if (error || !data) throw new Error("Otomasyon taslağı oluşturulamadı.");
-  return data;
+  const { data, error } = await admin.from("sales_automation_drafts").insert({ organization_id: params.organizationId, lead_id: params.leadId || null, source_type: params.sourceType, source_id: params.sourceId || null, action_type: params.actionType, title: params.title, payload: params.payload || {}, scheduled_for: params.scheduledFor || null, status: "approval_required", dedupe_key: params.dedupeKey || null }).select("id,status,title,action_type").single();
+  if (!error && data) return data;
+  if (error?.code === "23505" && params.dedupeKey) {
+    const { data: existing, error: existingError } = await admin.from("sales_automation_drafts").select("id,status,title,action_type").eq("organization_id", params.organizationId).eq("dedupe_key", params.dedupeKey).maybeSingle();
+    if (!existingError && existing) return existing;
+  }
+  throw new Error("Otomasyon taslağı oluşturulamadı.");
 }
 
 export async function createFollowUpSequence(params: { organizationId: string; userId: string; name: string; description?: string; steps: Array<{ delayHours: number; actionType: "task" | "call" | "reply_draft" | "reminder"; instruction: string }> }) {
@@ -136,8 +142,9 @@ export async function createFollowUpSequence(params: { organizationId: string; u
 
 export async function enrollLeadInSequence(params: { organizationId: string; userId: string; templateId: string; leadId: string }) {
   const admin = createSupabaseAdminClient();
-  const { data: firstStep } = await admin.from("sales_sequence_steps").select("delay_hours").eq("organization_id", params.organizationId).eq("template_id", params.templateId).order("step_order").limit(1).maybeSingle();
-  const nextRunAt = new Date(Date.now() + Number(firstStep?.delay_hours || 0) * 3_600_000).toISOString();
+  const { data: firstStep, error: firstStepError } = await admin.from("sales_sequence_steps").select("delay_hours").eq("organization_id", params.organizationId).eq("template_id", params.templateId).order("step_order").limit(1).maybeSingle();
+  if (firstStepError || !firstStep) throw new Error("Takip dizisinin ilk adımı bulunamadı.");
+  const nextRunAt = new Date(Date.now() + Number(firstStep.delay_hours) * 3_600_000).toISOString();
   const { data, error } = await admin.from("sales_sequence_enrollments").insert({ organization_id: params.organizationId, template_id: params.templateId, lead_id: params.leadId, enrolled_by: params.userId, next_run_at: nextRunAt }).select("id,status,next_run_at").single();
   if (error || !data) throw new Error("Lead takip dizisine eklenemedi.");
   return data;
@@ -150,13 +157,26 @@ export async function materializeDueSequenceSteps(organizationId: string) {
   if (error) throw new Error("Takip dizisi çalıştırılamadı.");
   let created = 0;
   for (const enrollment of enrollments || []) {
-    const { data: step } = await admin.from("sales_sequence_steps").select("step_order,delay_hours,action_type,instruction").eq("organization_id", organizationId).eq("template_id", enrollment.template_id).eq("step_order", enrollment.current_step).maybeSingle();
-    if (!step) { await admin.from("sales_sequence_enrollments").update({ status: "completed", updated_at: now }).eq("id", enrollment.id); continue; }
-    await createAutomationDraft({ organizationId, leadId: enrollment.lead_id, sourceType: "sequence", sourceId: enrollment.id, actionType: step.action_type, title: step.instruction, scheduledFor: now });
+    const { data: step, error: stepError } = await admin.from("sales_sequence_steps").select("step_order,delay_hours,action_type,instruction").eq("organization_id", organizationId).eq("template_id", enrollment.template_id).eq("step_order", enrollment.current_step).maybeSingle();
+    if (stepError) throw new Error("Takip dizisi adımı yüklenemedi.");
+    if (!step) {
+      const { error: completionError } = await admin.from("sales_sequence_enrollments").update({ status: "completed", next_run_at: null, updated_at: now }).eq("organization_id", organizationId).eq("id", enrollment.id).eq("status", "active");
+      if (completionError) throw new Error("Takip dizisi tamamlanamadı.");
+      continue;
+    }
+
+    const dedupeKey = `sequence:${enrollment.id}:step:${step.step_order}`;
+    const draft = await createAutomationDraft({ organizationId, leadId: enrollment.lead_id, sourceType: "sequence", sourceId: enrollment.id, actionType: step.action_type, title: step.instruction, scheduledFor: now, dedupeKey });
+    if (draft.status === "approval_required") created += 1;
+
     const nextStep = enrollment.current_step + 1;
-    const { data: upcoming } = await admin.from("sales_sequence_steps").select("delay_hours").eq("organization_id", organizationId).eq("template_id", enrollment.template_id).eq("step_order", nextStep).maybeSingle();
-    await admin.from("sales_sequence_enrollments").update(upcoming ? { current_step: nextStep, next_run_at: new Date(Date.now() + Number(upcoming.delay_hours) * 3_600_000).toISOString(), updated_at: now } : { status: "completed", next_run_at: null, updated_at: now }).eq("id", enrollment.id);
-    created += 1;
+    const { data: upcoming, error: upcomingError } = await admin.from("sales_sequence_steps").select("delay_hours").eq("organization_id", organizationId).eq("template_id", enrollment.template_id).eq("step_order", nextStep).maybeSingle();
+    if (upcomingError) throw new Error("Sonraki takip dizisi adımı yüklenemedi.");
+    const patch = upcoming
+      ? { current_step: nextStep, next_run_at: new Date(Date.now() + Number(upcoming.delay_hours) * 3_600_000).toISOString(), updated_at: now }
+      : { status: "completed", next_run_at: null, updated_at: now };
+    const { error: updateError } = await admin.from("sales_sequence_enrollments").update(patch).eq("organization_id", organizationId).eq("id", enrollment.id).eq("status", "active").eq("current_step", enrollment.current_step);
+    if (updateError) throw new Error("Takip dizisi ilerletilemedi.");
   }
   return { processed: (enrollments || []).length, draftsCreated: created };
 }
@@ -175,9 +195,28 @@ export function calculateDealRisk(input: { inactivityHours: number; quoteAgeDays
 
 export async function getQuoteFollowUpDashboard(organizationId: string) {
   const admin = createSupabaseAdminClient();
-  const { data: quotes, error } = await admin.from("quotes").select("id,quote_number,status,total,created_at,updated_at,lead_id").eq("organization_id", organizationId).in("status", ["sent","viewed"]).order("created_at", { ascending: true }).limit(500);
-  if (error) throw new Error("Teklif takip görünümü yüklenemedi.");
-  const rows = (quotes || []).map((quote) => { const ageDays = Math.floor(hoursSince(quote.created_at) / 24); const riskScore = calculateDealRisk({ inactivityHours: hoursSince(quote.updated_at), quoteAgeDays: ageDays, objectionCount: 0, score: 50, followUpOverdue: ageDays >= 3 }); return { ...quote, ageDays, ageBucket: quoteAgeBucket(quote.created_at), riskScore }; });
+  const [quoteResult, stateResult] = await Promise.all([
+    admin.from("quotes").select("id,quote_number,status,total,created_at,updated_at,lead_id").eq("organization_id", organizationId).in("status", ["sent","viewed"]).order("created_at", { ascending: true }).limit(500),
+    admin.from("quote_follow_up_state").select("quote_id,last_customer_activity_at,next_follow_up_at,risk_score,risk_reasons,updated_at").eq("organization_id", organizationId).limit(500),
+  ]);
+  if (quoteResult.error) throw new Error("Teklif takip görünümü yüklenemedi.");
+  if (stateResult.error) throw new Error("Teklif risk durumu yüklenemedi.");
+  const stateByQuote = new Map((stateResult.data || []).map((state) => [state.quote_id, state]));
+  const rows = (quoteResult.data || []).map((quote) => {
+    const ageDays = Math.floor(hoursSince(quote.created_at) / 24);
+    const state = stateByQuote.get(quote.id);
+    const fallbackRisk = calculateDealRisk({ inactivityHours: hoursSince(quote.updated_at), quoteAgeDays: ageDays, objectionCount: 0, score: 50, followUpOverdue: ageDays >= 3 });
+    return {
+      ...quote,
+      ageDays,
+      ageBucket: quoteAgeBucket(quote.created_at),
+      riskScore: state ? Number(state.risk_score) : fallbackRisk,
+      riskReasons: state?.risk_reasons || [],
+      lastCustomerActivityAt: state?.last_customer_activity_at || null,
+      nextFollowUpAt: state?.next_follow_up_at || null,
+      riskSource: state ? "grounded" : "fallback",
+    };
+  });
   const buckets = { "0-2": 0, "3-7": 0, "8-14": 0, "15+": 0 } as Record<string, number>;
   for (const row of rows) buckets[row.ageBucket] += 1;
   return { rows: rows.sort((a,b) => b.riskScore - a.riskScore), buckets };

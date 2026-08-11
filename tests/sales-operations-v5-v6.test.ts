@@ -12,11 +12,19 @@ test("0048 persists callback, call intelligence, intent, sequence, quote trackin
     assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, "i"));
   }
   assert.match(sql, /0048_sales_operations_v5\.sql/);
+  assert.match(sql, /dedupe_key text/);
+  assert.match(sql, /sales_automation_drafts_dedupe_idx/);
+  assert.match(sql, /lead_intent_history_dedupe_idx/);
+  assert.match(sql, /automation_draft_id/);
+  assert.match(sql, /tasks_automation_draft_id_idx/);
 });
 
 test("sales operations engine implements callback, disposition, objections, buying signals, score explanation, decay and funnel", async () => {
   const service = await source("server/services/sales-operations-v5.ts");
   for (const symbol of ["enqueueCallback","saveCallDisposition","detectCallReason","detectObjections","detectBuyingSignals","explainLeadScore","applyLeadScoreDecay","recordLeadIntent","createFollowUpSequence","materializeDueSequenceSteps","calculateDealRisk","getRevenueLeakage","getSalesFunnel","answerSalesAnalystQuestion"]) assert.match(service, new RegExp(symbol));
+  assert.match(service, /dedupeKey/);
+  assert.match(service, /23505/);
+  assert.match(service, /quote_follow_up_state/);
 });
 
 test("completed voice calls feed disposition and intent without auto-sending customer messages", async () => {
@@ -29,17 +37,34 @@ test("completed voice calls feed disposition and intent without auto-sending cus
   assert.doesNotMatch(processor, /sendOutboundReply|sendMetaMessagingReply|sendMessage/);
 });
 
-test("scheduler is approval-safe, tracks quotes, applies decay and emits alerts", async () => {
+test("scheduler is approval-safe, retry-safe, data-grounded and emits alerts", async () => {
   const runner = await source("server/services/sales-automation-runner-v5.ts");
   const cron = await source("app/api/cron/sales-automation/route.ts");
   const vercel = await source("vercel.json");
   assert.match(runner, /refreshQuoteFollowUpState/);
   assert.match(runner, /materializeApprovedAutomationDrafts/);
+  assert.match(runner, /materializeDueSequenceStepsSafely/);
   assert.match(runner, /applyDailyIntentDecay/);
   assert.match(runner, /createSalesHealthAlerts/);
+  assert.match(runner, /scheduled_for"?, null|scheduled_for\", null|\.is\("scheduled_for", null\)/);
+  assert.match(runner, /automation_draft_id/);
+  assert.match(runner, /dedupe_key/);
+  assert.match(runner, /23505/);
+  assert.match(runner, /direction", "inbound"/);
+  assert.match(runner, /lead_intent_history/);
+  assert.match(runner, /sales_call_dispositions/);
   assert.match(cron, /CRON_SECRET/);
   assert.match(cron, /Authorization|authorization/);
+  assert.match(cron, /\.range\(/);
+  assert.match(cron, /ORGANIZATION_PAGE_SIZE/);
   assert.match(vercel, /0 5 \* \* \*/);
+});
+
+test("callback UX uses selectable leads instead of manual UUID entry", async () => {
+  const page = await source("app/(app)/sales-operations/callbacks/page.tsx");
+  assert.match(page, /<select name="leadId"/);
+  assert.match(page, /Lead seçin/);
+  assert.doesNotMatch(page, /placeholder="Lead UUID"/);
 });
 
 test("0049 persists trusted cost, SLA, routing, approvals, versions, growth and forecast with RLS", async () => {

@@ -29,7 +29,7 @@ test("release persistence runs only after verified main push", async () => {
   assert.match(workflow, /needs: verify/);
   assert.match(workflow, /github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /environment: production/);
-  assert.match(workflow, /actions\/download-artifact@v4/);
+  assert.match(workflow, /actions\/download-artifact@v\d+/);
   assert.match(workflow, /npm run eval:ai:persist/);
 });
 

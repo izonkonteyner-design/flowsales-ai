@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 const TRIAL_WEBHOOK_PATH = "/api/webhooks/voice/twilio/trial";
 const DEFAULT_PUBLIC_SITE = "https://flowsales-ai-six.vercel.app";
+const TURKISH_TTS_VOICE = "Polly.Burcu-Neural";
 
 function xmlEscape(value: string) {
   return value.replace(/[<>&'\"]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", "'": "&apos;", '"': "&quot;" })[char] ?? char);
@@ -19,6 +20,10 @@ function twiml(body: string, status = 200) {
     status,
     headers: { "Content-Type": "text/xml; charset=utf-8", "Cache-Control": "no-store" },
   });
+}
+
+function say(text: string) {
+  return `<Say language="tr-TR" voice="${TURKISH_TTS_VOICE}"><prosody rate="96%">${xmlEscape(text)}</prosody></Say>`;
 }
 
 function safeEqual(left: string, right: string) {
@@ -46,7 +51,7 @@ function trialAction(secret: string) {
 }
 
 function gather(text: string, secret: string) {
-  return `<Gather input="speech" action="${xmlEscape(trialAction(secret))}" method="POST" language="tr-TR" speechTimeout="auto" actionOnEmptyResult="true"><Say language="tr-TR">${xmlEscape(text)}</Say></Gather>`;
+  return `<Gather input="speech" action="${xmlEscape(trialAction(secret))}" method="POST" language="tr-TR" speechTimeout="auto" actionOnEmptyResult="true">${say(text)}</Gather>`;
 }
 
 function normalizeNumber(value: string) {
@@ -93,7 +98,7 @@ export async function POST(request: Request) {
 
   const resolved = await resolveWorkspaceByTwilioNumber(from, to);
   if (!resolved) {
-    return twiml('<Say language="tr-TR">Bu Twilio deneme numarası FlowSales çalışma alanına bağlı değil.</Say><Hangup/>', 404);
+    return twiml(`${say("Bu Twilio deneme numarası FlowSales çalışma alanına bağlı değil.")}<Hangup/>`, 404);
   }
   const { connection, direction, customerNumber } = resolved;
 
@@ -132,7 +137,7 @@ export async function POST(request: Request) {
     const transferDestination = String(connection.transfer_destination ?? "").trim();
     if (transferDestination && /temsilci|yetkili|insanla|satış danışmanı/.test(lower)) {
       await repo.appendTranscript({ organizationId: connection.organization_id, callId: call.id, salesSessionId: call.sales_session_id, speaker: "assistant", text: "Sizi satış temsilcimize aktarıyorum." });
-      return twiml(`<Say language="tr-TR">Sizi satış temsilcimize aktarıyorum.</Say><Dial>${xmlEscape(transferDestination)}</Dial>`);
+      return twiml(`${say("Sizi satış temsilcimize aktarıyorum.")}<Dial>${xmlEscape(transferDestination)}</Dial>`);
     }
 
     const qualification = salesQualificationSchema.parse(call.qualification ?? {});
@@ -149,6 +154,6 @@ export async function POST(request: Request) {
     return twiml(`${gather(result.reply, secret)}${gather("Başka nasıl yardımcı olabilirim?", secret)}`);
   } catch (error) {
     console.error("voice_twilio_trial_webhook_failed", error instanceof Error ? error.message : "unknown");
-    return twiml('<Say language="tr-TR">Şu anda işleminizi tamamlayamıyorum. Lütfen daha sonra tekrar deneyin.</Say><Hangup/>', 500);
+    return twiml(`${say("Şu anda işleminizi tamamlayamıyorum. Lütfen daha sonra tekrar deneyin.")}<Hangup/>`, 500);
   }
 }

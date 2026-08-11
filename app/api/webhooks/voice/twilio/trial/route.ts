@@ -58,6 +58,31 @@ function normalizeNumber(value: string) {
   return value.replace(/[\s()-]/g, "");
 }
 
+function normalizeSpeechForSales(value: string) {
+  return value
+    .replace(/(\d{2,3})\s*metre\s*kare/gi, "$1 metrekare")
+    .replace(/(\d{2,3})\s*metrekaresi/gi, "$1 metrekare")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractAreaM2(value: string) {
+  const match = value.match(/(\d{2,3})\s*(?:m2|m²|metrekare|metre\s*kare)/i);
+  return match ? Number(match[1]) : undefined;
+}
+
+function extractRoomCount(value: string) {
+  const match = value.match(/(\d\s*\+\s*\d)/);
+  return match ? match[1].replace(/\s/g, "") : undefined;
+}
+
+function productKeyword(lower: string) {
+  if (/tiny\s*house/.test(lower)) return "tiny house";
+  if (/prefabrik/.test(lower)) return "prefabrik";
+  if (/konteyner/.test(lower)) return "konteyner";
+  return undefined;
+}
+
 function compactProductText(value: string | null | undefined, maxLength = 180) {
   const clean = String(value ?? "").replace(/\s+/g, " ").trim();
   if (!clean) return "";
@@ -138,8 +163,9 @@ export async function POST(request: Request) {
 
     if (!speech) return twiml(`${gather("Sizi duyamadım. Lütfen tekrar söyler misiniz?", secret)}<Hangup/>`);
 
+    const normalizedSpeech = normalizeSpeechForSales(speech);
     await repo.appendTranscript({ organizationId: connection.organization_id, callId: call.id, salesSessionId: call.sales_session_id, speaker: "customer", text: speech });
-    const lower = speech.toLocaleLowerCase("tr-TR");
+    const lower = normalizedSpeech.toLocaleLowerCase("tr-TR");
     const transferDestination = String(connection.transfer_destination ?? "").trim();
     if (transferDestination && /temsilci|yetkili|insanla|satış danışmanı/.test(lower)) {
       await repo.appendTranscript({ organizationId: connection.organization_id, callId: call.id, salesSessionId: call.sales_session_id, speaker: "assistant", text: "Sizi satış temsilcimize aktarıyorum." });
@@ -148,18 +174,17 @@ export async function POST(request: Request) {
 
     const qualification = salesQualificationSchema.parse(call.qualification ?? {});
     const pricingQuestion = /fiyat|ne kadar|kaç para/.test(lower);
-    const productQuestion = /konteyner|prefabrik|tiny\s*house|ürün|model|metrekare|m2|m²|oda/.test(lower);
+    const productQuestion = /konteyner|prefabrik|tiny\s*house|ürün|model|metrekare|m2|m²|metre\s*kare|oda/.test(lower);
 
     if (productQuestion && !pricingQuestion) {
-      const areaMatch = speech.match(/(\d{2,3})\s*(?:m2|m²|metrekare)/i);
-      const roomMatch = speech.match(/(\d\s*\+\s*\d)/);
-      const areaM2 = areaMatch ? Number(areaMatch[1]) : qualification.areaM2 ?? undefined;
-      const roomCount = roomMatch ? roomMatch[1].replace(/\s/g, "") : qualification.roomCount ?? undefined;
+      const areaM2 = extractAreaM2(normalizedSpeech) ?? qualification.areaM2 ?? undefined;
+      const roomCount = extractRoomCount(normalizedSpeech) ?? qualification.roomCount ?? undefined;
+      const keyword = productKeyword(lower);
       const matches = await recommendProductsV2({
         organizationId: connection.organization_id,
         areaM2,
         roomCount,
-        query: speech,
+        query: areaM2 || roomCount ? undefined : keyword,
         budget: qualification.budget,
         limit: 1,
       });
@@ -181,13 +206,18 @@ export async function POST(request: Request) {
         await repo.appendTranscript({ organizationId: connection.organization_id, callId: call.id, salesSessionId: call.sales_session_id, speaker: "assistant", text: reply });
         return twiml(`${gather(reply, secret)}${gather("Teslimat yapılacak il veya ilçeyi söyleyebilirsiniz.", secret)}`);
       }
+
+      const requested = areaM2 ? `${areaM2} metrekare` : keyword ?? "bu ürün tipi";
+      const reply = `${requested} için aktif kataloğumuzda doğrulanmış birebir bir ürün kaydı bulamadım. Size yanlış bilgi vermemek için tek bir ayrıntı sorayım: istediğiniz oda düzeni nedir?`;
+      await repo.appendTranscript({ organizationId: connection.organization_id, callId: call.id, salesSessionId: call.sales_session_id, speaker: "assistant", text: reply });
+      return twiml(`${gather(reply, secret)}${gather("Örneğin bir artı bir veya iki ayrı oda diyebilirsiniz.", secret)}`);
     }
 
     const result = await orchestratePhoneTurn({
       organizationId: connection.organization_id,
       callId: call.id,
       salesSessionId: call.sales_session_id,
-      transcript: speech,
+      transcript: normalizedSpeech,
       qualification,
     });
     const score = (await import("@/server/services/sales-session/phone-lead-score")).scorePhoneQualification(result.qualification).score;

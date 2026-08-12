@@ -15,6 +15,7 @@ import { inviteMemberSchema } from "@/lib/validations/workspace-member";
 
 const testsDir = dirname(fileURLToPath(import.meta.url));
 const bootstrapMigrationPath = join(testsDir, "..", "supabase", "migrations", "0013_fix_bootstrap_workspace_ambiguity.sql");
+const memberActionsPath = join(testsDir, "..", "app", "(app)", "settings", "members", "actions.ts");
 const futureExpiresAt = "2999-01-01T00:00:00.000Z";
 
 test("invite validation accepts normalized member input", () => {
@@ -26,6 +27,11 @@ test("invite validation accepts normalized member input", () => {
 
   assert.equal(parsed.email, "teammate@company.com");
   assert.equal(parsed.role, "admin");
+});
+
+test("member invite action treats the omitted next field as optional", () => {
+  const source = readFileSync(memberActionsPath, "utf8");
+  assert.match(source, /next: formData\.get\("next"\) \?\? undefined/);
 });
 
 test("duplicate invite detection only blocks pending same-email invites", () => {
@@ -63,4 +69,3 @@ test("bootstrap workspace migration uses the named membership constraint", () =>
   assert.match(migration, /on conflict on constraint organization_members_organization_id_user_id_key do nothing;/i);
   assert.doesNotMatch(migration, /on conflict \(organization_id, user_id\) do nothing;/i);
 });
-

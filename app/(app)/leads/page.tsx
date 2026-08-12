@@ -17,10 +17,11 @@ import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { getLeadPageData } from "@/server/services/leads";
 import { formatLeadFollowUpState, canMutateLeadRecord, getLeadRecordBadge, getLeadRecordRestrictionMessage, getLeadStatusLabel, getLeadStatusTone, type LeadFilterState } from "@/server/services/lead-domain";
+import type { WorkspaceRole } from "@/lib/workspace-roles";
 
 type LeadsPageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 type Locale = "tr" | "en";
-type LeadRole = "owner" | "admin" | "sales" | "viewer";
+type LeadRole = WorkspaceRole;
 type LeadRows = Awaited<ReturnType<typeof getLeadPageData>>["leads"];
 
 const copy = {

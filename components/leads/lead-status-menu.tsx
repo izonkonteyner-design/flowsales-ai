@@ -4,13 +4,14 @@ import { changeLeadStatusAction } from "@/app/(app)/leads/actions";
 import { LEAD_STATUSES } from "@/lib/constants";
 import { getLeadRecordRestrictionMessage } from "@/server/services/lead-domain";
 import { Select } from "@/components/ui/select";
+import type { WorkspaceRole } from "@/lib/workspace-roles";
 
 type LeadStatusMenuProps = {
   leadId: string;
   currentStatus: string;
   redirectTo: string;
   recordMode: "demo" | "live";
-  role?: "owner" | "admin" | "sales" | "viewer" | null;
+  role?: WorkspaceRole | null;
   label?: string;
   className?: string;
   compact?: boolean;

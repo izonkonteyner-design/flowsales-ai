@@ -3,7 +3,7 @@ import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { OnboardingForm } from "./onboarding-form";
 
 export const metadata = {
-  title: "Welcome to FlowSales AI",
+  title: "FlowSales AI kurulumu",
 };
 
 export default async function OnboardingPage() {
@@ -26,10 +26,10 @@ export default async function OnboardingPage() {
       <div className="w-full max-w-2xl space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white">
-            Welcome to FlowSales AI!
+            FlowSales AI&apos;ya hoş geldiniz
           </h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Let&apos;s set up your workspace. You can skip the optional steps and do them later.
+            Çalışma alanınızı birkaç temel bilgiyle kullanıma hazırlayın.
           </p>
         </div>
         

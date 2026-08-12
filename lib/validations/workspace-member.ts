@@ -8,7 +8,7 @@ const emailSchema = z
   .email("Enter a valid email address.")
   .transform((value) => value.toLowerCase());
 
-const roleSchema = z.enum(["owner", "admin", "sales", "viewer"]);
+const roleSchema = z.enum(["owner", "admin", "manager", "sales_rep", "viewer"]);
 
 const uuidSchema = z.string().uuid("Enter a valid UUID.");
 
@@ -54,4 +54,3 @@ export function normalizeMemberEmailValue(value: string) {
 export function normalizeMemberSearchValue(value: string) {
   return normalizeQuery(value);
 }
-

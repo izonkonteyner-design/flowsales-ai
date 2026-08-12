@@ -3,8 +3,9 @@ import { hasSupabaseConfig } from "@/lib/supabase/env";
 import { demoOrganization } from "@/server/services/crm-data";
 import { demoTeam } from "@/server/services/workspace-data";
 import type { Organization } from "@/types/crm";
+import { type WorkspaceRole } from "@/lib/workspace-roles";
 
-export type WorkspaceRole = Organization["role"];
+export type { WorkspaceRole } from "@/lib/workspace-roles";
 
 export type WorkspaceMemberOption = {
   user_id: string;
@@ -71,7 +72,7 @@ export async function loadWorkspaceContext(): Promise<WorkspaceContext | null> {
   const { data: organization, error: orgError } = await client
     .from("organizations")
     .select(
-      "id, name, slug, currency, onboarding_completed_at, industry, logo_url, logo_path, legal_name, website, email, phone, secondary_phone, address_line_1, address_line_2, district, city, postal_code, country, tax_office, tax_number, trade_registry_number, mersis_number, bank_name, bank_branch, iban, account_holder, default_tax_rate, default_payment_terms, default_delivery_terms, default_quote_notes, default_quote_validity_days, quote_footer_text, signature_name, signature_title, company_slogan",
+      "id, name, slug, currency, timezone, onboarding_completed_at, industry, logo_url, logo_path, legal_name, website, email, phone, secondary_phone, address_line_1, address_line_2, district, city, postal_code, country, tax_office, tax_number, trade_registry_number, mersis_number, bank_name, bank_branch, iban, account_holder, default_tax_rate, default_payment_terms, default_delivery_terms, default_quote_notes, default_quote_validity_days, quote_footer_text, signature_name, signature_title, company_slogan",
     )
     .eq("id", membership.organization_id)
     .maybeSingle();

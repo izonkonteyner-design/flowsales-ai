@@ -39,8 +39,8 @@ export default async function MembersPage({ searchParams }: MembersPageProps) {
 
       <PageHeader
         eyebrow="Workspace"
-        title="Members"
-        description="Manage invitations, roles, and workspace access boundaries."
+        title="Ekip üyeleri"
+        description="Davetleri, rolleri ve çalışma alanı erişimini yönetin."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={data.context.mode === "live" ? "success" : "warning"}>
@@ -83,8 +83,8 @@ export default async function MembersPage({ searchParams }: MembersPageProps) {
         </SectionCard>
 
         <SectionCard
-          title="Invite member"
-          description={canManage ? "Send a secure invitation link to a teammate." : "Only owners and admins can manage invitations."}
+          title="Üye davet et"
+          description={canManage ? "Ekip arkadaşınız için güvenli bir davet bağlantısı oluşturun." : "Davetleri yalnızca çalışma alanı sahibi ve yöneticiler yönetebilir."}
         >
           <MemberInviteForm canManage={canManage} />
         </SectionCard>
@@ -180,10 +180,11 @@ function MemberRow({ member, canManage }: { member: WorkspaceMemberRecord; canMa
               <input type="hidden" name="member_id" value={member.id} />
               <input type="hidden" name="next" value="/settings/members" />
               <Select name="role" defaultValue={member.role} disabled={!member.can_edit_role} className="h-10 w-40">
-                <option value="owner">Owner</option>
-                <option value="admin">Admin</option>
-                <option value="sales">Sales</option>
-                <option value="viewer">Viewer</option>
+                <option value="owner">Çalışma alanı sahibi</option>
+                <option value="admin">Yönetici</option>
+                <option value="manager">Satış yöneticisi</option>
+                <option value="sales_rep">Satış temsilcisi</option>
+                <option value="viewer">Görüntüleyici</option>
               </Select>
               <button
                 type="submit"
@@ -236,10 +237,11 @@ function MemberCard({ member, canManage }: { member: WorkspaceMemberRecord; canM
               <input type="hidden" name="member_id" value={member.id} />
               <input type="hidden" name="next" value="/settings/members" />
               <Select name="role" defaultValue={member.role} disabled={!member.can_edit_role} className="h-10">
-                <option value="owner">Owner</option>
-                <option value="admin">Admin</option>
-                <option value="sales">Sales</option>
-                <option value="viewer">Viewer</option>
+                <option value="owner">Çalışma alanı sahibi</option>
+                <option value="admin">Yönetici</option>
+                <option value="manager">Satış yöneticisi</option>
+                <option value="sales_rep">Satış temsilcisi</option>
+                <option value="viewer">Görüntüleyici</option>
               </Select>
               <button
                 type="submit"

@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ co
   const workspace = await loadWorkspaceContext();
   if (!workspace?.userId) return Response.json({ error: "unauthorized" }, { status: 401 });
   if (workspace.mode === "demo") return Response.json({ error: "demo_read_only" }, { status: 403 });
-  if (!['owner','admin','sales'].includes(workspace.role)) return Response.json({ error: "forbidden" }, { status: 403 });
+  if (!['owner','admin','manager','sales_rep','sales'].includes(workspace.role)) return Response.json({ error: "forbidden" }, { status: 403 });
 
   const { conversationId } = await context.params;
   if (!z.string().uuid().safeParse(conversationId).success) return Response.json({ error: "invalid_conversation" }, { status: 400 });

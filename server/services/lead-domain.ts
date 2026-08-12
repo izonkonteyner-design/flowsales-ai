@@ -1,5 +1,6 @@
 import { LEAD_STATUSES } from "@/lib/constants";
 import type { Activity, Lead, LeadStatus, Organization, Task } from "@/types/crm";
+import { canWriteSalesRecords } from "@/lib/workspace-roles";
 
 export type LeadRole = Organization["role"];
 export type LeadSortMode = "newest" | "oldest" | "value" | "follow_up";
@@ -47,11 +48,11 @@ const statusLabels = new Map(LEAD_STATUSES.map((status) => [status.value, status
 const statusIndex = new Map(LEAD_STATUSES.map((status, index) => [status.value, index]));
 
 export function canManageLeads(role: LeadRole | null | undefined) {
-  return role === "owner" || role === "admin" || role === "sales";
+  return canWriteSalesRecords(role);
 }
 
 export function canViewLeads(role: LeadRole | null | undefined) {
-  return role === "owner" || role === "admin" || role === "sales" || role === "viewer";
+  return Boolean(role);
 }
 
 export function canMutateLeadRecord(recordMode: LeadRecordMode, role: LeadRole | null | undefined) {

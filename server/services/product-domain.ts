@@ -33,7 +33,9 @@ export type ProductRecordInput = Omit<Partial<Product>, "specifications" | "tags
 const productRoleLabels: Record<WorkspaceRole, string> = {
   owner: "Owner",
   admin: "Admin",
-  sales: "Sales",
+  manager: "Manager",
+  sales_rep: "Sales Representative",
+  sales: "Sales Representative",
   viewer: "Viewer",
 };
 

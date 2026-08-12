@@ -24,7 +24,7 @@ export function MemberInviteForm({ canManage }: MemberInviteFormProps) {
   return (
     <div className="space-y-4">
       {!canManage ? (
-        <StatusBadge tone="warning">Read only</StatusBadge>
+        <StatusBadge tone="warning">Salt okunur</StatusBadge>
       ) : null}
 
       <form action={action} className="grid gap-4 md:grid-cols-[1.2fr_0.7fr_auto]">
@@ -41,11 +41,12 @@ export function MemberInviteForm({ canManage }: MemberInviteFormProps) {
         </label>
 
         <label className="space-y-2">
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Role</span>
+          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Rol</span>
           <Select name="role" defaultValue="viewer" disabled={!canManage || pending} aria-invalid={Boolean(state.fieldErrors.role)}>
-            <option value="admin">Admin</option>
-            <option value="sales">Sales</option>
-            <option value="viewer">Viewer</option>
+            <option value="admin">Yönetici</option>
+            <option value="manager">Satış yöneticisi</option>
+            <option value="sales_rep">Satış temsilcisi</option>
+            <option value="viewer">Görüntüleyici</option>
           </Select>
           {state.fieldErrors.role ? <p className="text-sm text-rose-600 dark:text-rose-300">{state.fieldErrors.role}</p> : null}
         </label>
@@ -55,7 +56,7 @@ export function MemberInviteForm({ canManage }: MemberInviteFormProps) {
           disabled={!canManage || pending}
           className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
         >
-          {pending ? "Inviting..." : "Invite member"}
+          {pending ? "Oluşturuluyor..." : "Davet bağlantısı oluştur"}
         </button>
       </form>
 

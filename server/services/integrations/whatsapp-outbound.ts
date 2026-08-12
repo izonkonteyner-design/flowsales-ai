@@ -4,6 +4,7 @@ import { checkRateLimit } from "@/server/services/integrations/rate-limiter";
 import { DEMO_ORGANIZATION_ID } from "@/server/repositories/supabase/omnichannel-inbox";
 import { validateCustomerWindow } from "@/lib/utils/customer-window";
 import { validateTestRecipient } from "@/lib/utils/test-recipient-guard";
+import { isSalesRepresentativeRole } from "@/lib/workspace-roles";
 
 export interface OutboundReplyParams {
   organizationId: string;
@@ -69,7 +70,7 @@ export class WhatsAppOutboundService {
     }
 
     const assignedUserId = (conv.metadata as Record<string, unknown> | null)?.assigned_user_id as string | undefined;
-    if (userRole === "sales" && assignedUserId && assignedUserId !== userId) {
+    if (isSalesRepresentativeRole(userRole as "sales" | "sales_rep") && assignedUserId && assignedUserId !== userId) {
       return { success: false, errorCode: "unauthorized", message: "Sales agents can only reply to assigned conversations." };
     }
 

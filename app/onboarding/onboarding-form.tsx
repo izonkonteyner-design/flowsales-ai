@@ -1,118 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, type ReactNode } from "react";
 import { completeOnboardingAction } from "./actions";
 import { Input } from "@/components/ui/input";
-import { Button, buttonVariants } from "@/components/ui/button";
-import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { CURRENCY_CODES } from "@/lib/constants";
+import { ONBOARDING_TIMEZONES, type OnboardingActionState, type OnboardingField } from "@/lib/validations/onboarding";
 import type { Organization } from "@/types/crm";
 
+const initialState: OnboardingActionState = { success: false, message: "", fieldErrors: {} };
+
 export function OnboardingForm({ organization }: { organization: Organization }) {
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setError(null);
-
-    const formData = new FormData(event.currentTarget);
-    try {
-      await completeOnboardingAction(formData);
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError("An unexpected error occurred.");
-      }
-      setIsSubmitting(false);
-    }
-  }
+  const [state, action, pending] = useActionState(completeOnboardingAction, initialState);
+  const error = (field: OnboardingField) => state.fieldErrors[field];
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_12px_40px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/50">
-      {error && (
-        <div className="rounded-xl bg-rose-50 p-4 text-sm text-rose-600 dark:bg-rose-500/10 dark:text-rose-400">
-          {error}
-        </div>
-      )}
-
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-lg font-medium text-slate-950 dark:text-white">Workspace Details</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Basic information about your company.</p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">Company Name</span>
-            <Input name="company_name" defaultValue={organization.name} required />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">Industry (Optional)</span>
-            <Input name="industry" placeholder="e.g. Software, Manufacturing" />
-          </label>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">Base Currency</span>
-            <Select name="currency" defaultValue={organization.currency || "TRY"}>
-              {CURRENCY_CODES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </Select>
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">Company Logo (Optional)</span>
-            <Input name="logo" type="file" accept="image/png, image/jpeg, image/webp" />
-          </label>
-        </div>
+    <form action={action} className="space-y-8 rounded-[2rem] border border-slate-200 bg-white p-8 shadow-[0_12px_40px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/50">
+      {state.message ? <div role="alert" className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700 dark:bg-rose-500/10 dark:text-rose-300">{state.message}</div> : null}
+      <div><h2 className="text-lg font-medium text-slate-950 dark:text-white">Şirket bilgileri</h2><p className="text-sm text-slate-500 dark:text-slate-400">Teklifler ve çalışma alanı için temel bilgileri girin.</p></div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Şirket adı" error={error("company_name")}><Input name="company_name" defaultValue={organization.name} required maxLength={120} /></Field>
+        <Field label="Sektör" error={error("industry")}><Input name="industry" defaultValue={organization.industry ?? ""} placeholder="Örn. Yazılım, üretim" maxLength={120} /></Field>
+        <Field label="Telefon" error={error("phone")}><Input name="phone" defaultValue={organization.phone ?? ""} maxLength={30} /></Field>
+        <Field label="Şehir" error={error("city")}><Input name="city" defaultValue={organization.city ?? ""} maxLength={80} /></Field>
+        <Field label="Ülke" error={error("country")}><Input name="country" defaultValue={organization.country ?? "Türkiye"} required maxLength={80} /></Field>
+        <Field label="Saat dilimi" error={error("timezone")}><Select name="timezone" defaultValue={organization.timezone ?? "Europe/Istanbul"}>{ONBOARDING_TIMEZONES.map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+        <Field label="Para birimi" error={error("currency")}><Select name="currency" defaultValue={organization.currency || "TRY"}>{CURRENCY_CODES.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</Select></Field>
+        <Field label="Şirket logosu (isteğe bağlı)" error={error("logo")}><Input name="logo" type="file" accept="image/png,image/jpeg,image/webp" /><span className="text-xs text-slate-500">PNG, JPEG veya WebP · en fazla 2 MB</span></Field>
       </div>
-
-      <div className="my-8 h-px bg-slate-200 dark:bg-white/10" />
-
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-lg font-medium text-slate-950 dark:text-white">Quick Setup (Optional)</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Add your first product and lead to get started instantly.</p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">First Product Name</span>
-            <Input name="product_name" placeholder="e.g. Professional Services" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">Base Price</span>
-            <Input name="product_price" type="number" step="0.01" placeholder="0.00" />
-          </label>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">First Lead Name</span>
-            <Input name="lead_name" placeholder="e.g. Jane Doe" />
-          </label>
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-300">Lead Company</span>
-            <Input name="lead_company" placeholder="e.g. Acme Corp" />
-          </label>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-end gap-4 pt-4">
-        <Link href="/dashboard" className={buttonVariants({ variant: "ghost" })}>
-          Skip for now
-        </Link>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Saving..." : "Complete Setup"}
-        </Button>
-      </div>
+      <div className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-white/5 dark:text-slate-300">Ürün ve müşteri adaylarını kurulumdan sonra ilgili ekranlardan ekleyebilirsiniz.</div>
+      <div className="flex justify-end"><Button type="submit" disabled={pending}>{pending ? "Kaydediliyor..." : "Kurulumu tamamla"}</Button></div>
     </form>
   );
+}
+
+function Field({ label, error, children }: { label: string; error?: string; children: ReactNode }) {
+  return <label className="space-y-2"><span className="text-sm font-medium text-slate-900 dark:text-slate-300">{label}</span>{children}{error ? <span className="block text-sm text-rose-600">{error}</span> : null}</label>;
 }

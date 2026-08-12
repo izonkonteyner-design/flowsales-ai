@@ -5,13 +5,14 @@ import { Trash2, X } from "lucide-react";
 
 import { deleteLeadAction } from "@/app/(app)/leads/actions";
 import { getLeadRecordRestrictionMessage } from "@/server/services/lead-domain";
+import type { WorkspaceRole } from "@/lib/workspace-roles";
 
 type LeadDeleteDialogProps = {
   leadId: string;
   leadName: string;
   redirectTo: string;
   recordMode: "demo" | "live";
-  role?: "owner" | "admin" | "sales" | "viewer" | null;
+  role?: WorkspaceRole | null;
   buttonLabel?: string;
 };
 

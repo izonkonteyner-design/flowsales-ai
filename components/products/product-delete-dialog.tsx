@@ -5,13 +5,14 @@ import { Trash2, X } from "lucide-react";
 
 import { deleteProductAction } from "@/app/(app)/products/actions";
 import { getProductRecordRestrictionMessage } from "@/server/services/product-domain";
+import type { WorkspaceRole } from "@/lib/workspace-roles";
 
 type ProductDeleteDialogProps = {
   productId: string;
   productName: string;
   redirectTo: string;
   recordMode: "demo" | "live";
-  role?: "owner" | "admin" | "sales" | "viewer" | null;
+  role?: WorkspaceRole | null;
 };
 
 export function ProductDeleteDialog({

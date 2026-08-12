@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { isSalesRepresentativeRole } from "@/lib/workspace-roles";
 
 export type LeadScoreHistoryPoint = {
   id: string;
@@ -122,7 +123,7 @@ export async function listStaleOpportunities(params: {
   const leadIds = rows.map((row) => row.lead_id).filter((id): id is string => Boolean(id));
   const conversationIds = rows.map((row) => row.conversation_id);
   let leadQuery = admin.from("leads").select("id,full_name,assigned_to,next_follow_up_at,estimated_value").eq("organization_id", params.organizationId).in("id", leadIds);
-  if (params.userRole === "sales") leadQuery = leadQuery.or(`assigned_to.eq.${params.userId},assigned_to.is.null`);
+  if (isSalesRepresentativeRole(params.userRole as "sales" | "sales_rep")) leadQuery = leadQuery.or(`assigned_to.eq.${params.userId},assigned_to.is.null`);
   const [{ data: leads }, { data: conversations }] = await Promise.all([
     leadQuery,
     admin.from("conversations").select("id,last_message_at,updated_at").eq("organization_id", params.organizationId).in("id", conversationIds),
@@ -190,7 +191,7 @@ export async function getPipelineIntelligence(params: {
 
   const leadIds = openRows.map((row) => row.lead_id).filter((id): id is string => Boolean(id));
   let leadQuery = admin.from("leads").select("id,assigned_to,estimated_value").eq("organization_id", params.organizationId).in("id", leadIds);
-  if (params.userRole === "sales") leadQuery = leadQuery.or(`assigned_to.eq.${params.userId},assigned_to.is.null`);
+  if (isSalesRepresentativeRole(params.userRole as "sales" | "sales_rep")) leadQuery = leadQuery.or(`assigned_to.eq.${params.userId},assigned_to.is.null`);
   const { data: leads } = await leadQuery;
   const leadMap = new Map((leads || []).map((row) => [row.id, row]));
   const scopedRows = openRows.filter((row) => row.lead_id && leadMap.has(row.lead_id));

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { isSalesRepresentativeRole } from "@/lib/workspace-roles";
 
 export type SalesExecutionPriority = {
   conversationId: string;
@@ -43,7 +44,7 @@ export async function listSalesExecutionPriorities(params: { organizationId: str
 
   const conversationIds = candidateRows.map((row) => row.conversation_id);
   let conversationQuery = admin.from("conversations").select("id,channel_contact_id,last_message_at,status,assigned_user_id").eq("organization_id", organizationId).in("id", conversationIds);
-  if (userRole === "sales") conversationQuery = conversationQuery.or(`assigned_user_id.eq.${userId},assigned_user_id.is.null`);
+  if (isSalesRepresentativeRole(userRole as "sales" | "sales_rep")) conversationQuery = conversationQuery.or(`assigned_user_id.eq.${userId},assigned_user_id.is.null`);
   const [{ data: conversations }, { data: actions }] = await Promise.all([
     conversationQuery,
     admin.from("sales_follow_up_actions").select("conversation_id,scheduled_for,status").eq("organization_id", organizationId).in("conversation_id", conversationIds).in("status", ["approval_required", "approved"]).order("scheduled_for"),
@@ -96,7 +97,7 @@ export async function applyQualificationToLead(params: { organizationId: string;
   if (qualification.status !== "accepted") throw new Error("CRM senkronizasyonundan önce AI analizi insan tarafından kabul edilmelidir.");
 
   const { data: conversation } = await admin.from("conversations").select("assigned_user_id").eq("organization_id", params.organizationId).eq("id", params.conversationId).maybeSingle();
-  if (params.userRole === "sales" && conversation?.assigned_user_id && conversation.assigned_user_id !== params.userId) throw new Error("Bu görüşme başka bir satış temsilcisine atanmış.");
+  if (isSalesRepresentativeRole(params.userRole as "sales" | "sales_rep") && conversation?.assigned_user_id && conversation.assigned_user_id !== params.userId) throw new Error("Bu görüşme başka bir satış temsilcisine atanmış.");
 
   const { data: lead } = await admin.from("leads").select("id,notes,city,next_follow_up_at")
     .eq("organization_id", params.organizationId).eq("id", qualification.lead_id).maybeSingle();

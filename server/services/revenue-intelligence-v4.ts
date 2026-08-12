@@ -3,6 +3,7 @@ import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { generateText } from "@/server/services/ai";
 import { listStaleOpportunities } from "@/server/services/sales-intelligence-v3";
+import { isSalesRepresentativeRole } from "@/lib/workspace-roles";
 
 const CLOSED = new Set(["won", "lost", "support"]);
 const STAGE_PROBABILITY: Record<string, number> = {
@@ -75,7 +76,7 @@ async function scopedLeads(scope: Scope, ids?: string[]) {
     .select("id,full_name,email,phone,company,city,status,source,assigned_to,estimated_value,currency,next_follow_up_at,created_at,updated_at")
     .eq("organization_id", scope.organizationId);
   if (ids?.length) query = query.in("id", ids);
-  if (scope.userRole === "sales") query = query.or(`assigned_to.eq.${scope.userId},assigned_to.is.null`);
+  if (isSalesRepresentativeRole(scope.userRole as "sales" | "sales_rep")) query = query.or(`assigned_to.eq.${scope.userId},assigned_to.is.null`);
   const { data, error } = await query.limit(1000);
   if (error) throw new Error("Lead verileri yüklenemedi.");
   return data || [];

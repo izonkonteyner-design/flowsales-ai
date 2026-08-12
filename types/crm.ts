@@ -3,7 +3,7 @@ export type Organization = {
   name: string;
   slug: string;
   currency: string;
-  role: "owner" | "admin" | "sales" | "viewer";
+  role: "owner" | "admin" | "manager" | "sales_rep" | "sales" | "viewer";
   onboarding_completed_at?: string | null;
   industry?: string | null;
   logo_url?: string | null;
@@ -36,6 +36,7 @@ export type Organization = {
   signature_name?: string | null;
   signature_title?: string | null;
   company_slogan?: string | null;
+  timezone?: string | null;
 };
 
 export type Customer = {

@@ -428,7 +428,7 @@ export function ProductForm({
               <Input name="gallery_image_files" type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={!canEdit} />
             </Field>
             <p className="text-xs text-slate-500">Birden fazla dosya seçebilirsiniz. Yüklenen dosyalar URL ile eklenen galeri görsellerine eklenir.</p>
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Galeri URL'leri</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Galeri URL&apos;leri</p>
             {state.gallery_urls.map((url, index) => (
               <div key={`${index}-${url}`} className="flex items-center gap-3">
                 <Input value={url} placeholder="https://example.com/gallery.jpg" disabled={!canEdit} onChange={(event) => updateGalleryUrl(index, event.target.value)} />

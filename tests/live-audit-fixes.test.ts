@@ -22,17 +22,25 @@ test("legacy team route cannot expose hard-coded demo members", async () => {
   assert.doesNotMatch(code, /getTeamMembers|Selin Kaya/);
 });
 
-test("product form supports validated direct image uploads", async () => {
+test("product form uploads images directly without Server Action body payloads", async () => {
   const [form, service, actions] = await Promise.all([
     source("components/products/product-form.tsx"),
     source("server/services/products.ts"),
     source("app/(app)/products/actions.ts"),
   ]);
-  assert.match(form, /name="main_image_file"/);
-  assert.match(form, /name="gallery_image_files"[\s\S]*multiple/);
+  assert.match(form, /getSupabaseBrowserClient/);
+  assert.match(form, /storage\.from\("workspace-assets"\)\.upload/);
+  assert.doesNotMatch(form, /name="main_image_file"/);
+  assert.doesNotMatch(form, /name="gallery_image_files"/);
   assert.match(service, /MAX_PRODUCT_IMAGE_SIZE = 5 \* 1024 \* 1024/);
   assert.match(service, /image\/png[\s\S]*image\/jpeg[\s\S]*image\/webp/);
-  assert.match(actions, /productFormSchema\.parse[\s\S]*await uploadProductImage/);
+  assert.doesNotMatch(actions, /uploadProductImage/);
+});
+
+test("product form presents Turkish lira as TL while persisting TRY", async () => {
+  const form = await source("components/products/product-form.tsx");
+  assert.match(form, /TRY: "TL"/);
+  assert.match(form, /<option key=\{currency\} value=\{currency\}>/);
 });
 
 test("language, lead search and voice provider controls reflect their actual behavior", async () => {

@@ -3,7 +3,8 @@ import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { loadChannelConnections } from "@/server/services/integrations/channel-connections";
 import { isProviderConfigured, type ChannelProvider } from "@/server/services/integrations/provider-adapter";
 import { IntegrationCard, type IntegrationCardConnection } from "@/components/settings/integration-card";
-import { Plug2, AlertCircle, CheckCircle2, ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { Plug2, AlertCircle, CheckCircle2, ArrowRight, Mail } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Integrations — FlowSales AI",
@@ -72,6 +73,7 @@ export default async function IntegrationsPage() {
       const metaConfigId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
       return <IntegrationCard key={provider} provider={provider} connection={connection} canManage={canManage} isDemo={isDemo} isProviderConfigured={providerConfigured.get(provider) ?? false} metaAppId={metaAppId} metaConfigId={metaConfigId} />;
     })}</div>
+    <Link href="/settings/integrations/email" className="mt-6 flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 p-5 transition hover:border-blue-400 dark:border-blue-900/60 dark:bg-blue-950/20"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-white"><Mail className="h-5 w-5" /></span><div><h2 className="font-semibold text-slate-950 dark:text-white">Gmail ve Microsoft 365</h2><p className="text-sm text-slate-600 dark:text-slate-400">E-posta hesaplarını bağlayın, gelen kutusunu eşitleyin ve CRM’den mesaj gönderin.</p></div></div><ArrowRight className="h-5 w-5 text-blue-600" /></Link>
     <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-600">WhatsApp, Instagram, and Facebook integrations are powered by the Meta Platform. Google integration uses the Google Business Profile API. TikTok integration uses TikTok for Business.</p>
   </div>;
 }

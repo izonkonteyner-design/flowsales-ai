@@ -1,0 +1,35 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { Mail, RefreshCw, Send, UserRound, Building2 } from "lucide-react";
+
+type Connection = { id: string; provider: string; email_address: string; display_name: string | null; status: string; last_synced_at: string | null };
+type Thread = { id: string; subject: string; participant_email: string; participant_name: string | null; lead_id: string | null; contact_id: string | null; last_message_at: string | null; email_connections: unknown };
+type Message = { id: string; thread_id: string; direction: string; from_email: string; to_emails: string[]; body_text: string | null; sent_at: string };
+
+export function EmailWorkspace({ connections, threads, messages }: { connections: Connection[]; threads: Thread[]; messages: Message[] }) {
+  const [selectedId, setSelectedId] = useState(threads[0]?.id || "");
+  const [busy, setBusy] = useState(false); const [notice, setNotice] = useState(""); const [error, setError] = useState("");
+  const selected = threads.find((thread) => thread.id === selectedId) || null;
+  const selectedMessages = useMemo(() => messages.filter((message) => message.thread_id === selectedId), [messages, selectedId]);
+  async function request(payload: Record<string, string>) {
+    setBusy(true); setError(""); setNotice("");
+    try { const response = await fetch("/api/email", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) }); const data = await response.json(); if (!response.ok) throw new Error(data.message); setNotice(data.message); window.location.reload(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "İşlem tamamlanamadı."); setBusy(false); }
+  }
+  return <div className="space-y-5">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-3xl font-bold text-slate-950 dark:text-white">E-posta Merkezi</h1><p className="mt-1 text-sm text-slate-500">Gmail ve Microsoft 365 mesajlarını CRM kayıtlarıyla birlikte yönetin.</p></div><div className="flex gap-2">{connections.map((connection) => <button key={connection.id} disabled={busy} onClick={() => request({ action: "sync", connectionId: connection.id })} className="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium dark:border-white/10"><RefreshCw className="h-4 w-4" />{connection.email_address}</button>)}</div></div>
+    {notice ? <p className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{notice}</p> : null}{error ? <p className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p> : null}
+    {connections.length ? <form className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950 md:grid-cols-4" onSubmit={(event) => { event.preventDefault(); const data = new FormData(event.currentTarget); request({ action: "send", connectionId: String(data.get("connectionId")), to: String(data.get("to")), subject: String(data.get("subject")), body: String(data.get("body")) }); }}>
+      <select name="connectionId" className="h-10 rounded-xl border border-slate-200 bg-transparent px-3 text-sm dark:border-white/10">{connections.map((connection) => <option key={connection.id} value={connection.id}>{connection.email_address}</option>)}</select>
+      <input name="to" type="email" required placeholder="Alıcı e-posta" className="h-10 rounded-xl border border-slate-200 bg-transparent px-3 text-sm dark:border-white/10" />
+      <input name="subject" required placeholder="Konu" className="h-10 rounded-xl border border-slate-200 bg-transparent px-3 text-sm dark:border-white/10" />
+      <button disabled={busy} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white"><Send className="h-4 w-4" />Gönder</button>
+      <textarea name="body" required placeholder="Mesajınızı yazın…" className="min-h-24 rounded-xl border border-slate-200 bg-transparent p-3 text-sm dark:border-white/10 md:col-span-4" />
+    </form> : <a href="/settings/integrations/email" className="block rounded-2xl border border-blue-200 bg-blue-50 p-5 text-sm font-medium text-blue-700">E-posta hesabı bağlı değil. Gmail veya Microsoft 365 hesabı bağlamak için tıklayın.</a>}
+    <div className="grid min-h-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-white/10 dark:bg-slate-950 lg:grid-cols-[360px_1fr]">
+      <aside className="border-b border-slate-200 dark:border-white/10 lg:border-b-0 lg:border-r"><div className="border-b border-slate-200 p-4 text-sm font-semibold dark:border-white/10">Konular ({threads.length})</div>{threads.length ? threads.map((thread) => <button key={thread.id} onClick={() => setSelectedId(thread.id)} className={`block w-full border-b border-slate-100 p-4 text-left dark:border-white/5 ${selectedId === thread.id ? "bg-blue-50 dark:bg-blue-950/30" : "hover:bg-slate-50 dark:hover:bg-white/5"}`}><div className="flex items-center justify-between gap-2"><p className="truncate font-medium text-slate-900 dark:text-white">{thread.participant_name || thread.participant_email}</p>{thread.lead_id || thread.contact_id ? <span title="CRM ile eşleşti" className="text-emerald-600"><UserRound className="h-4 w-4" /></span> : null}</div><p className="mt-1 truncate text-sm text-slate-600 dark:text-slate-300">{thread.subject}</p><p className="mt-1 text-xs text-slate-400">{thread.last_message_at ? new Date(thread.last_message_at).toLocaleString("tr-TR") : ""}</p></button>) : <p className="p-6 text-sm text-slate-500">Henüz eşitlenmiş e-posta yok.</p>}</aside>
+      <section className="flex flex-col">{selected ? <><header className="border-b border-slate-200 p-5 dark:border-white/10"><h2 className="font-semibold text-slate-950 dark:text-white">{selected.subject}</h2><div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500"><span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" />{selected.participant_email}</span>{selected.lead_id ? <a href={`/leads/${selected.lead_id}`} className="inline-flex items-center gap-1 text-blue-600"><Building2 className="h-3.5 w-3.5" />Lead kaydını aç</a> : selected.contact_id ? <a href={`/customers/${selected.contact_id}`} className="text-blue-600">Müşteri kaydını aç</a> : <span>CRM eşleşmesi yok</span>}</div></header><div className="flex-1 space-y-3 overflow-y-auto p-5">{selectedMessages.map((message) => <article key={message.id} className={`max-w-3xl rounded-2xl p-4 ${message.direction === "outbound" ? "ml-auto bg-blue-600 text-white" : "bg-slate-100 text-slate-900 dark:bg-white/10 dark:text-white"}`}><p className="text-xs opacity-70">{message.from_email} · {new Date(message.sent_at).toLocaleString("tr-TR")}</p><p className="mt-2 whitespace-pre-wrap text-sm leading-6">{message.body_text || "(İçerik yok)"}</p></article>)}</div></> : <div className="grid flex-1 place-items-center p-8 text-center text-sm text-slate-500"><div><Mail className="mx-auto mb-3 h-8 w-8" />Okumak için bir e-posta konusu seçin.</div></div>}</section>
+    </div>
+  </div>;
+}

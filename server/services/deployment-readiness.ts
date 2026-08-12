@@ -1,4 +1,4 @@
-export const REQUIRED_DEPLOYMENT_MIGRATION = "0052";
+export const REQUIRED_DEPLOYMENT_MIGRATION = "0053";
 
 const REQUIRED_ENV_GROUPS = [
   { label: "NEXT_PUBLIC_SUPABASE_URL", keys: ["NEXT_PUBLIC_SUPABASE_URL"] },
@@ -18,6 +18,8 @@ const FEATURE_ENV_GROUPS = [
   { feature: "demo", keys: ["DEMO_USER_EMAIL", "DEMO_USER_PASSWORD", "DEMO_RATE_LIMIT_SECRET"] },
   { feature: "ai", keys: ["GEMINI_API_KEY"] },
   { feature: "meta-messaging", keys: ["TOKEN_ENCRYPTION_KEY", "META_APP_SECRET"] },
+  { feature: "email-gmail", keys: ["GOOGLE_EMAIL_CLIENT_ID", "GOOGLE_EMAIL_CLIENT_SECRET", "TOKEN_ENCRYPTION_KEY"] },
+  { feature: "email-microsoft", keys: ["MICROSOFT_EMAIL_CLIENT_ID", "MICROSOFT_EMAIL_CLIENT_SECRET", "TOKEN_ENCRYPTION_KEY"] },
   { feature: "voice-telnyx", keys: ["TELNYX_API_KEY", "TELNYX_PUBLIC_KEY"] },
   { feature: "sales-automation", keys: ["CRON_SECRET"] },
   {

@@ -105,8 +105,7 @@ export function WhatsAppConnectButton({
 
       setStatusMessage("Opening WhatsApp Embedded Signup...");
 
-      window.FB.login(
-        async (response: MetaLoginResponse) => {
+      const completeEmbeddedSignup = async (response: MetaLoginResponse) => {
           if (!response || !response.authResponse) {
             setLoading(false);
             setStatusMessage(null);
@@ -155,6 +154,11 @@ export function WhatsAppConnectButton({
             setLoading(false);
             setStatusMessage(null);
           }
+      };
+
+      window.FB.login(
+        (response: MetaLoginResponse) => {
+          void completeEmbeddedSignup(response);
         },
         {
           config_id: configId,

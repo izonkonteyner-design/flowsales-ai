@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { ZodError } from "zod";
 
 import { productFormSchema } from "@/lib/validations/product";
@@ -23,6 +23,8 @@ function redirectWithToast(target: string, message: string, tone: "success" | "d
 }
 
 function getActionErrorMessage(error: unknown, fallback: string) {
+  unstable_rethrow(error);
+
   if (error instanceof ZodError) {
     return error.issues[0]?.message ?? fallback;
   }

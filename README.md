@@ -1,30 +1,59 @@
 # FlowSales AI
 
-FlowSales AI is an AI-powered CRM and sales workspace for SMEs. It combines lead management, quotes, tasks, reporting, settings, and a secure auth boundary with a premium SaaS UI.
+FlowSales AI is a Turkish-first, multi-tenant CRM and sales operating layer for SMEs. It combines CRM records, quotes, tasks, omnichannel conversations, AI-assisted sales intelligence, reporting, approval-gated automation, and phone-sales foundations in one Next.js application.
 
-## Features
+Production: https://flowsales-ai-six.vercel.app
 
-- Marketing landing page
-- Auth routes: login, signup, forgot password, reset password
-- Protected app shell with light/dark mode and mobile navigation
-- Leads CRM with detail view
-- Products catalog
-- Quotes list, draft, and detail pages
-- Tasks and follow-up board
-- AI assistant workspace
-- Reports and workspace settings
-- Supabase SSR client/server boundary
-- Tenant-aware database migrations and RLS
-- Unit tests and CI
+## Current capabilities
+
+### CRM and revenue
+
+- Dashboard, Leads, Customers, Products, Quotes, Tasks, Calendar, Reports, Account and workspace settings
+- Lead/customer identity linking, activity history, conversion and quote handoff
+- Quote economics, trusted-cost margin guards, discount approvals, version history and deal-risk signals
+- Pipeline snapshots, forecast confidence, revenue leakage, reactivation, expansion and referral opportunities
+
+### Messaging and AI
+
+- WhatsApp operations with delivery states, templates, retries, audit history and dead-letter recovery
+- Instagram and Facebook Messenger foundations with encrypted tokens, signed webhooks and explicit asset selection
+- Unified provider-aware Inbox and CRM actions
+- Conversation Intelligence 2.0, Lead Score, Next Best Action and grounded reply suggestions
+- Human approval boundaries: AI and follow-up engines do not automatically send customer messages
+
+### Sales operations
+
+- Callback queue, scheduling, call dispositions, objections and buying signals
+- Follow-up sequences, SLA policies, workload/routing suggestions and data-hygiene checks
+- Command center and grounded in-app sales analyst
+- Daily sales automation cron protected by `CRON_SECRET`
+
+### Voice
+
+- Provider-neutral voice-sales domain, calls, transcripts, events, handoffs and after-call actions
+- Trusted product, price and showroom tools
+- Twilio and Telnyx adapter foundations
+- Twilio Trial is an experimental test path; live end-to-end acceptance remains deferred until a suitable paid/provider configuration is available
+
+### Platform
+
+- Turkish-first UI with English as the secondary locale
+- Supabase SSR auth, tenant-aware data access and Row Level Security
+- Demo workspace with read-only boundaries
+- Workspace API keys with hashed storage and scoped access
+- Health probes, structured logging, Sentry integration, Playwright production smoke tests and GitHub Actions CI
+- Lemon Squeezy billing foundation for Starter, Growth and Pro plans
 
 ## Architecture
 
-- `app/` contains route groups for marketing, auth, and the application shell
-- `components/` contains reusable layout and UI primitives
-- `lib/` contains constants, validation schemas, utility helpers, and Supabase helpers
-- `server/` contains demo data and calculation helpers
-- `supabase/migrations/` contains reproducible SQL
-- `tests/` contains unit tests for validation and quote math
+- `app/`: marketing, auth, protected application routes and API/webhook handlers
+- `components/`: reusable layout and UI components
+- `lib/`: validation, utilities, provider clients and Supabase boundaries
+- `server/`: CRM, messaging, AI, sales operations and voice domain services
+- `supabase/migrations/`: ordered, cumulative production database migrations
+- `tests/`: contract, security, regression and application tests
+- `e2e/`: Playwright browser and production smoke coverage
+- `docs/`: production, integration and operational runbooks
 
 ## Local setup
 
@@ -34,51 +63,64 @@ FlowSales AI is an AI-powered CRM and sales workspace for SMEs. It combines lead
 npm install
 ```
 
-2. Create `.env.local` from [`.env.example`](./.env.example)
+2. Create `.env.local` from [`.env.example`](./.env.example). Never commit real secrets.
 
-3. Run the app:
+3. Start the application:
 
 ```bash
 npm run dev
 ```
 
-## Environment variables
-
-Required for auth and live Supabase data:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
-
-Optional:
-
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GEMINI_API_KEY`
-- `NEXT_PUBLIC_SENTRY_DSN`
-- `DEMO_USER_EMAIL`, `DEMO_USER_PASSWORD`, `DEMO_RATE_LIMIT_SECRET`
-- `NEXT_PUBLIC_SITE_URL` (or `NEXT_PUBLIC_APP_URL`)
-
-See [docs/production-runbook.md](./docs/production-runbook.md) for detailed configuration rules.
-
 ## Database
 
-Apply migrations in `supabase/migrations/` with the Supabase CLI or SQL editor. The demo seed is in `0002_seed.sql`.
+Apply migrations in numeric order. The current repository migration head is:
 
-## Commands
+```text
+0049_sales_growth_v6.sql
+```
+
+Do not enable a surface that depends on a newer migration until production migration verification passes. Migrations are cumulative; do not manually roll them back without a reviewed forward-recovery plan.
+
+## Verification
 
 ```bash
 npm run lint
 npm run typecheck
 npm run test
+npm run eval:ai
 npm run build
 npm run test:e2e
+npm run test:e2e:negative
+npm run test:e2e:production
 ```
 
-## Deployment
+A change is not production-complete until relevant CI checks pass and the exact merge commit has a Vercel production deployment in `READY` state.
 
-Deploy to Vercel with the environment variables above. See [docs/production-runbook.md](./docs/production-runbook.md) for the operational checklist.
+## Production dependencies
 
-## Limitations
+Core production operation requires Supabase and application-security variables. Optional surfaces require their provider variables:
 
-- Live Supabase auth/data requires environment variables and a configured project.
-- AI and billing integrations are scaffolded but not connected to paid providers yet.
-- Demo data powers the product screens when live data is unavailable.
+- Gemini for AI
+- Meta for WhatsApp, Instagram and Messenger
+- Twilio or Telnyx for voice
+- Lemon Squeezy for billing
+- Sentry for observability
+
+See [docs/production-runbook.md](./docs/production-runbook.md) and [`.env.example`](./.env.example) for the current variable names and release gates.
+
+## External activation boundaries
+
+The following capabilities require external provider approval or configuration and are not proven by code/CI alone:
+
+- Instagram/Facebook live messaging: Meta asset authorization, webhook delivery and required access
+- Voice: funded/provider-ready account, destination routing and a real phone call
+- Billing: controlled checkout, webhook and entitlement test
+- Customer-facing automation: explicit human approval remains required
+
+## Safety rules
+
+- Never paste or commit secrets, access tokens or raw API keys.
+- Never log authorization headers, provider tokens or webhook secrets.
+- Product details and prices must come from trusted catalog/price sources.
+- AI output remains advisory or draft-only unless an explicit approved workflow performs the action.
+- Automated verification must never target an uncontrolled real customer.

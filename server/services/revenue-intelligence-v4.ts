@@ -201,7 +201,7 @@ export async function listIdentityResolutionCandidates(scope: Scope) {
   const leads = await scopedLeads(scope);
   const { data: customers, error } = await admin
     .from("customers")
-    .select("id,name,email,phone,created_at")
+    .select("id,full_name,email,phone,created_at")
     .eq("organization_id", scope.organizationId)
     .limit(1000);
   if (error) throw new Error("Müşteri kimlik verileri yüklenemedi.");
@@ -218,7 +218,7 @@ export async function listIdentityResolutionCandidates(scope: Scope) {
   for (const lead of leads) for (const customer of customers || []) {
     const sameEmail = normalizeEmail(lead.email) && normalizeEmail(lead.email) === normalizeEmail(customer.email);
     const samePhone = normalizePhone(lead.phone) && normalizePhone(lead.phone) === normalizePhone(customer.phone);
-    if (sameEmail || samePhone) candidates.push({ type: "lead_customer", confidence: "exact", reason: sameEmail && samePhone ? "Aynı e-posta ve telefon" : sameEmail ? "Aynı e-posta" : "Aynı telefon", primary: { id: lead.id, name: lead.full_name }, duplicate: { id: customer.id, name: customer.name } });
+    if (sameEmail || samePhone) candidates.push({ type: "lead_customer", confidence: "exact", reason: sameEmail && samePhone ? "Aynı e-posta ve telefon" : sameEmail ? "Aynı e-posta" : "Aynı telefon", primary: { id: lead.id, name: lead.full_name }, duplicate: { id: customer.id, name: customer.full_name } });
   }
   return candidates.slice(0, 100);
 }

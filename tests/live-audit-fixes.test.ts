@@ -11,6 +11,8 @@ test("revenue intelligence reads structured signals from the deployed qualificat
   assert.match(code, /summary,signals,missing_information/);
   assert.doesNotMatch(code, /summary,objections,missing_information,product_interest/);
   assert.match(code, /qualificationSignals\(row\.signals\)/);
+  assert.match(code, /select\("id,full_name,email,phone,created_at"\)/);
+  assert.doesNotMatch(code, /select\("id,name,email,phone,created_at"\)/);
 });
 
 test("legacy team route cannot expose hard-coded demo members", async () => {

@@ -67,7 +67,7 @@ test("database readiness fails closed and stale database requirements cannot dow
     {
       ready: false,
       latestMigration: "0021",
-      requiredMigration: "0051",
+      requiredMigration: "0053",
       missingFunctions: [],
       missingTables: [],
     },

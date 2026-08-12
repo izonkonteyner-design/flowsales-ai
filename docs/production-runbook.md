@@ -1,47 +1,79 @@
 # FlowSales AI - Production Runbook
 
-This runbook contains operational guidelines for maintaining and troubleshooting FlowSales AI in production.
+This runbook is the operational source of truth for deploying, verifying and troubleshooting FlowSales AI.
 
-## 1. Critical environment variables
+## 1. Production identity
+
+- Repository: `izonkonteyner-design/flowsales-ai`
+- Default branch: `main`
+- Production URL: `https://flowsales-ai-six.vercel.app`
+- Database migration head: `0049_sales_growth_v6.sql`
+- Scheduled job: `/api/cron/sales-automation` at `0 5 * * *`
+
+Never treat a preview deployment, branch commit or successful build as production acceptance. The exact merge commit must reach a Vercel production deployment in `READY` state.
+
+## 2. Critical environment variables
+
+Use [`.env.example`](../.env.example) as the canonical variable-name inventory. Never place real values in documentation, issues, PR descriptions or chat.
 
 ### Supabase
+
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` or `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (server only)
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — server only
 
 ### Application security
+
 - `NEXT_PUBLIC_SITE_URL`
-- `TOKEN_ENCRYPTION_KEY` — never rotate casually; stored integration tokens depend on it.
+- `TOKEN_ENCRYPTION_KEY` — stored integration tokens depend on it; do not rotate without a migration/re-encryption plan
 - `HEALTH_CHECK_SECRET`
+- `CRON_SECRET`
 
 ### Demo
+
 - `DEMO_USER_EMAIL`
 - `DEMO_USER_PASSWORD`
 - `DEMO_RATE_LIMIT_SECRET`
 
 ### AI
+
 - `GEMINI_API_KEY`
-- `GEMINI_MODEL` (optional)
+- `GEMINI_MODEL` — optional; the application has a controlled fallback
 
 ### Meta / WhatsApp / Instagram / Messenger
-- `META_APP_ID` (or legacy `META_CLIENT_ID`)
-- `META_APP_SECRET` (or legacy `META_CLIENT_SECRET`)
-- `META_WEBHOOK_VERIFY_TOKEN` (or legacy `WHATSAPP_WEBHOOK_VERIFY_TOKEN`)
-- `META_EMBEDDED_SIGNUP_CONFIG_ID` for WhatsApp Embedded Signup
-- `META_GRAPH_VERSION` (optional)
 
-Meta callback URLs are derived from `NEXT_PUBLIC_SITE_URL`:
+- `META_APP_ID`
+- `META_APP_SECRET`
+- `META_WEBHOOK_VERIFY_TOKEN`
+- `META_EMBEDDED_SIGNUP_CONFIG_ID`
+- `META_GRAPH_VERSION` — optional
+- `INSTAGRAM_APP_ID`
+- `INSTAGRAM_APP_SECRET`
+
+Callback URLs are derived from `NEXT_PUBLIC_SITE_URL`:
+
 - Facebook: `/api/integrations/meta/callback?provider=facebook`
 - Instagram: `/api/integrations/meta/callback?provider=instagram`
 - Messaging webhook: `/api/webhooks/meta-messaging`
+- Data deletion callback: use the application route configured for Meta data deletion
 
-Owner/Admin users can inspect boolean-only Meta readiness at `/api/integrations/meta/status`. This endpoint never returns app secrets, verify tokens, encryption keys or access tokens.
+Owner/Admin users can inspect boolean-only readiness at `/api/integrations/meta/status`. It must never return app secrets, verify tokens, encryption keys or access tokens.
 
-Required Meta OAuth scopes:
-- Facebook: `pages_show_list`, `pages_manage_metadata`, `pages_messaging`, `pages_read_engagement`
-- Instagram: `pages_show_list`, `pages_manage_metadata`, `pages_read_engagement`, `instagram_basic`, `instagram_manage_messages`
+Meta permissions must remain aligned with the exact OAuth implementation and current App Review use cases. Do not add unused permissions and do not rename permissions only in documentation.
+
+### Voice
+
+- `TWILIO_AUTH_TOKEN`
+- `TELNYX_API_KEY`
+- `TELNYX_PUBLIC_KEY`
+- `TELNYX_TTS_VOICE` — optional
+- `TELNYX_TRANSCRIPTION_ENGINE` — optional
+- `TWILIO_TRIAL_WEBHOOK_SECRET` — only for the isolated Trial route when that experimental path is enabled
+
+Production Twilio webhooks must retain signature validation. The Trial shared-secret route is isolated and must never weaken the normal production route.
 
 ### Billing - Lemon Squeezy
+
 - `LEMONSQUEEZY_API_KEY`
 - `LEMONSQUEEZY_STORE_ID`
 - `LEMONSQUEEZY_STARTER_VARIANT_ID`
@@ -49,97 +81,172 @@ Required Meta OAuth scopes:
 - `LEMONSQUEEZY_PRO_VARIANT_ID`
 - `BILLING_WEBHOOK_SECRET`
 
-Checkout route: `/api/billing/checkout?plan=starter|growth|pro`
-Customer portal route: `/api/billing/portal`
-Webhook route: `/api/billing/webhook`
+Routes:
 
-## 2. Database migration readiness
+- Checkout: `/api/billing/checkout?plan=starter|growth|pro`
+- Customer portal: `/api/billing/portal`
+- Webhook: `/api/billing/webhook`
 
-Production must be migrated through `0042_productization_i18n_calendar_api.sql` before enabling the new productized surfaces.
+### Observability
 
-Migration 0042 provides:
-- Turkish-first profile language default
-- live calendar events + RLS
-- hashed workspace API keys + RLS
-- application audit log explorer storage
-- workspace seat-limit enforcement at DB boundary
-- AI subscription/monthly-run enforcement at DB boundary
-- Realtime publication for user notifications
+- `NEXT_PUBLIC_SENTRY_DSN`
+- `SENTRY_AUTH_TOKEN` — build/server use only
 
-Do not enable a UI that depends on 0042 before confirming the migration is applied.
+## 3. Database migration readiness
 
-## 3. Turkish / English locale
+Production must be migrated through `0049_sales_growth_v6.sql`.
+
+Recent capability boundaries:
+
+- `0042_productization_i18n_calendar_api.sql`: Turkish-first locale, calendar, workspace API keys, audit storage, seat/AI limits and notification publication
+- `0043_channel_contact_avatar.sql`: channel contact avatars
+- `0044_inbox_conversation_fields.sql`: Inbox conversation fields
+- `0045_conversation_intelligence_v2.sql`: Conversation Intelligence 2.0 persistence
+- `0046_lead_identity_guard.sql`: lead identity safety
+- `0047_voice_sales_v1.sql`: voice calls, transcripts, events, handoffs and after-call actions
+- `0048_sales_operations_v5.sql`: sales operations workflows
+- `0049_sales_growth_v6.sql`: growth intelligence, controls and reporting foundations
+
+Rules:
+
+1. Apply migrations in numeric order.
+2. Confirm the production migration workflow/verifier passes through `0049`.
+3. Do not enable dependent UI before its migration is present.
+4. Do not delete or manually roll back cumulative migrations.
+5. Use a reviewed forward migration for schema corrections.
+6. Run tenant-isolation/RLS verification after security-sensitive schema changes.
+
+## 4. Locale and regional defaults
 
 - Default locale: `tr`
 - Secondary locale: `en`
 - Cookie: `flowsales_locale`
-- Authenticated preferences are persisted to `profiles.language`.
-- Date/number/currency formatting defaults to `tr-TR` and TRY unless the record explicitly carries another currency.
+- Authenticated preference: `profiles.language`
+- Default formatting: `tr-TR` and TRY unless a record explicitly carries another locale/currency
 
-## 4. Public API security
+Verify that locale selection survives refresh and login and that Turkish characters remain intact in redirects, headers, PDFs and provider payloads.
+
+## 5. Public API security
 
 Workspace API keys:
-- begin with `fsa_`
-- raw secret is shown only at creation time
-- only SHA-256 hash + short prefix are stored
+
+- start with `fsa_`
+- show the raw secret only once
+- store only SHA-256 hash and short prefix
+- are tenant-bound and scope-bound
 - can be revoked by Owner/Admin
-- are tenant-bound and scope-bound (`crm:read`, `crm:write`)
-- requests are rate-limited
+- are rate-limited
 
 First public resource: `/api/v1/leads`
+
 - `GET` requires `crm:read`
 - `POST` requires `crm:write`
 - `POST` requires `Idempotency-Key`
 
-Never log Authorization headers or raw API keys.
+Never log authorization headers, raw API keys, provider tokens or webhook secrets.
 
-## 5. Production health
+## 6. Production health and scheduled work
 
-Public liveness: `/api/health`
-Protected database probe: `/api/health/internal`
+- Public liveness: `/api/health`
+- Protected database probe: `/api/health/internal`
+- Daily sales automation: `/api/cron/sales-automation`
 
-Public health responses remain minimal. Internal probes require `HEALTH_CHECK_SECRET` and must not expose raw provider/database errors.
+The internal probe requires `HEALTH_CHECK_SECRET`. The cron route requires the expected `CRON_SECRET` bearer authentication. Responses and logs must expose only redacted provider/database failures.
 
-## 6. Playwright and release verification
+## 7. Release verification
 
-Run:
+Run the relevant checks:
 
 ```bash
 npm run lint
 npm run typecheck
 npm run test
+npm run eval:ai
 npm run build
+npm run test:e2e
+npm run test:e2e:negative
 PLAYWRIGHT_BASE_URL="https://flowsales-ai-six.vercel.app" npm run test:e2e:production
 ```
 
-For release readiness, also verify:
-1. migrations through 0042 applied
-2. Meta readiness endpoint returns all required booleans true
-3. Facebook OAuth completes with a real managed Page
-4. Instagram OAuth discovers the linked professional account
-5. Meta webhook verification succeeds and signed inbound payloads persist
-6. WhatsApp Embedded Signup can reconnect safely without manual token copying
-7. Omnichannel Inbox receives and replies through the explicitly selected channel
-8. no automated WhatsApp verification send targets a real customer
-9. Lemon Squeezy checkout + webhook update entitlements in a controlled test workspace
-10. Turkish/English switch survives refresh/login and core pages render correctly on desktop/mobile
+Release acceptance requires:
 
-## 7. Troubleshooting
+1. CI `verify` PASS
+2. CI `e2e-production` PASS when applicable
+3. migration verification through `0049`
+4. relevant RLS/two-workspace checks PASS
+5. exact merge commit deployed to production
+6. Vercel deployment state `READY`
+7. no new runtime error cluster
+8. authenticated desktop/mobile smoke test for changed surfaces
+9. rollback target remains available
 
-If Meta integration cards show configuration required:
-1. open `/api/integrations/meta/status` while authenticated as Owner/Admin
-2. verify only the boolean fields; do not paste secret values into support/chat
-3. confirm the production deployment was created after the latest environment changes
-4. verify exact redirect URIs in Meta
-5. verify webhook callback uses the same verify-token value as production env
+## 8. External integration acceptance
 
-If a webhook signature fails, verify `META_APP_SECRET` and inspect server logs for redacted stage/error codes only.
+Code and CI do not prove a provider integration is live.
 
-If tasks/calendar/API/audit pages fail after deployment, verify migration 0042 is present before debugging UI code.
+### Meta
 
-## 8. Rollback
+Acceptance requires:
 
-1. Open Vercel Deployments.
-2. Promote the last known-good deployment if application code is unhealthy.
-3. Do not delete or manually roll back cumulative Supabase migrations without a reviewed database recovery plan.
-4. If 0042 has already run, leave its additive tables/guards in place unless a dedicated forward migration removes or changes them.
+1. readiness endpoint reports required configuration booleans
+2. real managed asset OAuth completes
+3. exact Page/Instagram asset is explicitly selected
+4. webhook verification succeeds
+5. signed inbound payload persists to the correct tenant
+6. human-initiated reply uses the selected provider
+7. no automated verification message targets an uncontrolled customer
+
+If Meta Business Verification or Advanced Access is unavailable, keep the integration pending; do not weaken permissions or webhook security.
+
+### WhatsApp
+
+Verify inbound persistence, outbound replies, delivery/read/failure statuses, 24-hour policy, templates, bounded retries, dead-letter handling, manual reprocess and CRM identity linking.
+
+### Voice
+
+Voice acceptance requires a provider-ready/funded account, real destination routing, Turkish speech/TTS, callback continuity, trusted product/price answers, live handoff and after-call persistence. Twilio Trial behavior is not production acceptance.
+
+### Billing
+
+Use a controlled test workspace to verify checkout, webhook signature, idempotency, entitlement update, portal access, upgrade/downgrade, cancellation and failed-payment behavior.
+
+## 9. AI and sales safety
+
+- Product, price, showroom, delivery and technical answers must use trusted sources.
+- If trusted data is missing, fail closed and ask one concise clarification question.
+- AI suggestions and follow-up actions remain human-approved.
+- AI must not directly send customer messages.
+- Margin calculations fail closed when trusted cost data is absent.
+- Persist release evaluation evidence when the production workflow is configured to do so.
+- Do not expose model/provider errors directly to end users.
+
+## 10. Troubleshooting
+
+### Meta configuration
+
+1. Open `/api/integrations/meta/status` as Owner/Admin.
+2. Inspect boolean readiness only.
+3. Confirm production was deployed after environment changes.
+4. Confirm exact redirect/callback URLs.
+5. Confirm the webhook verify-token value matches production.
+6. Inspect redacted Vercel runtime logs.
+
+### Voice
+
+1. Separate provider/trial announcements from application audio.
+2. Count webhook POSTs and status codes.
+3. Confirm a `SpeechResult` callback exists before debugging sales orchestration.
+4. Inspect provider call/debug logs for TwiML or media errors.
+5. Never request secrets in chat or log them.
+
+### Database-backed surfaces
+
+If tasks, calendar, API, Inbox, intelligence, voice or sales operations fail, verify the exact required migration through `0049` before changing UI code.
+
+## 11. Rollback
+
+1. Identify the exact unhealthy merge commit.
+2. Promote the last known-good Vercel deployment when application code is unhealthy.
+3. Do not destructively roll back cumulative Supabase migrations.
+4. Keep additive schema in place unless a reviewed forward migration changes it.
+5. Re-run health, authentication and production smoke checks after rollback.

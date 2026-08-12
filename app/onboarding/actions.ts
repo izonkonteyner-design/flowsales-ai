@@ -68,5 +68,5 @@ export async function completeOnboardingAction(_: OnboardingActionState, formDat
 
   revalidatePath("/dashboard");
   revalidatePath("/settings");
-  redirect("/dashboard?toast=Çalışma%20alanınız%20hazır&tone=success");
+  redirect(`/dashboard?toast=${encodeURIComponent("Çalışma alanınız hazır")}&tone=success`);
 }

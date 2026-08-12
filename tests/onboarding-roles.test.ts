@@ -27,3 +27,9 @@ test("0050 adds canonical roles without breaking legacy sales memberships", asyn
   assert.match(sql, /create or replace function public\.has_org_role/);
   assert.match(sql, /0050_onboarding_roles\.sql/);
 });
+
+test("onboarding success redirect percent-encodes Turkish characters", async () => {
+  const action = await source("app/onboarding/actions.ts");
+  assert.match(action, /encodeURIComponent\("Çalışma alanınız hazır"\)/);
+  assert.doesNotMatch(action, /redirect\("\/dashboard\?toast=Çalışma/);
+});

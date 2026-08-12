@@ -26,19 +26,35 @@ type LatestQualification = {
   priority: string | null;
   sales_stage: string | null;
   summary: string;
-  objections: unknown;
+  signals: unknown;
   missing_information: unknown;
-  product_interest: string | null;
-  location: string | null;
-  budget: string | null;
-  timeline: string | null;
   next_best_action: string;
   recommended_follow_up_at: string | null;
   created_at: string;
 };
 
+type QualificationSignals = {
+  productInterest: string | null;
+  location: string | null;
+  budget: string | null;
+  timeline: string | null;
+  objections: string[];
+};
+
 function asStrings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function qualificationSignals(value: unknown): QualificationSignals {
+  const signals = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const text = (key: string) => typeof signals[key] === "string" && signals[key].trim() ? signals[key].trim() : null;
+  return {
+    productInterest: text("productInterest"),
+    location: text("location"),
+    budget: text("budget"),
+    timeline: text("timeline"),
+    objections: asStrings(signals.objections),
+  };
 }
 
 function normalizeEmail(value: string | null | undefined) {
@@ -55,7 +71,7 @@ async function latestQualifications(scope: Scope, includeClosed = true): Promise
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("conversation_ai_qualifications")
-    .select("lead_id,conversation_id,score,priority,sales_stage,summary,objections,missing_information,product_interest,location,budget,timeline,next_best_action,recommended_follow_up_at,created_at")
+    .select("lead_id,conversation_id,score,priority,sales_stage,summary,signals,missing_information,next_best_action,recommended_follow_up_at,created_at")
     .eq("organization_id", scope.organizationId)
     .order("created_at", { ascending: false })
     .limit(750);
@@ -108,6 +124,7 @@ export async function generateFollowUpDraftV2(input: {
 export async function getQuoteIntelligence(scope: Scope, leadId: string) {
   const [qualifications, leads] = await Promise.all([latestQualifications(scope), scopedLeads(scope, [leadId])]);
   const qualification = qualifications.find((row) => row.lead_id === leadId) || null;
+  const signals = qualificationSignals(qualification?.signals);
   const lead = leads[0] || null;
   if (!lead) return null;
   return {
@@ -115,18 +132,18 @@ export async function getQuoteIntelligence(scope: Scope, leadId: string) {
     conversationId: qualification?.conversation_id || null,
     score: qualification?.score || 0,
     salesStage: qualification?.sales_stage || "new_lead",
-    productInterest: qualification?.product_interest || null,
-    location: qualification?.location || lead.city || null,
-    budget: qualification?.budget || null,
-    timeline: qualification?.timeline || null,
-    objections: asStrings(qualification?.objections),
+    productInterest: signals.productInterest,
+    location: signals.location || lead.city || null,
+    budget: signals.budget,
+    timeline: signals.timeline,
+    objections: signals.objections,
     missingInformation: asStrings(qualification?.missing_information),
     nextBestAction: qualification?.next_best_action || "Müşteri ihtiyacını netleştir.",
     readiness: qualification?.score && qualification.score >= 70 && ["qualified", "quote_ready", "quote_sent", "negotiation"].includes(qualification.sales_stage || "") ? "ready" : "needs_review",
     warnings: [
-      ...(!qualification?.product_interest ? ["Ürün veya hizmet ilgisi net değil."] : []),
-      ...(!qualification?.budget ? ["Bütçe bilgisi bulunmuyor."] : []),
-      ...(!qualification?.timeline ? ["Satın alma zamanlaması bilinmiyor."] : []),
+      ...(!signals.productInterest ? ["Ürün veya hizmet ilgisi net değil."] : []),
+      ...(!signals.budget ? ["Bütçe bilgisi bulunmuyor."] : []),
+      ...(!signals.timeline ? ["Satın alma zamanlaması bilinmiyor."] : []),
     ],
   };
 }
@@ -140,7 +157,7 @@ export async function getWinLossIntelligence(scope: Scope) {
   const records = closed.flatMap((row) => {
     const lead = row.lead_id ? leadMap.get(row.lead_id) : null;
     if (!lead) return [];
-    const reasons = asStrings(row.objections);
+    const reasons = qualificationSignals(row.signals).objections;
     if (row.sales_stage === "lost") for (const reason of reasons.length ? reasons : ["Neden belirtilmedi"]) reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
     return [{ leadId: lead.id, name: lead.full_name, outcome: row.sales_stage, value: Number(lead.estimated_value || 0), score: row.score, reasons, summary: row.summary, closedAt: row.created_at }];
   });

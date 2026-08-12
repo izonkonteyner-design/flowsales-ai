@@ -9,6 +9,7 @@ import {
   createProductRecord,
   deleteProductRecord,
   updateProductRecord,
+  uploadProductImage,
 } from "@/server/services/products";
 
 function safeRedirectTarget(value: FormDataEntryValue | null, fallback: string) {
@@ -62,7 +63,9 @@ function parseBoolean(value: FormDataEntryValue | null) {
   return value === "true";
 }
 
-function parseProductInput(formData: FormData) {
+async function parseProductInput(formData: FormData) {
+  const mainImage = formData.get("main_image_file");
+  const galleryFiles = formData.getAll("gallery_image_files").filter((value): value is File => value instanceof File && value.size > 0);
   const parsed = productFormSchema.parse({
     sku: formData.get("sku"),
     name: formData.get("name"),
@@ -98,13 +101,19 @@ function parseProductInput(formData: FormData) {
     notes: formData.get("notes"),
   });
 
-  return parsed;
+  const uploadedMainUrl = mainImage instanceof File && mainImage.size > 0 ? await uploadProductImage(mainImage) : "";
+  const uploadedGalleryUrls = await Promise.all(galleryFiles.map(uploadProductImage));
+  return {
+    ...parsed,
+    image_url: uploadedMainUrl || parsed.image_url,
+    gallery_urls: Array.from(new Set([...parsed.gallery_urls, ...uploadedGalleryUrls])),
+  };
 }
 
 export async function createProductAction(formData: FormData) {
   const redirectTo = safeRedirectTarget(formData.get("redirect_to"), "/products");
   try {
-    await createProductRecord(parseProductInput(formData));
+    await createProductRecord(await parseProductInput(formData));
     revalidatePath("/products");
     revalidatePath("/dashboard");
     redirect(redirectWithToast(redirectTo, "Product created successfully."));
@@ -117,7 +126,7 @@ export async function updateProductAction(formData: FormData) {
   const productId = String(formData.get("product_id") ?? "");
   const redirectTo = safeRedirectTarget(formData.get("redirect_to"), `/products/${productId}`);
   try {
-    await updateProductRecord(productId, parseProductInput(formData));
+    await updateProductRecord(productId, await parseProductInput(formData));
     revalidatePath("/products");
     revalidatePath("/dashboard");
     revalidatePath(`/products/${productId}`);

@@ -9,6 +9,11 @@ import type { LeadMemberOption } from "@/server/services/lead-domain";
 
 const leadSources = ["Website", "WhatsApp", "Instagram", "Referral", "LinkedIn", "Event", "Cold call"];
 const currencies = ["TRY", "USD", "EUR"];
+const currencyLabels: Record<string, string> = {
+  TRY: "TL",
+  USD: "USD",
+  EUR: "EUR",
+};
 
 type LeadFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -69,7 +74,7 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
           <Select name="currency" defaultValue={lead?.currency ?? "TRY"}>
             {currencies.map((currency) => (
               <option key={currency} value={currency}>
-                {currency}
+                {currencyLabels[currency]}
               </option>
             ))}
           </Select>

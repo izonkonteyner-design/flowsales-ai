@@ -43,6 +43,12 @@ test("product form presents Turkish lira as TL while persisting TRY", async () =
   assert.match(form, /<option key=\{currency\} value=\{currency\}>/);
 });
 
+test("lead form presents Turkish lira as TL while persisting TRY", async () => {
+  const form = await source("components/leads/lead-form.tsx");
+  assert.match(form, /TRY: "TL"/);
+  assert.match(form, /<option key=\{currency\} value=\{currency\}>/);
+});
+
 test("language, lead search and voice provider controls reflect their actual behavior", async () => {
   const [locale, shell, voice] = await Promise.all([
     source("components/shared/locale-switcher.tsx"),

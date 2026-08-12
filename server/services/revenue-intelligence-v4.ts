@@ -199,12 +199,15 @@ export async function getSalesForecast(scope: Scope) {
 export async function listIdentityResolutionCandidates(scope: Scope) {
   const admin = createSupabaseAdminClient();
   const leads = await scopedLeads(scope);
-  const { data: customers, error } = await admin
+  const { data: customerRows, error } = await admin
     .from("customers")
     .select("id,full_name,email,phone,created_at")
     .eq("organization_id", scope.organizationId)
     .limit(1000);
-  if (error) throw new Error("Müşteri kimlik verileri yüklenemedi.");
+  // Identity suggestions are advisory. A customer-read failure must not take
+  // forecast, follow-up and win/loss intelligence offline with it.
+  if (error) console.error("[revenue-intelligence] customer identity candidates unavailable", { code: error.code });
+  const customers = error ? [] : customerRows || [];
 
   const candidates: Array<{ type: "lead_lead" | "lead_customer"; confidence: "exact"; reason: string; primary: { id: string; name: string }; duplicate: { id: string; name: string } }> = [];
   for (let i = 0; i < leads.length; i += 1) {
@@ -215,7 +218,7 @@ export async function listIdentityResolutionCandidates(scope: Scope) {
       if (sameEmail || samePhone) candidates.push({ type: "lead_lead", confidence: "exact", reason: sameEmail && samePhone ? "Aynı e-posta ve telefon" : sameEmail ? "Aynı e-posta" : "Aynı telefon", primary: { id: a.id, name: a.full_name }, duplicate: { id: b.id, name: b.full_name } });
     }
   }
-  for (const lead of leads) for (const customer of customers || []) {
+  for (const lead of leads) for (const customer of customers) {
     const sameEmail = normalizeEmail(lead.email) && normalizeEmail(lead.email) === normalizeEmail(customer.email);
     const samePhone = normalizePhone(lead.phone) && normalizePhone(lead.phone) === normalizePhone(customer.phone);
     if (sameEmail || samePhone) candidates.push({ type: "lead_customer", confidence: "exact", reason: sameEmail && samePhone ? "Aynı e-posta ve telefon" : sameEmail ? "Aynı e-posta" : "Aynı telefon", primary: { id: lead.id, name: lead.full_name }, duplicate: { id: customer.id, name: customer.full_name } });

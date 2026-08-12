@@ -13,6 +13,7 @@ test("revenue intelligence reads structured signals from the deployed qualificat
   assert.match(code, /qualificationSignals\(row\.signals\)/);
   assert.match(code, /select\("id,full_name,email,phone,created_at"\)/);
   assert.doesNotMatch(code, /select\("id,name,email,phone,created_at"\)/);
+  assert.match(code, /const customers = error \? \[\] : customerRows \|\| \[\]/);
 });
 
 test("legacy team route cannot expose hard-coded demo members", async () => {

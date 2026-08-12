@@ -76,6 +76,7 @@ export default async function ProductEditPage({ params, searchParams }: ProductE
           product={data.product}
           productId={data.product.id}
           submitLabel="Save changes"
+          organizationId={data.context.organization.id}
           editable={editable}
           restrictionMessage={restriction || undefined}
         />

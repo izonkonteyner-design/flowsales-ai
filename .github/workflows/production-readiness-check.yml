@@ -48,13 +48,13 @@ jobs:
           if (payload?.status !== 'ok') throw new Error('Readiness status is not ok');
           if (payload?.checks?.environment?.ready !== true) throw new Error('Environment readiness is false');
           if (database?.ready !== true) throw new Error('Database readiness is false');
-          if (database?.latestMigration !== '0051') throw new Error('Latest migration is not 0051');
-          if (database?.requiredMigration !== '0051') throw new Error('Required migration is not 0051');
+          if (database?.latestMigration !== '0052') throw new Error('Latest migration is not 0052');
+          if (database?.requiredMigration !== '0052') throw new Error('Required migration is not 0052');
           if (!Array.isArray(database?.missingFunctions) || database.missingFunctions.length !== 0) {
             throw new Error('Missing functions are present');
           }
           if (!Array.isArray(database?.missingTables) || database.missingTables.length !== 0) {
             throw new Error('Missing tables are present');
           }
-          console.log('Production readiness verified: HTTP 200, ready=true, migration=0051.');
+          console.log('Production readiness verified: HTTP 200, ready=true, migration=0052.');
           NODE

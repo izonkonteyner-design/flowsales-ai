@@ -200,7 +200,7 @@ export async function listIdentityResolutionCandidates(scope: Scope) {
   const admin = createSupabaseAdminClient();
   const leads = await scopedLeads(scope);
   const { data: customerRows, error } = await admin
-    .from("customers")
+    .from("contacts")
     .select("id,full_name,email,phone,created_at")
     .eq("organization_id", scope.organizationId)
     .limit(1000);

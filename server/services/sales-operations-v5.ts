@@ -247,7 +247,7 @@ export async function globalCommandSearch(organizationId: string, query: string)
   if (q.length < 2) return [];
   const [leads, customers, quotes] = await Promise.all([
     admin.from("leads").select("id,full_name,phone,status").eq("organization_id", organizationId).ilike("full_name", `%${q}%`).limit(8),
-    admin.from("customers").select("id,full_name,phone").eq("organization_id", organizationId).ilike("full_name", `%${q}%`).limit(8),
+    admin.from("contacts").select("id,full_name,phone").eq("organization_id", organizationId).ilike("full_name", `%${q}%`).limit(8),
     admin.from("quotes").select("id,quote_number,status,total").eq("organization_id", organizationId).ilike("quote_number", `%${q}%`).limit(8),
   ]);
   return [

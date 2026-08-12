@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   migrate:
-    name: Apply and verify migrations through 0051
+    name: Apply and verify migrations through 0052
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for version in 0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040 0041 0042 0043 0044 0045 0046 0047 0048 0049 0050 0051; do
+          for version in 0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040 0041 0042 0043 0044 0045 0046 0047 0048 0049 0050 0051 0052; do
             compgen -G "supabase/migrations/${version}_*.sql" >/dev/null || { echo "Missing migration ${version}" >&2; exit 1; }
           done
 
@@ -45,7 +45,7 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           [[ "$db_url" == postgresql://* || "$db_url" == postgres://* ]] || { echo "Production PostgreSQL URI is not configured." >&2; exit 1; }
-          for file in supabase/migrations/00{27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51}_*.sql; do
+          for file in supabase/migrations/00{27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52}_*.sql; do
             version="$(basename "$file" | cut -d_ -f1)"
             applied="$(psql "$db_url" -X -Atqc "select exists(select 1 from public.deployment_migrations where version='${version}');")"
             if [[ "$applied" == "t" ]]; then
@@ -62,7 +62,7 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           latest="$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")"
-          test "$latest" = "0051"
+          test "$latest" = "0052"
           psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
             select case when
               exists (select 1 from public.deployment_migrations where version='0047' and name='0047_voice_sales_v1.sql')
@@ -70,6 +70,9 @@ jobs:
               and exists (select 1 from public.deployment_migrations where version='0049' and name='0049_sales_growth_v6.sql')
               and exists (select 1 from public.deployment_migrations where version='0050' and name='0050_onboarding_roles.sql')
               and exists (select 1 from public.deployment_migrations where version='0051' and name='0051_readiness_entitlements_fix.sql')
+              and exists (select 1 from public.deployment_migrations where version='0052' and name='0052_contact_identity_guard_fix.sql')
+              and to_regclass('public.contacts') is not null
+              and pg_get_functiondef('public.guard_duplicate_lead_identity()'::regprocedure) like '%public.contacts%'
               and to_regclass('public.voice_calls') is not null
               and to_regclass('public.sales_callback_queue') is not null
               and to_regclass('public.sales_call_dispositions') is not null
@@ -97,4 +100,4 @@ jobs:
               and to_regprocedure('public.create_user_notification(uuid,uuid,text,text,text,text)') is not null
             then 'ready' else 'not_ready' end;
           " | grep -qx ready
-          echo "Production Supabase migration verified at 0051."
+          echo "Production Supabase migration verified at 0052."

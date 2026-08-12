@@ -59,3 +59,18 @@ test("language, lead search and voice provider controls reflect their actual beh
   assert.match(shell, /name="search" type="search" required minLength=\{1\}/);
   assert.match(voice, /value="telnyx">Telnyx \(FlowSales AI Voice\)/);
 });
+
+test("lead identity and WhatsApp signup use production-safe targets", async () => {
+  const [migration, whatsapp, revenue, operations] = await Promise.all([
+    source("supabase/migrations/0052_contact_identity_guard_fix.sql"),
+    source("components/settings/whatsapp-connect-button.tsx"),
+    source("server/services/revenue-intelligence-v4.ts"),
+    source("server/services/sales-operations-v5.ts"),
+  ]);
+  assert.match(migration, /from public\.contacts c/);
+  assert.doesNotMatch(migration, /from public\.customers c/);
+  assert.doesNotMatch(whatsapp, /FB\.login\(\s*async/);
+  assert.match(whatsapp, /void completeEmbeddedSignup\(response\)/);
+  assert.match(revenue, /\.from\("contacts"\)/);
+  assert.match(operations, /admin\.from\("contacts"\)/);
+});

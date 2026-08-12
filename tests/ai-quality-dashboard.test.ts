@@ -36,5 +36,5 @@ test("AI quality migration remains registered while app readiness advances to 00
   assert.match(sql, /values \('0025', 'ai_quality_dashboard'\)/i);
   assert.match(sql, /v_required_version constant text := '0025'/i);
   assert.match(sql, /get_ai_quality_dashboard/i);
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0051"/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0053"/);
 });

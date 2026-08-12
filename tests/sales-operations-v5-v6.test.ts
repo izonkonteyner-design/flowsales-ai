@@ -101,12 +101,12 @@ test("user-facing surfaces expose sales operations, command shortcut, analyst, g
   assert.match(joined, /ctrlKey|metaKey/);
 });
 
-test("release gate 3.0 requires and verifies migration 0052", async () => {
+test("release gate 3.0 requires and verifies migration 0053", async () => {
   const readiness = await source("server/services/deployment-readiness.ts");
   const workflow = await source(".github/workflows/supabase-production-migrate.yml");
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0052"/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0053"/);
   assert.match(readiness, /sales-automation/);
-  assert.match(workflow, /through 0052/);
+  assert.match(workflow, /through 0053/);
   assert.match(workflow, /unit_cost/);
   assert.match(workflow, /cost_snapshot/);
 });

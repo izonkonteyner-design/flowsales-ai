@@ -74,3 +74,12 @@ test("lead identity and WhatsApp signup use production-safe targets", async () =
   assert.match(revenue, /\.from\("contacts"\)/);
   assert.match(operations, /admin\.from\("contacts"\)/);
 });
+
+test("lead and product actions preserve Next.js redirect control flow", async () => {
+  const [leads, products] = await Promise.all([
+    source("app/(app)/leads/actions.ts"),
+    source("app/(app)/products/actions.ts"),
+  ]);
+  assert.match(leads, /unstable_rethrow\(error\)/);
+  assert.match(products, /unstable_rethrow\(error\)/);
+});

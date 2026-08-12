@@ -9,7 +9,6 @@ import {
   createProductRecord,
   deleteProductRecord,
   updateProductRecord,
-  uploadProductImage,
 } from "@/server/services/products";
 
 function safeRedirectTarget(value: FormDataEntryValue | null, fallback: string) {
@@ -64,8 +63,6 @@ function parseBoolean(value: FormDataEntryValue | null) {
 }
 
 async function parseProductInput(formData: FormData) {
-  const mainImage = formData.get("main_image_file");
-  const galleryFiles = formData.getAll("gallery_image_files").filter((value): value is File => value instanceof File && value.size > 0);
   const parsed = productFormSchema.parse({
     sku: formData.get("sku"),
     name: formData.get("name"),
@@ -101,13 +98,7 @@ async function parseProductInput(formData: FormData) {
     notes: formData.get("notes"),
   });
 
-  const uploadedMainUrl = mainImage instanceof File && mainImage.size > 0 ? await uploadProductImage(mainImage) : "";
-  const uploadedGalleryUrls = await Promise.all(galleryFiles.map(uploadProductImage));
-  return {
-    ...parsed,
-    image_url: uploadedMainUrl || parsed.image_url,
-    gallery_urls: Array.from(new Set([...parsed.gallery_urls, ...uploadedGalleryUrls])),
-  };
+  return parsed;
 }
 
 export async function createProductAction(formData: FormData) {

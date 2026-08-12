@@ -33,12 +33,12 @@ test("release persistence runs only after verified main push", async () => {
   assert.match(workflow, /npm run eval:ai:persist/);
 });
 
-test("production migration workflow preserves Conversation Intelligence, identity guard and Voice Sales while advancing through 0052", async () => {
+test("production migration workflow preserves Conversation Intelligence, identity guard and Voice Sales while advancing through 0053", async () => {
   const workflow = await source(".github/workflows/supabase-production-migrate.yml");
   const readiness = await source("server/services/deployment-readiness.ts");
-  assert.match(workflow, /Apply and verify migrations through 0052/);
+  assert.match(workflow, /Apply and verify migrations through 0053/);
   assert.match(workflow, /supabase\/migrations\/\*\*/);
-  assert.match(workflow, /test "\$latest" = "0052"/);
+  assert.match(workflow, /test "\$latest" = "0053"/);
   assert.match(workflow, /0045/);
   assert.match(workflow, /0046/);
   assert.match(workflow, /0047/);
@@ -48,5 +48,5 @@ test("production migration workflow preserves Conversation Intelligence, identit
   assert.match(workflow, /sales_callback_queue/);
   assert.match(workflow, /pipeline_snapshots/);
   assert.match(workflow, /resolve_voice_phone_identity/);
-  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0052"/);
+  assert.match(readiness, /REQUIRED_DEPLOYMENT_MIGRATION = "0053"/);
 });

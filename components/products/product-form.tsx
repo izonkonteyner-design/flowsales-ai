@@ -6,13 +6,25 @@ import { ImagePlus, GripVertical, Plus, Trash2, ArrowUp, ArrowDown } from "lucid
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import type { ProductRow } from "@/server/services/products";
 import type { ProductSpecification } from "@/types/crm";
 
 const currencies = ["TRY", "USD", "EUR"];
+const currencyLabels: Record<string, string> = {
+  TRY: "TL",
+  USD: "USD",
+  EUR: "EUR",
+};
 const categories = ["Container", "Residential", "Commercial", "Construction", "Infrastructure", "Custom"];
 const units = ["unit", "set", "sqm", "box", "service"];
+const productImageTypes = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"],
+]);
+const maxProductImageSize = 5 * 1024 * 1024;
 
 type ProductFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -22,6 +34,7 @@ type ProductFormProps = {
   productId?: string;
   editable?: boolean;
   restrictionMessage?: string;
+  organizationId: string;
 };
 
 type ProductFormState = {
@@ -120,8 +133,58 @@ export function ProductForm({
   productId,
   editable = true,
   restrictionMessage,
+  organizationId,
 }: ProductFormProps) {
   const [state, setState] = useState<ProductFormState>(() => createInitialState(product));
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const uploadImage = async (file: File) => {
+    const extension = productImageTypes.get(file.type);
+    if (!extension) throw new Error("Görsel PNG, JPG veya WebP formatında olmalıdır.");
+    if (file.size <= 0 || file.size > maxProductImageSize) throw new Error("Her görsel en fazla 5 MB olabilir.");
+
+    const client = getSupabaseBrowserClient();
+    if (!client) throw new Error("Görsel yükleme bağlantısı hazır değil.");
+    const path = `organizations/${organizationId}/products/${crypto.randomUUID()}.${extension}`;
+    const { error } = await client.storage.from("workspace-assets").upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+    if (error) throw new Error(error.message || "Görsel yüklenemedi.");
+    return client.storage.from("workspace-assets").getPublicUrl(path).data.publicUrl;
+  };
+
+  const uploadMainImage = async (file?: File) => {
+    if (!file) return;
+    setUploadingImages(true);
+    setUploadError("");
+    try {
+      const url = await uploadImage(file);
+      updateField("image_url", url);
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Görsel yüklenemedi.");
+    } finally {
+      setUploadingImages(false);
+    }
+  };
+
+  const uploadGalleryImages = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setUploadingImages(true);
+    setUploadError("");
+    try {
+      const urls = await Promise.all(Array.from(files, uploadImage));
+      setState((current) => ({
+        ...current,
+        gallery_urls: Array.from(new Set([...current.gallery_urls.filter(Boolean), ...urls])),
+      }));
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : "Galeri görselleri yüklenemedi.");
+    } finally {
+      setUploadingImages(false);
+    }
+  };
 
   const updateField = <K extends keyof ProductFormState>(key: K, value: ProductFormState[K]) => {
     setState((current) => ({ ...current, [key]: value }));
@@ -248,7 +311,7 @@ export function ProductForm({
             <Select name="currency" value={state.currency} disabled={!canEdit} onChange={(event) => updateField("currency", event.target.value)}>
               {currencies.map((currency) => (
                 <option key={currency} value={currency}>
-                  {currency}
+                  {currencyLabels[currency]}
                 </option>
               ))}
             </Select>
@@ -404,13 +467,13 @@ export function ProductForm({
         <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
           <div className="space-y-4">
             <Field label="Ana görsel yükle">
-              <Input name="main_image_file" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canEdit} />
+              <Input type="file" accept="image/png,image/jpeg,image/webp" disabled={!canEdit || uploadingImages} onChange={(event) => void uploadMainImage(event.target.files?.[0])} />
             </Field>
-            <p className="text-xs text-slate-500">PNG, JPG veya WebP · en fazla 5 MB. Yeni yüklenen dosya kaydedildiğinde ana görsel bağlantısının yerini alır.</p>
+            <p className="text-xs text-slate-500">PNG, JPG veya WebP · en fazla 5 MB. Görsel seçildiğinde güvenli depolama alanına doğrudan yüklenir.</p>
             <Field label="Ana görsel URL'si">
               <Input
                 name="image_url"
-                defaultValue={state.image_url}
+                value={state.image_url}
                 placeholder="https://example.com/product.jpg"
                 disabled={!canEdit}
                 onChange={(event) => updateField("image_url", event.target.value)}
@@ -425,9 +488,11 @@ export function ProductForm({
 
           <div className="space-y-3">
             <Field label="Galeri görsellerini yükle">
-              <Input name="gallery_image_files" type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={!canEdit} />
+              <Input type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={!canEdit || uploadingImages} onChange={(event) => void uploadGalleryImages(event.target.files)} />
             </Field>
             <p className="text-xs text-slate-500">Birden fazla dosya seçebilirsiniz. Yüklenen dosyalar URL ile eklenen galeri görsellerine eklenir.</p>
+            {uploadingImages ? <p className="text-sm text-blue-600">Görseller yükleniyor…</p> : null}
+            {uploadError ? <p role="alert" className="text-sm text-red-600">{uploadError}</p> : null}
             <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Galeri URL&apos;leri</p>
             {state.gallery_urls.map((url, index) => (
               <div key={`${index}-${url}`} className="flex items-center gap-3">
@@ -506,11 +571,11 @@ export function ProductForm({
 
       <button
         type="submit"
-        disabled={!canEdit}
+        disabled={!canEdit || uploadingImages}
         title={restrictionMessage || undefined}
         className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
       >
-        {submitLabel}
+        {uploadingImages ? "Görseller yükleniyor…" : submitLabel}
       </button>
     </form>
   );

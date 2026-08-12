@@ -4,7 +4,7 @@ import { Trash2 } from "lucide-react";
 
 import { deleteQuoteAction } from "@/app/(app)/quotes/actions";
 import type { QuoteRecordMode } from "@/server/services/quote-domain";
-import type { WorkspaceRole } from "@/server/services/workspace-context";
+import { canWriteSalesRecords, type WorkspaceRole } from "@/lib/workspace-roles";
 
 type QuoteDeleteDialogProps = {
   quoteId: string;
@@ -16,7 +16,7 @@ type QuoteDeleteDialogProps = {
 };
 
 function canDelete(recordMode: QuoteRecordMode, role: WorkspaceRole | null | undefined) {
-  return recordMode === "live" && (role === "owner" || role === "admin" || role === "sales");
+  return recordMode === "live" && canWriteSalesRecords(role);
 }
 
 export function QuoteDeleteDialog({

@@ -1,6 +1,6 @@
 import { CURRENCY_CODES, QUOTE_DISCOUNT_TYPES, QUOTE_STATUSES } from "@/lib/constants";
 import { calculateQuoteTotals, type QuoteMathItem, type QuoteMathOptions, type QuoteMathTotals } from "@/server/services/quote-math";
-import type { WorkspaceRole } from "@/server/services/workspace-context";
+import { canWriteSalesRecords, type WorkspaceRole } from "@/lib/workspace-roles";
 import type { CurrencyCode, Organization, Quote, QuoteDiscountType, QuoteStatus } from "@/types/crm";
 
 const currencySet = new Set(CURRENCY_CODES.map((currency) => currency.value));
@@ -47,7 +47,7 @@ function isDiscountType(value: unknown): value is QuoteDiscountType {
 }
 
 export function canManageQuotes(role: WorkspaceRole | null | undefined) {
-  return role === "owner" || role === "admin" || role === "sales";
+  return canWriteSalesRecords(role);
 }
 
 export function canMutateQuoteRecord(recordMode: QuoteRecordMode, role: WorkspaceRole | null | undefined) {

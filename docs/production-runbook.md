@@ -7,7 +7,7 @@ This runbook is the operational source of truth for deploying, verifying and tro
 - Repository: `izonkonteyner-design/flowsales-ai`
 - Default branch: `main`
 - Production URL: `https://flowsales-ai-six.vercel.app`
-- Database migration head: `0049_sales_growth_v6.sql`
+- Database migration head: `0050_onboarding_roles.sql`
 - Scheduled job: `/api/cron/sales-automation` at `0 5 * * *`
 
 Never treat a preview deployment, branch commit or successful build as production acceptance. The exact merge commit must reach a Vercel production deployment in `READY` state.
@@ -94,7 +94,7 @@ Routes:
 
 ## 3. Database migration readiness
 
-Production must be migrated through `0049_sales_growth_v6.sql`.
+Production must be migrated through `0050_onboarding_roles.sql`.
 
 Recent capability boundaries:
 
@@ -106,11 +106,12 @@ Recent capability boundaries:
 - `0047_voice_sales_v1.sql`: voice calls, transcripts, events, handoffs and after-call actions
 - `0048_sales_operations_v5.sql`: sales operations workflows
 - `0049_sales_growth_v6.sql`: growth intelligence, controls and reporting foundations
+- `0050_onboarding_roles.sql`: validated onboarding fields and canonical workspace roles
 
 Rules:
 
 1. Apply migrations in numeric order.
-2. Confirm the production migration workflow/verifier passes through `0049`.
+2. Confirm the production migration workflow/verifier passes through `0050`.
 3. Do not enable dependent UI before its migration is present.
 4. Do not delete or manually roll back cumulative migrations.
 5. Use a reviewed forward migration for schema corrections.
@@ -172,7 +173,7 @@ Release acceptance requires:
 
 1. CI `verify` PASS
 2. CI `e2e-production` PASS when applicable
-3. migration verification through `0049`
+3. migration verification through `0050`
 4. relevant RLS/two-workspace checks PASS
 5. exact merge commit deployed to production
 6. Vercel deployment state `READY`
@@ -241,7 +242,7 @@ Use a controlled test workspace to verify checkout, webhook signature, idempoten
 
 ### Database-backed surfaces
 
-If tasks, calendar, API, Inbox, intelligence, voice or sales operations fail, verify the exact required migration through `0049` before changing UI code.
+If onboarding, roles, tasks, calendar, API, Inbox, intelligence, voice or sales operations fail, verify the exact required migration through `0050` before changing UI code.
 
 ## 11. Rollback
 

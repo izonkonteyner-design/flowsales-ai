@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { isSalesRepresentativeRole } from "@/lib/workspace-roles";
 
 export type CallReason = "price" | "product" | "showroom" | "delivery" | "quote" | "support" | "other";
 export type CallDisposition = "sales_opportunity" | "follow_up" | "quote_requested" | "unreachable" | "not_interested" | "wrong_number" | "support" | "other";
@@ -74,7 +75,7 @@ export async function enqueueCallback(params: { organizationId: string; leadId: 
 export async function listCallbackQueue(organizationId: string, userId: string, userRole: string) {
   const admin = createSupabaseAdminClient();
   let query = admin.from("sales_callback_queue").select("id,lead_id,assigned_user_id,scheduled_for,status,reason,outcome,created_at,leads(full_name,phone)").eq("organization_id", organizationId).in("status", ["pending","missed"]).order("scheduled_for").limit(100);
-  if (userRole === "sales") query = query.or(`assigned_user_id.eq.${userId},assigned_user_id.is.null`);
+  if (isSalesRepresentativeRole(userRole as "sales" | "sales_rep")) query = query.or(`assigned_user_id.eq.${userId},assigned_user_id.is.null`);
   const { data, error } = await query;
   if (error) throw new Error("Callback kuyruğu yüklenemedi.");
   return data || [];

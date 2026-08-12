@@ -5,7 +5,7 @@ export const BRAND = {
   tagline: "Your AI Sales Employee",
 };
 
-export const ORGANIZATION_ROLES = ["owner", "admin", "sales", "viewer"] as const;
+export const ORGANIZATION_ROLES = ["owner", "admin", "manager", "sales_rep", "sales", "viewer"] as const;
 
 export const LEAD_STATUSES: Array<{ value: LeadStatus; label: string; tone: "neutral" | "info" | "warning" | "success" | "danger" }> = [
   { value: "new", label: "New", tone: "info" },

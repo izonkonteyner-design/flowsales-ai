@@ -1,5 +1,6 @@
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { maskPhoneNumber } from "@/lib/utils/phone-mask";
+import { isSalesRepresentativeRole } from "@/lib/workspace-roles";
 
 export const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
 
@@ -101,7 +102,7 @@ export class OmnichannelInboxRepository {
       .eq("organization_id", organizationId);
 
     // Sales role isolation: only see assigned or unassigned
-    if (userRole === "sales") {
+    if (isSalesRepresentativeRole(userRole as "sales" | "sales_rep")) {
       query = query.or(`assigned_user_id.eq.${userId},assigned_user_id.is.null`);
     }
 
@@ -260,7 +261,7 @@ export class OmnichannelInboxRepository {
       return null;
     }
 
-    if (userRole === "sales" && conv.assigned_user_id && conv.assigned_user_id !== userId) {
+    if (isSalesRepresentativeRole(userRole as "sales" | "sales_rep") && conv.assigned_user_id && conv.assigned_user_id !== userId) {
       return null;
     }
 
@@ -397,7 +398,7 @@ export class OmnichannelInboxRepository {
       return { success: false, error: "Conversation not found." };
     }
 
-    if (userRole === "sales" && conv.assigned_user_id && conv.assigned_user_id !== userId) {
+    if (isSalesRepresentativeRole(userRole as "sales" | "sales_rep") && conv.assigned_user_id && conv.assigned_user_id !== userId) {
       return { success: false, error: "Sales role can only update assigned conversations." };
     }
 

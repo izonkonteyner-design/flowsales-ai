@@ -31,7 +31,7 @@ function toValidationState(error: z.ZodError): WorkspaceMemberActionState {
   const flattened = error.flatten().fieldErrors as Partial<Record<"email" | "role", string[]>>;
   return {
     success: false,
-    message: "Please fix the highlighted fields.",
+    message: "Lütfen işaretli alanları düzeltin.",
     invitationUrl: null,
     fieldErrors: {
       email: flattened.email?.[0],
@@ -59,7 +59,7 @@ export async function inviteMemberAction(_: WorkspaceMemberActionState, formData
 
     return {
       success: true,
-      message: `Invitation sent to ${result.invitation.email}.`,
+      message: `${result.invitation.email} için güvenli davet bağlantısı oluşturuldu.`,
       invitationUrl: result.invitationUrl,
       fieldErrors: {},
     };
@@ -70,7 +70,7 @@ export async function inviteMemberAction(_: WorkspaceMemberActionState, formData
 
     return {
       success: false,
-      message: error instanceof Error ? error.message : "Unable to send the invitation.",
+      message: error instanceof Error ? error.message : "Davet bağlantısı oluşturulamadı.",
       invitationUrl: null,
       fieldErrors: {},
     };

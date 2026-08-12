@@ -1,10 +1,16 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { onboardingSchema, type OnboardingActionState } from "@/lib/validations/onboarding";
 import { getWorkspaceContext } from "@/server/services/workspace-context";
 
-export async function completeOnboardingAction(formData: FormData) {
+const MAX_LOGO_SIZE = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+export async function completeOnboardingAction(_: OnboardingActionState, formData: FormData): Promise<OnboardingActionState> {
   const client = await createSupabaseServerClient();
   if (!client) {
     redirect("/login");
@@ -15,12 +21,13 @@ export async function completeOnboardingAction(formData: FormData) {
     redirect("/dashboard");
   }
 
-  const companyName = formData.get("company_name")?.toString().trim();
-  const industry = formData.get("industry")?.toString().trim();
-  const currency = formData.get("currency")?.toString().trim() || "TRY";
-  
-  if (!companyName) {
-    throw new Error("Company name is required");
+  const parsed = onboardingSchema.safeParse({
+    company_name: formData.get("company_name"), industry: formData.get("industry"), currency: formData.get("currency"),
+    phone: formData.get("phone"), city: formData.get("city"), country: formData.get("country"), timezone: formData.get("timezone"),
+  });
+  if (!parsed.success) {
+    const errors = z.flattenError(parsed.error).fieldErrors;
+    return { success: false, message: "Lütfen işaretli alanları kontrol edin.", fieldErrors: Object.fromEntries(Object.entries(errors).map(([key, values]) => [key, values?.[0]])) };
   }
 
   // Handle optional logo upload
@@ -29,6 +36,8 @@ export async function completeOnboardingAction(formData: FormData) {
   let logo_url = workspace.organization.logo_url;
 
   if (logoFile && logoFile.size > 0) {
+    if (logoFile.size > MAX_LOGO_SIZE) return { success: false, message: "Logo yüklenemedi.", fieldErrors: { logo: "Logo en fazla 2 MB olabilir." } };
+    if (!ALLOWED_LOGO_TYPES.has(logoFile.type)) return { success: false, message: "Logo yüklenemedi.", fieldErrors: { logo: "PNG, JPEG veya WebP dosyası seçin." } };
     const extension = logoFile.type === "image/png" ? "png" : logoFile.type === "image/jpeg" ? "jpg" : "webp";
     const path = `organizations/${workspace.organization.id}/logo.${extension}`;
     
@@ -36,62 +45,17 @@ export async function completeOnboardingAction(formData: FormData) {
       .from("workspace-assets")
       .upload(path, logoFile, { contentType: logoFile.type, upsert: true });
       
-    if (!uploadError) {
-      logo_path = path;
-      logo_url = client.storage.from("workspace-assets").getPublicUrl(path).data.publicUrl;
-    }
-  }
-
-  // Handle optional first product
-  const productName = formData.get("product_name")?.toString().trim();
-  const productPrice = parseFloat(formData.get("product_price")?.toString() || "0");
-  if (productName) {
-    await client.from("products").insert({
-      organization_id: workspace.organization.id,
-      name: productName,
-      category: "General",
-      description: "First product",
-      base_price: productPrice,
-      currency: currency,
-      tax_rate: 20,
-      unit: "pcs",
-      active: true,
-      tags: [],
-      features: [],
-      specifications: [],
-      gallery_urls: [],
-    });
-  }
-
-  // Handle optional first lead
-  const leadName = formData.get("lead_name")?.toString().trim();
-  const leadCompany = formData.get("lead_company")?.toString().trim();
-  const leadEmail = formData.get("lead_email")?.toString().trim();
-  if (leadName) {
-    await client.from("leads").insert({
-      organization_id: workspace.organization.id,
-      full_name: leadName,
-      company: leadCompany || "Unknown",
-      email: leadEmail || "",
-      phone: "",
-      city: "",
-      source: "Manual",
-      status: "new",
-      estimated_value: 0,
-      currency: currency,
-      notes: "First lead from onboarding",
-      assigned_to: workspace.userId,
-      created_by: workspace.userId,
-    });
+    if (uploadError) return { success: false, message: "Logo şu anda yüklenemedi. Tekrar deneyin.", fieldErrors: { logo: "Dosya yükleme başarısız." } };
+    logo_path = path;
+    logo_url = client.storage.from("workspace-assets").getPublicUrl(path).data.publicUrl;
   }
 
   // Finalize onboarding by setting onboarding_completed_at
   const { error } = await client
     .from("organizations")
     .update({
-      name: companyName,
-      industry: industry || null,
-      currency: currency,
+      name: parsed.data.company_name, industry: parsed.data.industry || null, currency: parsed.data.currency,
+      phone: parsed.data.phone || null, city: parsed.data.city || null, country: parsed.data.country, timezone: parsed.data.timezone,
       logo_path,
       logo_url,
       onboarding_completed_at: new Date().toISOString(),
@@ -99,8 +63,10 @@ export async function completeOnboardingAction(formData: FormData) {
     .eq("id", workspace.organization.id);
 
   if (error) {
-    throw new Error(error.message);
+    return { success: false, message: "Kurulum kaydedilemedi. Lütfen tekrar deneyin.", fieldErrors: {} };
   }
 
-  redirect("/dashboard?toast=Welcome%20to%20your%20workspace&tone=success");
+  revalidatePath("/dashboard");
+  revalidatePath("/settings");
+  redirect("/dashboard?toast=Çalışma%20alanınız%20hazır&tone=success");
 }

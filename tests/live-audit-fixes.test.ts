@@ -1,0 +1,44 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+async function source(path: string) {
+  return readFile(new URL(`../${path}`, import.meta.url), "utf8");
+}
+
+test("revenue intelligence reads structured signals from the deployed qualification schema", async () => {
+  const code = await source("server/services/revenue-intelligence-v4.ts");
+  assert.match(code, /summary,signals,missing_information/);
+  assert.doesNotMatch(code, /summary,objections,missing_information,product_interest/);
+  assert.match(code, /qualificationSignals\(row\.signals\)/);
+});
+
+test("legacy team route cannot expose hard-coded demo members", async () => {
+  const code = await source("app/(app)/team/page.tsx");
+  assert.match(code, /redirect\("\/settings\/members"\)/);
+  assert.doesNotMatch(code, /getTeamMembers|Selin Kaya/);
+});
+
+test("product form supports validated direct image uploads", async () => {
+  const [form, service, actions] = await Promise.all([
+    source("components/products/product-form.tsx"),
+    source("server/services/products.ts"),
+    source("app/(app)/products/actions.ts"),
+  ]);
+  assert.match(form, /name="main_image_file"/);
+  assert.match(form, /name="gallery_image_files"[\s\S]*multiple/);
+  assert.match(service, /MAX_PRODUCT_IMAGE_SIZE = 5 \* 1024 \* 1024/);
+  assert.match(service, /image\/png[\s\S]*image\/jpeg[\s\S]*image\/webp/);
+  assert.match(actions, /productFormSchema\.parse[\s\S]*await uploadProductImage/);
+});
+
+test("language, lead search and voice provider controls reflect their actual behavior", async () => {
+  const [locale, shell, voice] = await Promise.all([
+    source("components/shared/locale-switcher.tsx"),
+    source("components/layout/app-shell.tsx"),
+    source("app/(app)/settings/integrations/voice/page.tsx"),
+  ]);
+  assert.match(locale, /window\.location\.reload\(\)/);
+  assert.match(shell, /name="search" type="search" required minLength=\{1\}/);
+  assert.match(voice, /value="telnyx">Telnyx \(FlowSales AI Voice\)/);
+});

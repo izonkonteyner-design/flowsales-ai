@@ -191,7 +191,7 @@ export function ProductForm({
   const canEdit = editable;
 
   return (
-    <form action={action} className="space-y-6">
+    <form action={action} encType="multipart/form-data" className="space-y-6">
       <input type="hidden" name="redirect_to" value={redirectTo} />
       {productId ? <input type="hidden" name="product_id" value={productId} /> : null}
       <input type="hidden" name="active" value={state.active ? "true" : "false"} />
@@ -400,10 +400,14 @@ export function ProductForm({
         </div>
       </Section>
 
-      <Section title="Images" description="Main image and gallery URLs without external upload services.">
+      <Section title="Görseller" description="Ürün görsellerini doğrudan yükleyin veya mevcut görsel bağlantılarını kullanın.">
         <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
           <div className="space-y-4">
-            <Field label="Main image URL">
+            <Field label="Ana görsel yükle">
+              <Input name="main_image_file" type="file" accept="image/png,image/jpeg,image/webp" disabled={!canEdit} />
+            </Field>
+            <p className="text-xs text-slate-500">PNG, JPG veya WebP · en fazla 5 MB. Yeni yüklenen dosya kaydedildiğinde ana görsel bağlantısının yerini alır.</p>
+            <Field label="Ana görsel URL'si">
               <Input
                 name="image_url"
                 defaultValue={state.image_url}
@@ -420,7 +424,11 @@ export function ProductForm({
           </div>
 
           <div className="space-y-3">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Gallery URLs</p>
+            <Field label="Galeri görsellerini yükle">
+              <Input name="gallery_image_files" type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={!canEdit} />
+            </Field>
+            <p className="text-xs text-slate-500">Birden fazla dosya seçebilirsiniz. Yüklenen dosyalar URL ile eklenen galeri görsellerine eklenir.</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Galeri URL'leri</p>
             {state.gallery_urls.map((url, index) => (
               <div key={`${index}-${url}`} className="flex items-center gap-3">
                 <Input value={url} placeholder="https://example.com/gallery.jpg" disabled={!canEdit} onChange={(event) => updateGalleryUrl(index, event.target.value)} />

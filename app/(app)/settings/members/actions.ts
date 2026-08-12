@@ -48,7 +48,7 @@ function parseInviteInput(formData: FormData): InviteMemberInput {
   return inviteMemberSchema.parse({
     email: formData.get("email"),
     role: formData.get("role"),
-    next: formData.get("next") ?? undefined,
+    next: formData.get("next"),
   });
 }
 

@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Languages } from "lucide-react";
 
 import type { Locale } from "@/lib/i18n";
 
 export function LocaleSwitcher({ locale }: { locale: Locale }) {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
 
   async function setLocale(nextLocale: Locale) {
@@ -21,7 +19,7 @@ export function LocaleSwitcher({ locale }: { locale: Locale }) {
       });
       if (!response.ok) throw new Error("Locale update failed");
       document.documentElement.lang = nextLocale;
-      router.refresh();
+      window.location.reload();
     } finally {
       setPending(false);
     }

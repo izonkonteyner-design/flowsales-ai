@@ -80,6 +80,14 @@ export type ProductDetailData = {
 const productSelectColumns =
   "id, organization_id, sku, name, category, description, short_description, brand, model, base_price, unit_price, currency, tax_rate, unit, width, length, height, area_m2, weight_kg, material, color, stock_quantity, minimum_order_quantity, lead_time_days, warranty_months, internal_code, barcode, tags, features, specifications, image_url, gallery_urls, featured, notes, active, created_by, created_at, updated_at";
 
+const PRODUCT_ASSET_BUCKET = "workspace-assets";
+const PRODUCT_IMAGE_TYPES = new Map([
+  ["image/png", "png"],
+  ["image/jpeg", "jpg"],
+  ["image/webp", "webp"],
+]);
+const MAX_PRODUCT_IMAGE_SIZE = 5 * 1024 * 1024;
+
 function mapProductRow(product: Product, recordMode: ProductRecordMode): ProductRow {
   const normalized = normalizeProductRecord(product);
 
@@ -235,6 +243,24 @@ function ensureCanManage(context: ProductWorkspaceContext) {
   if (!canManageProducts(context.role)) {
     throw new Error("You do not have permission to manage products.");
   }
+}
+
+export async function uploadProductImage(file: File) {
+  const mutation = await getMutationContext();
+  if (!mutation) throw new Error("Ürün görseli yüklemek için canlı Supabase oturumu gerekir.");
+  ensureCanManage(mutation.context);
+
+  const extension = PRODUCT_IMAGE_TYPES.get(file.type);
+  if (!extension) throw new Error("Ürün görseli PNG, JPG veya WebP formatında olmalıdır.");
+  if (file.size <= 0 || file.size > MAX_PRODUCT_IMAGE_SIZE) throw new Error("Ürün görseli en fazla 5 MB olabilir.");
+
+  const path = `organizations/${mutation.context.organization.id}/products/${crypto.randomUUID()}.${extension}`;
+  const { error } = await mutation.client.storage.from(PRODUCT_ASSET_BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (error) throw new Error(error.message || "Ürün görseli yüklenemedi.");
+  return mutation.client.storage.from(PRODUCT_ASSET_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
 function buildProductPayload(input: ProductMutationInput) {

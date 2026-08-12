@@ -20,7 +20,7 @@ export async function saveVoiceConnectionAction(formData: FormData) {
       publicNumber: text(formData, "publicNumber"),
       carrier: text(formData, "carrier") === "turkcell" ? "turkcell" : "other",
       destinationNumber: text(formData, "destinationNumber"),
-      destinationProvider: text(formData, "destinationProvider") === "netgsm" ? "netgsm" : "other",
+      destinationProvider: (["netgsm", "telnyx", "sip"] as const).find((provider) => provider === text(formData, "destinationProvider")) || "other",
       transferDestination: text(formData, "transferDestination") || null,
       status: formData.get("connected") === "on" ? "connected" : "disconnected",
     });

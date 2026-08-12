@@ -45,6 +45,7 @@ export default async function ProductNewPage({ searchParams }: ProductNewPagePro
           action={createProductAction}
           redirectTo={redirectTo}
           submitLabel="Create product"
+          organizationId={data.context.organization.id}
           editable={data.context.mode === "live" && (data.context.role === "owner" || data.context.role === "admin")}
           restrictionMessage={data.context.mode === "demo"
             ? "Connect live Supabase data before creating or editing products."

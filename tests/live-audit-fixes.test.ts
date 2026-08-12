@@ -83,3 +83,13 @@ test("lead and product actions preserve Next.js redirect control flow", async ()
   assert.match(leads, /unstable_rethrow\(error\)/);
   assert.match(products, /unstable_rethrow\(error\)/);
 });
+
+test("email OAuth routes do not catch successful Next.js redirects", async () => {
+  const [connect, callback] = await Promise.all([
+    source("app/api/integrations/email/[provider]/connect/route.ts"),
+    source("app/api/integrations/email/[provider]/callback/route.ts"),
+  ]);
+  assert.doesNotMatch(connect, /try\s*\{[\s\S]*?redirect\(url\)/);
+  assert.match(connect, /redirect\(authorizationUrl\)/);
+  assert.match(callback, /if \(callbackError\) redirect/);
+});

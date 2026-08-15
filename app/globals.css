@@ -126,27 +126,34 @@
 
   html {
     @apply font-sans;
-    background: #080b16;
+    background-color: var(--background);
+    color: var(--foreground);
   }
 
   body {
     @apply bg-background text-foreground font-sans;
     min-height: 100vh;
+    background-color: var(--background);
     background-image:
-      radial-gradient(circle at 12% 0%, rgba(124, 58, 237, 0.16), transparent 31%),
-      radial-gradient(circle at 88% 4%, rgba(37, 99, 235, 0.12), transparent 28%),
-      linear-gradient(180deg, #090c18 0%, #0b1020 46%, #080b16 100%);
+      radial-gradient(circle at 12% 0%, color-mix(in oklab, var(--primary) 10%, transparent), transparent 31%),
+      radial-gradient(circle at 88% 4%, color-mix(in oklab, var(--accent) 12%, transparent), transparent 28%);
     background-attachment: fixed;
   }
 
   ::selection {
-    background: rgba(139, 92, 246, 0.34);
-    color: white;
+    background: color-mix(in oklab, var(--primary) 34%, transparent);
+    color: var(--primary-foreground);
   }
 
   input,
   select,
   textarea {
+    color-scheme: light;
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
     color-scheme: dark;
   }
 }
@@ -154,24 +161,23 @@
 @layer utilities {
   .premium-surface {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
-      rgba(13, 18, 34, 0.78);
-    border: 1px solid rgba(255, 255, 255, 0.085);
-    box-shadow:
-      0 24px 80px rgba(2, 6, 23, 0.34),
-      inset 0 1px 0 rgba(255, 255, 255, 0.035);
+      linear-gradient(180deg, color-mix(in oklab, var(--card) 96%, white 4%), var(--card)),
+      var(--card);
+    border: 1px solid var(--border);
+    box-shadow: 0 24px 80px color-mix(in oklab, var(--foreground) 12%, transparent), inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent);
     backdrop-filter: blur(18px);
+    color: var(--card-foreground);
   }
 
   .premium-grid {
     background-image:
-      linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+      linear-gradient(color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in oklab, var(--foreground) 3%, transparent) 1px, transparent 1px);
     background-size: 32px 32px;
   }
 
   .premium-gradient-text {
-    background: linear-gradient(90deg, #f8fafc 0%, #c4b5fd 48%, #60a5fa 100%);
+    background: linear-gradient(90deg, var(--foreground) 0%, var(--primary) 48%, var(--accent-foreground) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -180,7 +186,7 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(139, 92, 246, 0.5) rgba(15, 23, 42, 0.35);
+  scrollbar-color: color-mix(in oklab, var(--primary) 50%, transparent) color-mix(in oklab, var(--background) 70%, transparent);
 }
 
 *::-webkit-scrollbar {
@@ -189,13 +195,13 @@
 }
 
 *::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.35);
+  background: color-mix(in oklab, var(--background) 70%, transparent);
 }
 
 *::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(139, 92, 246, 0.72), rgba(59, 130, 246, 0.62));
+  background: linear-gradient(180deg, color-mix(in oklab, var(--primary) 72%, transparent), color-mix(in oklab, var(--accent-foreground) 62%, transparent));
   background-clip: padding-box;
 }
 

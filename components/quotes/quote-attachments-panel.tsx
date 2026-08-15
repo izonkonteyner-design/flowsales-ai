@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ExternalLink, Paperclip, Trash2, Upload } from "lucide-react";
 
 type Attachment = {
@@ -13,6 +13,17 @@ type Attachment = {
   url?: string | null;
 };
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const ALLOWED_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+  "text/plain",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+]);
+
 function formatSize(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -23,26 +34,46 @@ export function QuoteAttachmentsPanel({ quoteId, canMutate }: { quoteId?: string
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function load() {
-    if (!quoteId) return;
-    const response = await fetch(`/api/quotes/${quoteId}/attachments`, { cache: "no-store" });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.error ?? "Ek dosyalar yüklenemedi.");
-    setAttachments(data.attachments ?? []);
-  }
-
-  useEffect(() => {
-    load().catch((err) => setError(err instanceof Error ? err.message : "Ek dosyalar yüklenemedi."));
+  const load = useCallback(async () => {
+    if (!quoteId) {
+      setAttachments([]);
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/quotes/${quoteId}/attachments`, { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error ?? "Ek dosyalar yüklenemedi.");
+      setAttachments(Array.isArray(data.attachments) ? data.attachments : []);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ek dosyalar yüklenemedi.");
+    } finally {
+      setLoading(false);
+    }
   }, [quoteId]);
 
+  useEffect(() => {
+    void load();
+  }, [load]);
+
   async function upload(file: File) {
-    if (!quoteId) return;
-    if (file.size <= 0 || file.size > 10 * 1024 * 1024) {
+    if (!quoteId) {
+      setError("Önce teklifi kaydedin.");
+      return;
+    }
+    if (!ALLOWED_TYPES.has(file.type)) {
+      setError("Bu dosya türü desteklenmiyor. JPG, PNG, WebP, PDF, TXT, DOC veya DOCX yükleyebilirsiniz.");
+      return;
+    }
+    if (file.size <= 0 || file.size > MAX_FILE_SIZE) {
       setError("Dosya boyutu 10 MB veya daha küçük olmalıdır.");
       return;
     }
+
     setBusy(true);
     setError(null);
     try {
@@ -92,7 +123,18 @@ export function QuoteAttachmentsPanel({ quoteId, canMutate }: { quoteId?: string
         </div>
         {canMutate ? (
           <>
-            <input ref={inputRef} type="file" className="hidden" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.currentTarget.value = ""; }} />
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              disabled={busy}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void upload(file);
+                event.currentTarget.value = "";
+              }}
+            />
             <button type="button" onClick={() => inputRef.current?.click()} disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
               <Upload className="h-4 w-4" /> {busy ? "İşleniyor…" : "Dosya ekle"}
             </button>
@@ -100,9 +142,11 @@ export function QuoteAttachmentsPanel({ quoteId, canMutate }: { quoteId?: string
         ) : null}
       </div>
 
-      {error ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">{error}</div> : null}
+      {error ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-200">{error}</div> : null}
 
-      {attachments.length === 0 ? (
+      {loading ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500 dark:border-white/10">Ek dosyalar yükleniyor…</div>
+      ) : attachments.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-500 dark:border-white/10">Henüz ek dosya yok.</div>
       ) : (
         <div className="space-y-2">

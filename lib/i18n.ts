@@ -25,6 +25,13 @@ const common = {
     retry: "Tekrar dene", dashboard: "Kontrol Paneli", back: "Geri", cancel: "İptal", save: "Kaydet", create: "Oluştur",
     edit: "Düzenle", delete: "Sil", close: "Kapat", loading: "Yükleniyor...", noResults: "Sonuç bulunamadı",
     somethingWentWrong: "Bir şeyler ters gitti", unexpectedError: "Beklenmeyen bir hata oluştu.",
+    quoteAiTitle: "Yapay zekâ ile taslak oluştur", quoteAiDescription: "Teklif metnini üretin, ön izleyin ve yalnızca onayladığınız alanlara uygulayın.",
+    quoteAiBadge: "Metin önerisi", quoteAiDisclaimer: "Yapay zekânın oluşturduğu metni kontrol edin. Kaydetmeden önce doğruluğunu siz onaylamalısınız.",
+    quoteAiOpen: "Yapay zekâ ile taslak oluştur", quoteAiDraftTitle: "Taslak oluşturma", quoteAiDraftDescription: "Yapay zekâ yalnızca metin alanlarını günceller; ürün satırları, miktarlar ve toplamlar değişmez.",
+    quoteAiClose: "Yapay zekâ yardımcısını kapat", quoteAiInstruction: "Özel talimat", quoteAiInstructionPlaceholder: "Örn. Daha resmi bir ton kullanın; ödeme ve teslim koşullarını kısa tutun.",
+    quoteAiGenerating: "Oluşturuluyor...", quoteAiGenerate: "Taslak oluştur", quoteAiClearPreview: "Ön izlemeyi temizle", quoteAiPreviewReady: "Ön izleme hazır",
+    quoteAiPreserved: "Ürün satırları ve toplamlar korunur.", quoteAiApply: "Forma uygula", quoteAiPreviewFieldNotes: "Notlar / açıklama", quoteAiPreviewFieldPayment: "Ödeme koşulları", quoteAiPreviewFieldDelivery: "Teslim koşulları", quoteAiPreviewFieldRecommendation: "Dahili öneri",
+    quoteAiReadonly: "Bu kayıt salt okunurdur.", quoteAiReadFormError: "Yapay zekâ taslağı için mevcut form verisi okunamadı.", quoteAiFillForm: "Önce teklif formunu doldurun.", quoteAiFailure: "Yapay zekâ taslağı oluşturulamadı.", quoteAiRetry: "Yapay zekâ taslağı şu anda oluşturulamadı. Lütfen tekrar deneyin.",
   },
   en: {
     workspace: "Workspace", intelligence: "Intelligence", operations: "Operations", settings: "Settings",
@@ -37,6 +44,13 @@ const common = {
     retry: "Retry", dashboard: "Dashboard", back: "Back", cancel: "Cancel", save: "Save", create: "Create",
     edit: "Edit", delete: "Delete", close: "Close", loading: "Loading...", noResults: "No results found",
     somethingWentWrong: "Something went wrong", unexpectedError: "An unexpected error occurred.",
+    quoteAiTitle: "Create a draft with AI", quoteAiDescription: "Generate quote text, preview it, and apply only the fields you approve.",
+    quoteAiBadge: "Text suggestion", quoteAiDisclaimer: "Review AI-generated text. You are responsible for confirming accuracy before saving.",
+    quoteAiOpen: "Create draft with AI", quoteAiDraftTitle: "Draft generation", quoteAiDraftDescription: "AI updates text fields only; product lines, quantities, and totals remain unchanged.",
+    quoteAiClose: "Close AI assistant", quoteAiInstruction: "Custom instruction", quoteAiInstructionPlaceholder: "E.g. Use a more formal tone and keep payment and delivery terms concise.",
+    quoteAiGenerating: "Generating...", quoteAiGenerate: "Create draft", quoteAiClearPreview: "Clear preview", quoteAiPreviewReady: "Preview ready",
+    quoteAiPreserved: "Product lines and totals are preserved.", quoteAiApply: "Apply to form", quoteAiPreviewFieldNotes: "Notes / description", quoteAiPreviewFieldPayment: "Payment terms", quoteAiPreviewFieldDelivery: "Delivery terms", quoteAiPreviewFieldRecommendation: "Internal recommendation",
+    quoteAiReadonly: "This record is read-only.", quoteAiReadFormError: "The current form data could not be read for the AI draft.", quoteAiFillForm: "Fill in the quote form first.", quoteAiFailure: "The AI draft could not be created.", quoteAiRetry: "The AI draft could not be created right now. Please try again.",
   },
 } as const;
 

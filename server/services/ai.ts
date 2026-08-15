@@ -88,10 +88,16 @@ export function getGeminiClient() {
 type GenerateTextOptions = Pick<GenerateContentConfig, "responseMimeType" | "responseSchema" | "temperature" | "seed">;
 
 async function generateWithModel(client: GoogleGenAI, model: string, prompt: string, options?: GenerateTextOptions) {
+  // Gemini 3.x no longer accepts the legacy sampling controls in production.
+  // Keep temperature in the service interface for callers/config compatibility,
+  // but do not send it to the current Generate Content API.
+  const { temperature: _temperature, ...supportedOptions } = options ?? {};
+  void _temperature;
+
   const response = await client.models.generateContent({
     model,
     contents: prompt,
-    config: options,
+    config: supportedOptions,
   });
   const text = response.text?.trim();
   if (!text) throw new Error("Gemini returned an empty response.");

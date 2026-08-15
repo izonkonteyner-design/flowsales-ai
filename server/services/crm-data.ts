@@ -9,7 +9,7 @@ import type {
 import { formatCurrency } from "@/lib/utils";
 
 export const demoOrganization = {
-  id: "org_demo_001",
+  id: "d3e00000-0000-0000-0000-000000000000",
   name: "FlowSales Demo Workspace",
   slug: "flowsales-demo",
   currency: "TRY",

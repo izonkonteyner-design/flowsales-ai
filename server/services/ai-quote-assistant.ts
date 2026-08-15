@@ -49,16 +49,23 @@ function toSafeQuoteAiError(error: unknown): QuoteAiErrorCode {
     return "usage_limit_reached";
   }
 
+  if (error instanceof Error && error.name === "ZodError") {
+    return "validation_error";
+  }
+
   return isTemporaryProviderError(error) ? "temporary_failure" : "temporary_failure";
 }
 
 export async function generateQuoteAiDraft(input: QuoteAiDraftInput, options: GenerateQuoteAiDraftOptions = {}): Promise<QuoteAiDraft> {
-  const normalizedInput = quoteAiDraftInputSchema.parse(input);
-  const prompt = buildQuoteAiDraftPrompt(normalizedInput, {
-    workspacePrompt: options.workspacePrompt,
-  });
-
   try {
+    // Keep input validation inside the service error boundary. Previously a malformed
+    // authoritative product line (for example an empty product name) escaped this
+    // boundary as a raw ZodError and the API converted it into a misleading 502.
+    const normalizedInput = quoteAiDraftInputSchema.parse(input);
+    const prompt = buildQuoteAiDraftPrompt(normalizedInput, {
+      workspacePrompt: options.workspacePrompt,
+    });
+
     const responseText = await generateText(prompt, {
       responseMimeType: "application/json",
       responseSchema: quoteAiDraftResponseJsonSchema,
@@ -70,8 +77,8 @@ export async function generateQuoteAiDraft(input: QuoteAiDraftInput, options: Ge
     logQuoteAiDiagnostic("generateQuoteAiDraft failure", {
       supabaseError: serializeError(error),
       inputSummary: {
-        organizationName: normalizedInput.organization.name,
-        itemCount: normalizedInput.items.length,
+        organizationName: input.organization?.name ?? null,
+        itemCount: Array.isArray(input.items) ? input.items.length : null,
       },
     });
 
@@ -79,6 +86,8 @@ export async function generateQuoteAiDraft(input: QuoteAiDraftInput, options: Ge
       throw createQuoteAiServiceError("ai_not_configured", 503);
     }
 
-    throw createQuoteAiServiceError(toSafeQuoteAiError(error), 502);
+    const errorCode = toSafeQuoteAiError(error);
+    const errorStatus = errorCode === "validation_error" ? 400 : 502;
+    throw createQuoteAiServiceError(errorCode, errorStatus);
   }
 }

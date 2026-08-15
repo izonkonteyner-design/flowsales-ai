@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { saveCallForwardingProfile } from "@/server/services/voice-provider-settings";
 
 function text(formData: FormData, key: string) {
@@ -25,6 +25,8 @@ export async function saveVoiceConnectionAction(formData: FormData) {
       status: formData.get("connected") === "on" ? "connected" : "disconnected",
     });
   } catch (error) {
+    // Preserve Next.js control-flow exceptions if a nested service/action ever redirects.
+    unstable_rethrow(error);
     voiceSettingsRedirect(
       error instanceof Error ? error.message : "Telefon yönlendirme kaydı kaydedilemedi",
       "danger",

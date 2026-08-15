@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { VoiceSalesRepository, finalizeCallIntelligence } from "@/server/services/voice-sales-v1";
 
 export const runtime = "nodejs";
@@ -61,10 +62,11 @@ export async function POST(request: Request) {
   const durationSeconds = Number.parseInt(params.get("CallDuration") || "", 10);
   if (!callSid) return NextResponse.json({ error: "missing_call_sid" }, { status: 400 });
 
-  const repo = new VoiceSalesRepository();
-  const call = await repo.getCallByProviderCallId("twilio", callSid);
+  const admin = createSupabaseAdminClient();
+  const { data: call } = await admin.from("voice_calls").select("*").eq("provider", "twilio").eq("provider_call_id", callSid).maybeSingle();
   if (!call) return NextResponse.json({ ok: true, ignored: "call_not_found" });
 
+  const repo = new VoiceSalesRepository();
   await repo.recordEvent({
     organizationId: call.organization_id,
     callId: call.id,
@@ -113,7 +115,7 @@ export async function POST(request: Request) {
   } else if (["ringing", "in-progress", "answered"].includes(callStatus)) {
     await repo.updateCall(call.id, call.organization_id, {
       state: callStatus === "ringing" ? "ringing" : "speaking",
-      answered_at: callStatus === "ringing" ? undefined : new Date().toISOString(),
+      ...(callStatus === "ringing" ? {} : { answered_at: new Date().toISOString() }),
     });
   }
 

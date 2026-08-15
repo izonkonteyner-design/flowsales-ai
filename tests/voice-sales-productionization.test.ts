@@ -100,3 +100,14 @@ test("Twilio completion callback closes calls, resolves identity and finalizes C
   assert.match(route, /duration_seconds/);
   assert.match(route, /voice_call_events/);
 });
+
+test("Twilio Trial completion callback uses the trial secret and finalizes the same CRM lifecycle", async () => {
+  const route = await source("app/api/webhooks/voice/twilio/trial/status/route.ts");
+  assert.match(route, /TWILIO_TRIAL_WEBHOOK_SECRET/);
+  assert.match(route, /CallStatus/);
+  assert.match(route, /CallDuration/);
+  assert.match(route, /resolveIdentity/);
+  assert.match(route, /finalizeCallIntelligence/);
+  assert.match(route, /phone_ai_qualification/);
+  assert.match(route, /state: \"completed\"/);
+});

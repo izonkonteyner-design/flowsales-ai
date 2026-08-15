@@ -21,6 +21,10 @@ const common = {
     searchPlaceholder: "Potansiyel müşteri ara...", search: "Ara", aiCommand: "Komuta merkezi",
     notifications: "Bildirimler", toggleTheme: "Temayı değiştir", logout: "Çıkış yap", openNavigation: "Menüyü aç",
     closeNavigation: "Menüyü kapat", toggleSidebar: "Kenar çubuğunu değiştir", demoUser: "Demo kullanıcı",
+    errorTitle: "Bir şeyler ters gitti", errorDescription: "Uygulama beklenmeyen bir hatayla karşılaştı. Tekrar deneyebilir veya kontrol paneline dönebilirsiniz.",
+    retry: "Tekrar dene", dashboard: "Kontrol Paneli", back: "Geri", cancel: "İptal", save: "Kaydet", create: "Oluştur",
+    edit: "Düzenle", delete: "Sil", close: "Kapat", loading: "Yükleniyor...", noResults: "Sonuç bulunamadı",
+    somethingWentWrong: "Bir şeyler ters gitti", unexpectedError: "Beklenmeyen bir hata oluştu.",
   },
   en: {
     workspace: "Workspace", intelligence: "Intelligence", operations: "Operations", settings: "Settings",
@@ -29,23 +33,39 @@ const common = {
     searchPlaceholder: "Search leads...", search: "Search", aiCommand: "Command center",
     notifications: "Notifications", toggleTheme: "Toggle theme", logout: "Log out", openNavigation: "Open navigation",
     closeNavigation: "Close navigation", toggleSidebar: "Toggle sidebar", demoUser: "Demo user",
+    errorTitle: "Something went wrong", errorDescription: "The application encountered an unexpected error. You can retry or return to the dashboard.",
+    retry: "Retry", dashboard: "Dashboard", back: "Back", cancel: "Cancel", save: "Save", create: "Create",
+    edit: "Edit", delete: "Delete", close: "Close", loading: "Loading...", noResults: "No results found",
+    somethingWentWrong: "Something went wrong", unexpectedError: "An unexpected error occurred.",
   },
 } as const;
 
 export type CommonTranslationKey = keyof (typeof common)["tr"];
 export function t(locale: Locale, key: CommonTranslationKey): string { return common[locale][key] ?? common.tr[key]; }
 
+const turkishNavigation: Record<string, string> = {
+  Dashboard: "Kontrol Paneli", Inbox: "Gelen Kutusu", "Phone Inbox": "Telefon Gelen Kutusu", Leads: "Potansiyel Müşteriler",
+  Customers: "Müşteriler", Products: "Ürünler", Quotes: "Teklifler", Tasks: "Görevler", Calendar: "Takvim",
+  AI: "Yapay Zekâ", "Sales Operations": "Satış Operasyonları", "Command Center": "Komuta Merkezi", "Sales Analyst": "Satış Analisti",
+  "Growth Control": "Büyüme Kontrolü", "Sales Cockpit": "Satış Kokpiti", "Revenue Intelligence": "Gelir Zekâsı", "AI History": "YZ Geçmişi",
+  Approvals: "Onaylar", Reports: "Raporlar", Operations: "Operasyonlar", Notifications: "Bildirimler", Usage: "Kullanım",
+  Security: "Güvenlik", "Audit Logs": "Denetim Kayıtları", "API Layer": "API Katmanı", API: "API", Integrations: "Entegrasyonlar",
+  Account: "Hesap", Settings: "Ayarlar", Billing: "Faturalandırma", Team: "Ekip", Permissions: "Yetkiler", Upgrade: "Planı Yükselt",
+};
+
+const englishNavigation: Record<string, string> = {
+  Dashboard: "Dashboard", Inbox: "Inbox", "Phone Inbox": "Phone Inbox", Leads: "Leads",
+  Customers: "Customers", Products: "Products", Quotes: "Quotes", Tasks: "Tasks", Calendar: "Calendar",
+  AI: "AI", "Sales Operations": "Sales Operations", "Command Center": "Command Center", "Sales Analyst": "Sales Analyst",
+  "Growth Control": "Growth Control", "Sales Cockpit": "Sales Cockpit", "Revenue Intelligence": "Revenue Intelligence", "AI History": "AI History",
+  Approvals: "Approvals", Reports: "Reports", Operations: "Operations", Notifications: "Notifications", Usage: "Usage",
+  Security: "Security", "Audit Logs": "Audit Logs", "API Layer": "API Layer", API: "API", Integrations: "Integrations",
+  Account: "Account", Settings: "Settings", Billing: "Billing", Team: "Team", Permissions: "Permissions", Upgrade: "Upgrade plan",
+};
+
 export const navigationLabels: Record<Locale, Record<string, string>> = {
-  tr: {
-    Dashboard: "Kontrol Paneli", Inbox: "Gelen Kutusu", "Phone Inbox": "Telefon Gelen Kutusu", Leads: "Potansiyel Müşteriler",
-    Customers: "Müşteriler", Products: "Ürünler", Quotes: "Teklifler", Tasks: "Görevler", Calendar: "Takvim",
-    AI: "Yapay Zekâ", "Sales Operations": "Satış Operasyonları", "Command Center": "Komuta Merkezi", "Sales Analyst": "Satış Analisti",
-    "Growth Control": "Büyüme Kontrolü", "Sales Cockpit": "Satış Kokpiti", "Revenue Intelligence": "Gelir Zekâsı", "AI History": "YZ Geçmişi",
-    Approvals: "Onaylar", Reports: "Raporlar", Operations: "Operasyonlar", Notifications: "Bildirimler", Usage: "Kullanım",
-    Security: "Güvenlik", "Audit Logs": "Denetim Kayıtları", "API Layer": "API Katmanı", API: "API", Integrations: "Entegrasyonlar",
-    Account: "Hesap", Settings: "Ayarlar", Billing: "Faturalandırma", Team: "Ekip", Permissions: "Yetkiler", Upgrade: "Planı Yükselt",
-  },
-  en: {},
+  tr: turkishNavigation,
+  en: englishNavigation,
 };
 
 export function navLabel(locale: Locale, label: string): string { return navigationLabels[locale][label] ?? label; }

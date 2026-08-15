@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { salesQualificationSchema } from "@/server/services/sales-session/domain";
 import { VoiceSalesRepository, finalizeCallIntelligence } from "@/server/services/voice-sales-v1";
 
 export const runtime = "nodejs";
@@ -99,16 +100,30 @@ export async function POST(request: Request) {
       });
 
       if (callStatus === "completed") {
-        const qualification = call.qualification ?? {};
-        await finalizeCallIntelligence({
-          organizationId: call.organization_id,
-          callId: call.id,
-          salesSessionId: call.sales_session_id,
-          leadId,
-          qualification,
-        });
+        const qualification = salesQualificationSchema.parse(call.qualification ?? {});
+        const { data: existingActivity } = leadId
+          ? await admin.from("activities").select("id").eq("organization_id", call.organization_id).eq("lead_id", leadId).eq("type", "phone_ai_qualification").like("detail", `%[Telefon AI ${call.id}]%`).limit(1).maybeSingle()
+          : { data: null };
+        if (!existingActivity) {
+          await finalizeCallIntelligence({
+            organizationId: call.organization_id,
+            callId: call.id,
+            salesSessionId: call.sales_session_id,
+            leadId,
+            qualification,
+          });
+        } else {
+          const scoreResult = (await import("@/server/services/sales-session/phone-lead-score")).scorePhoneQualification(qualification);
+          await repo.updateCall(call.id, call.organization_id, {
+            qualification,
+            lead_score: scoreResult.score,
+            temperature: scoreResult.score >= 70 ? "hot" : scoreResult.score >= 40 ? "warm" : "cold",
+            state: "completed",
+            ended_at: endedAt,
+          });
+        }
         if (Number.isFinite(durationSeconds) && durationSeconds >= 0) {
-          await repo.updateCall(call.id, call.organization_id, { duration_seconds: durationSeconds, ended_at: endedAt });
+          await repo.updateCall(call.id, call.organization_id, { duration_seconds: durationSeconds, ended_at: endedAt, state: "completed" });
         }
       }
     }

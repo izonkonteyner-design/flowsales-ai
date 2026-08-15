@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { FileText, Paperclip, Plus, Save, Sparkles, Trash2, Upload } from "lucide-react";
 
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -17,211 +17,56 @@ import type { QuoteRow } from "@/server/services/quotes";
 import type { CurrencyCode, QuoteDiscountType } from "@/types/crm";
 import type { WorkspaceCompanySettings } from "@/types/settings";
 
-type QuotePartyOption = {
-  id: string;
-  label: string;
-  subtitle: string;
-};
-
-type QuoteProductOption = {
-  id: string;
-  label: string;
-  subtitle: string;
-  sku: string;
-  unit: string;
-  currency: CurrencyCode;
-  unit_price: number;
-  active: boolean;
-};
-
+type QuotePartyOption = { id: string; label: string; subtitle: string };
+type QuoteProductOption = { id: string; label: string; subtitle: string; sku: string; unit: string; currency: CurrencyCode; unit_price: number; active: boolean };
 export type { QuoteProductOption };
+type QuoteFormProps = { mode: "create" | "edit"; action: (formData: FormData) => void; quote?: QuoteRow | null; leadOptions: QuotePartyOption[]; customerOptions: QuotePartyOption[]; productOptions: QuoteProductOption[]; defaultQuoteNumber: string; workspaceSettings: WorkspaceCompanySettings; initialLeadId: string | null; initialCustomerId: string | null; recipientType: "lead" | "customer" | "none"; recipientMessage: string; canMutate: boolean; redirectTo: string; readOnlyMessage?: string };
+type QuoteLineState = { id: string; product_id: string; name: string; description: string; sku: string; quantity: string; unit: string; unit_price: string; currency: CurrencyCode; discount_type: QuoteDiscountType; discount_value: string; tax_rate: string; sort_order: number };
+type QuoteAttachment = { id: string; file_name: string; mime_type: string; file_size_bytes: number; kind: string; created_at: string };
 
-type QuoteFormProps = {
-  mode: "create" | "edit";
-  action: (formData: FormData) => void;
-  quote?: QuoteRow | null;
-  leadOptions: QuotePartyOption[];
-  customerOptions: QuotePartyOption[];
-  productOptions: QuoteProductOption[];
-  defaultQuoteNumber: string;
-  workspaceSettings: WorkspaceCompanySettings;
-  initialLeadId: string | null;
-  initialCustomerId: string | null;
-  recipientType: "lead" | "customer" | "none";
-  recipientMessage: string;
-  canMutate: boolean;
-  redirectTo: string;
-  readOnlyMessage?: string;
-};
+function makeLine(id: string, currency: CurrencyCode, taxRate: number, override: Partial<QuoteLineState> = {}): QuoteLineState { return { id, product_id: "", name: "", description: "", sku: "", quantity: "1", unit: "unit", unit_price: "0", currency, discount_type: "percentage", discount_value: "0", tax_rate: String(taxRate), sort_order: 0, ...override }; }
+function quoteToLine(quote: QuoteRow | null, currency: CurrencyCode, taxRate: number, index: number): QuoteLineState { if (!quote?.items?.[index]) return makeLine(`line-${index + 1}`, currency, taxRate, { sort_order: index }); const item = quote.items[index]; return makeLine(item.id ?? `line-${index + 1}`, (item.currency as CurrencyCode) ?? currency, taxRate, { product_id: item.product_id ?? "", name: item.name ?? item.description ?? "", description: item.description ?? "", sku: item.sku ?? "", quantity: String(item.quantity ?? 1), unit: item.unit ?? "unit", unit_price: String(item.unit_price ?? 0), currency: (item.currency as CurrencyCode) ?? currency, discount_type: (item.discount_type ?? "percentage") as QuoteDiscountType, discount_value: String(item.discount_value ?? 0), tax_rate: String(item.tax_rate ?? taxRate), sort_order: item.sort_order ?? index }); }
+export function buildQuoteLineFromProduct(product: QuoteProductOption, fallbackCurrency: CurrencyCode, taxRateOrId: number | string = 20, id?: string) { const taxRate = typeof taxRateOrId === "number" ? taxRateOrId : 20; const lineId = typeof taxRateOrId === "string" ? taxRateOrId : id ?? product.id; return makeLine(lineId, product.currency ?? fallbackCurrency, taxRate, { product_id: product.id, name: product.label, description: product.subtitle, sku: product.sku, unit: product.unit, unit_price: String(product.unit_price), currency: product.currency ?? fallbackCurrency }); }
+function buildInitialLines(quote: QuoteRow | null, currency: CurrencyCode, taxRate: number) { const count = quote?.items?.length ?? 1; return Array.from({ length: count }, (_, index) => quoteToLine(quote, currency, taxRate, index)); }
+function addDays(value: string, days: number) { const next = new Date(`${value}T00:00:00.000Z`); next.setUTCDate(next.getUTCDate() + days); return next.toISOString().slice(0, 10); }
+function asNumber(value: string) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : 0; }
+function formatBytes(bytes: number) { if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 
-type QuoteLineState = {
-  id: string;
-  product_id: string;
-  name: string;
-  description: string;
-  sku: string;
-  quantity: string;
-  unit: string;
-  unit_price: string;
-  currency: CurrencyCode;
-  discount_type: QuoteDiscountType;
-  discount_value: string;
-  tax_rate: string;
-  sort_order: number;
-};
-
-function makeLine(id: string, currency: CurrencyCode, taxRate: number, override: Partial<QuoteLineState> = {}): QuoteLineState {
-  return {
-    id,
-    product_id: "",
-    name: "",
-    description: "",
-    sku: "",
-    quantity: "1",
-    unit: "unit",
-    unit_price: "0",
-    currency,
-    discount_type: "percentage",
-    discount_value: "0",
-    tax_rate: String(taxRate),
-    sort_order: 0,
-    ...override,
-  };
-}
-
-function quoteToLine(quote: QuoteRow | null, currency: CurrencyCode, taxRate: number, index: number): QuoteLineState {
-  if (!quote?.items?.[index]) {
-    return makeLine(`line-${index + 1}`, currency, taxRate, { sort_order: index });
-  }
-
-  const item = quote.items[index];
-  return makeLine(item.id ?? `line-${index + 1}`, (item.currency as CurrencyCode) ?? currency, taxRate, {
-    product_id: item.product_id ?? "",
-    name: item.name ?? item.description ?? "",
-    description: item.description ?? "",
-    sku: item.sku ?? "",
-    quantity: String(item.quantity ?? 1),
-    unit: item.unit ?? "unit",
-    unit_price: String(item.unit_price ?? 0),
-    currency: (item.currency as CurrencyCode) ?? currency,
-    discount_type: (item.discount_type ?? "percentage") as QuoteDiscountType,
-    discount_value: String(item.discount_value ?? 0),
-    tax_rate: String(item.tax_rate ?? taxRate),
-    sort_order: item.sort_order ?? index,
-  });
-}
-
-export function buildQuoteLineFromProduct(
-  product: QuoteProductOption,
-  fallbackCurrency: CurrencyCode,
-  taxRateOrId: number | string = 20,
-  id?: string,
-) {
-  const taxRate = typeof taxRateOrId === "number" ? taxRateOrId : 20;
-  const lineId = typeof taxRateOrId === "string" ? taxRateOrId : id ?? product.id;
-
-  return makeLine(lineId, product.currency ?? fallbackCurrency, taxRate, {
-    product_id: product.id,
-    name: product.label,
-    description: product.subtitle,
-    sku: product.sku,
-    unit: product.unit,
-    unit_price: String(product.unit_price),
-    currency: product.currency ?? fallbackCurrency,
-  });
-}
-
-function buildInitialLines(quote: QuoteRow | null, currency: CurrencyCode, taxRate: number) {
-  const count = quote?.items?.length ?? 1;
-  return Array.from({ length: count }, (_, index) => quoteToLine(quote, currency, taxRate, index));
-}
-
-function addDays(value: string, days: number) {
-  const next = new Date(`${value}T00:00:00.000Z`);
-  next.setUTCDate(next.getUTCDate() + days);
-  return next.toISOString().slice(0, 10);
-}
-
-function asNumber(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-export function QuoteForm({
-  mode,
-  action,
-  quote,
-  leadOptions,
-  customerOptions,
-  productOptions,
-  defaultQuoteNumber,
-  workspaceSettings,
-  initialLeadId,
-  initialCustomerId,
-  recipientType,
-  recipientMessage,
-  canMutate,
-  redirectTo,
-  readOnlyMessage,
-}: QuoteFormProps) {
+export function QuoteForm({ mode, action, quote, leadOptions, customerOptions, productOptions, defaultQuoteNumber, workspaceSettings, initialLeadId, initialCustomerId, recipientType, recipientMessage, canMutate, redirectTo, readOnlyMessage }: QuoteFormProps) {
   const initialCurrency = (quote?.currency as CurrencyCode) ?? workspaceSettings.default_currency;
   const initialTaxRate = workspaceSettings.default_tax_rate;
   const formRef = useRef<HTMLFormElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [lines, setLines] = useState<QuoteLineState[]>(() => buildInitialLines(quote ?? null, initialCurrency, initialTaxRate));
-  const [textFields, setTextFields] = useState(() => ({
-    notes: quote?.notes ?? workspaceSettings.default_quote_notes ?? "",
-    paymentTerms: quote?.payment_terms ?? workspaceSettings.default_payment_terms ?? "",
-    deliveryTerms: quote?.delivery_terms ?? workspaceSettings.default_delivery_terms ?? "",
-  }));
-
+  const [textFields, setTextFields] = useState(() => ({ notes: quote?.notes ?? workspaceSettings.default_quote_notes ?? "", paymentTerms: quote?.payment_terms ?? workspaceSettings.default_payment_terms ?? "", deliveryTerms: quote?.delivery_terms ?? workspaceSettings.default_delivery_terms ?? "" }));
+  const [attachments, setAttachments] = useState<QuoteAttachment[]>([]);
+  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  const [attachmentError, setAttachmentError] = useState("");
   const productMap = useMemo(() => new Map(productOptions.map((product) => [product.id, product])), [productOptions]);
-  const serializedLines = lines.map((line, index) => ({
-    product_id: line.product_id || null,
-    name: line.name.trim(),
-    description: line.description.trim(),
-    sku: line.sku.trim(),
-    quantity: asNumber(line.quantity),
-    unit: line.unit.trim() || "unit",
-    unit_price: asNumber(line.unit_price),
-    currency: line.currency,
-    discount_type: line.discount_type,
-    discount_value: asNumber(line.discount_value),
-    tax_rate: asNumber(line.tax_rate),
-    sort_order: index,
-  }));
+  const serializedLines = lines.map((line, index) => ({ product_id: line.product_id || null, name: line.name.trim(), description: line.description.trim(), sku: line.sku.trim(), quantity: asNumber(line.quantity), unit: line.unit.trim() || "unit", unit_price: asNumber(line.unit_price), currency: line.currency, discount_type: line.discount_type, discount_value: asNumber(line.discount_value), tax_rate: asNumber(line.tax_rate), sort_order: index }));
+  const totals = calculateNormalizedQuoteTotals(serializedLines, { currency: initialCurrency, shipping_total: asNumber(String(quote?.shipping_total ?? 0)), order_discount_type: (quote?.order_discount_type ?? "percentage") as QuoteDiscountType, order_discount_value: Number(quote?.order_discount_value ?? 0) });
 
-  const totals = calculateNormalizedQuoteTotals(serializedLines, {
-    currency: initialCurrency,
-    shipping_total: asNumber(String(quote?.shipping_total ?? 0)),
-    order_discount_type: (quote?.order_discount_type ?? "percentage") as QuoteDiscountType,
-    order_discount_value: Number(quote?.order_discount_value ?? 0),
-  });
+  useEffect(() => { if (!quote?.id) return; let cancelled = false; fetch(`/api/quotes/${quote.id}/attachments`).then(async (response) => { if (!response.ok) return; const payload = await response.json(); if (!cancelled) setAttachments(payload.attachments ?? []); }).catch(() => undefined); return () => { cancelled = true; }; }, [quote?.id]);
 
-  function updateLine(index: number, changes: Partial<QuoteLineState>) {
-    setLines((current) => current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...changes } : line)));
-  }
+  function updateLine(index: number, changes: Partial<QuoteLineState>) { setLines((current) => current.map((line, lineIndex) => (lineIndex === index ? { ...line, ...changes } : line))); }
+  function addLine() { setLines((current) => [...current, makeLine(`line-${crypto.randomUUID()}`, initialCurrency, initialTaxRate, { sort_order: current.length })]); }
+  function removeLine(index: number) { setLines((current) => (current.length === 1 ? current : current.filter((_, lineIndex) => lineIndex !== index))); }
+  function applyProduct(index: number, productId: string) { const product = productMap.get(productId); if (!product) { updateLine(index, { product_id: "", currency: initialCurrency }); return; } const currentLineId = lines[index]?.id ?? product.id; updateLine(index, buildQuoteLineFromProduct(product, initialCurrency, initialTaxRate, currentLineId)); }
+  function applyAiDraft(draft: { notes: string; paymentTerms: string; deliveryTerms: string }) { setTextFields(() => applyQuoteAiDraftToFormState(draft)); }
 
-  function addLine() {
-    setLines((current) => [...current, makeLine(`line-${crypto.randomUUID()}`, initialCurrency, initialTaxRate, { sort_order: current.length })]);
-  }
-
-  function removeLine(index: number) {
-    setLines((current) => (current.length === 1 ? current : current.filter((_, lineIndex) => lineIndex !== index)));
-  }
-
-  function applyProduct(index: number, productId: string) {
-    const product = productMap.get(productId);
-    if (!product) {
-      updateLine(index, { product_id: "", currency: initialCurrency });
-      return;
-    }
-
-    const currentLineId = lines[index]?.id ?? product.id;
-    updateLine(index, buildQuoteLineFromProduct(product, initialCurrency, initialTaxRate, currentLineId));
-  }
-
-  function applyAiDraft(draft: { notes: string; paymentTerms: string; deliveryTerms: string }) {
-    setTextFields(() => applyQuoteAiDraftToFormState(draft));
+  async function uploadAttachment(file: File) {
+    if (!quote?.id) { setAttachmentError("Önce teklifi kaydedin; ardından dosya ekleyebilirsiniz."); return; }
+    if (file.size <= 0 || file.size > 10 * 1024 * 1024) { setAttachmentError("Dosya 10 MB'dan büyük olamaz."); return; }
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf", "text/plain", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]);
+    if (!allowed.has(file.type)) { setAttachmentError("Bu dosya türü desteklenmiyor."); return; }
+    setAttachmentBusy(true); setAttachmentError("");
+    try {
+      const formData = new FormData(); formData.append("file", file);
+      const response = await fetch(`/api/quotes/${quote.id}/attachments`, { method: "POST", body: formData });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Dosya yüklenemedi.");
+      setAttachments((current) => [payload.attachment, ...current]);
+    } catch (error) { setAttachmentError(error instanceof Error ? error.message : "Dosya yüklenemedi."); } finally { setAttachmentBusy(false); }
   }
 
   const issueDate = quote?.issue_date ?? new Date().toISOString().slice(0, 10);
@@ -229,323 +74,61 @@ export function QuoteForm({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
-      <SectionCard
-        title={mode === "edit" ? "Edit quote" : "New quote"}
-        description="Capture the commercial offer, including manual lines and product-linked pricing."
-      >
-        {!canMutate ? (
-          <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
-            <p className="font-medium">Demo mode is read only.</p>
-            <p className="mt-1">{readOnlyMessage ?? "This record is read-only."}</p>
-            <div className="mt-3">
-              <Link
-                href="/register"
-                className="inline-flex h-9 items-center rounded-xl bg-amber-900 px-4 text-xs font-medium text-amber-50 transition hover:bg-amber-950 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-50"
-              >
-                Create your own account
-              </Link>
-            </div>
-          </div>
-        ) : null}
-
+      <SectionCard title={mode === "edit" ? "Edit quote" : "New quote"} description="Capture the commercial offer, including manual lines and product-linked pricing.">
+        {!canMutate ? <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100"><p className="font-medium">Demo mode is read only.</p><p className="mt-1">{readOnlyMessage ?? "This record is read-only."}</p><div className="mt-3"><Link href="/register" className="inline-flex h-9 items-center rounded-xl bg-amber-900 px-4 text-xs font-medium text-amber-50 transition hover:bg-amber-950 dark:bg-amber-100 dark:text-amber-950 dark:hover:bg-amber-50">Create your own account</Link></div></div> : null}
         <form ref={formRef} action={action} className="space-y-6">
-          <input type="hidden" name="quote_id" value={quote?.id ?? ""} />
-          <input type="hidden" name="redirect_to" value={redirectTo} />
-          <input type="hidden" name="items_json" value={JSON.stringify(serializedLines)} />
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge tone={recipientType === "customer" ? "success" : recipientType === "lead" ? "info" : "neutral"}>
-                {recipientType === "customer" ? "Customer primary" : recipientType === "lead" ? "Lead primary" : "No recipient"}
-              </StatusBadge>
-              <Badge variant="secondary">{recipientMessage}</Badge>
-            </div>
-          </div>
-
+          <input type="hidden" name="quote_id" value={quote?.id ?? ""} /><input type="hidden" name="redirect_to" value={redirectTo} /><input type="hidden" name="items_json" value={JSON.stringify(serializedLines)} />
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"><div className="flex flex-wrap items-center gap-2"><StatusBadge tone={recipientType === "customer" ? "success" : recipientType === "lead" ? "info" : "neutral"}>{recipientType === "customer" ? "Customer primary" : recipientType === "lead" ? "Lead primary" : "No recipient"}</StatusBadge><Badge variant="secondary">{recipientMessage}</Badge></div></div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Lead</span>
-              <Select name="lead_id" defaultValue={quote?.lead_id ?? initialLeadId ?? ""} disabled={!canMutate}>
-                <option value="">Select a lead</option>
-                {leadOptions.map((lead) => (
-                  <option key={lead.id} value={lead.id}>
-                    {lead.label} {lead.subtitle ? `- ${lead.subtitle}` : ""}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Customer</span>
-              <Select name="customer_id" defaultValue={quote?.customer_id ?? initialCustomerId ?? ""} disabled={!canMutate}>
-                <option value="">Select a customer</option>
-                {customerOptions.map((customer) => (
-                  <option key={customer.id} value={customer.id}>
-                    {customer.label} {customer.subtitle ? `· ${customer.subtitle}` : ""}
-                  </option>
-                ))}
-              </Select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Quote number</span>
-              <Input name="quote_number" defaultValue={quote?.quote_number ?? defaultQuoteNumber} disabled={!canMutate} />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Status</span>
-              <Select name="status" defaultValue={quote?.status ?? "draft"} disabled={!canMutate}>
-                <option value="draft">Draft</option>
-                <option value="sent">Sent</option>
-                <option value="viewed">Viewed</option>
-                <option value="accepted">Accepted</option>
-                <option value="rejected">Rejected</option>
-                <option value="expired">Expired</option>
-                <option value="cancelled">Cancelled</option>
-              </Select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Issue date</span>
-              <Input name="issue_date" type="date" defaultValue={issueDate} disabled={!canMutate} />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Valid until</span>
-              <Input name="valid_until" type="date" defaultValue={validUntil} disabled={!canMutate} />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency</span>
-              <Select name="currency" defaultValue={(quote?.currency as CurrencyCode) ?? workspaceSettings.default_currency} disabled={!canMutate}>
-                <option value="TRY">TRY</option>
-                <option value="USD">USD</option>
-                <option value="EUR">EUR</option>
-              </Select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Shipping total</span>
-              <Input name="shipping_total" type="number" step="0.01" min="0" defaultValue={quote?.shipping_total ?? 0} disabled={!canMutate} />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Order discount type</span>
-              <Select name="order_discount_type" defaultValue={quote?.order_discount_type ?? "percentage"} disabled={!canMutate}>
-                <option value="percentage">Percentage</option>
-                <option value="fixed">Fixed amount</option>
-              </Select>
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Order discount value</span>
-              <Input name="order_discount_value" type="number" step="0.01" min="0" defaultValue={quote?.order_discount_value ?? 0} disabled={!canMutate} />
-            </label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Lead</span><Select name="lead_id" defaultValue={quote?.lead_id ?? initialLeadId ?? ""} disabled={!canMutate}><option value="">Select a lead</option>{leadOptions.map((lead) => <option key={lead.id} value={lead.id}>{lead.label} {lead.subtitle ? `- ${lead.subtitle}` : ""}</option>)}</Select></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Customer</span><Select name="customer_id" defaultValue={quote?.customer_id ?? initialCustomerId ?? ""} disabled={!canMutate}><option value="">Select a customer</option>{customerOptions.map((customer) => <option key={customer.id} value={customer.id}>{customer.label} {customer.subtitle ? `· ${customer.subtitle}` : ""}</option>)}</Select></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Quote number</span><Input name="quote_number" defaultValue={quote?.quote_number ?? defaultQuoteNumber} disabled={!canMutate} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Status</span><Select name="status" defaultValue={quote?.status ?? "draft"} disabled={!canMutate}><option value="draft">Draft</option><option value="sent">Sent</option><option value="viewed">Viewed</option><option value="accepted">Accepted</option><option value="rejected">Rejected</option><option value="expired">Expired</option><option value="cancelled">Cancelled</option></Select></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Issue date</span><Input name="issue_date" type="date" defaultValue={issueDate} disabled={!canMutate} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Valid until</span><Input name="valid_until" type="date" defaultValue={validUntil} disabled={!canMutate} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Currency</span><Select name="currency" defaultValue={(quote?.currency as CurrencyCode) ?? workspaceSettings.default_currency} disabled={!canMutate}><option value="TRY">TRY</option><option value="USD">USD</option><option value="EUR">EUR</option></Select></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Shipping total</span><Input name="shipping_total" type="number" step="0.01" min="0" defaultValue={quote?.shipping_total ?? 0} disabled={!canMutate} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Order discount type</span><Select name="order_discount_type" defaultValue={quote?.order_discount_type ?? "percentage"} disabled={!canMutate}><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></Select></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Order discount value</span><Input name="order_discount_value" type="number" step="0.01" min="0" defaultValue={quote?.order_discount_value ?? 0} disabled={!canMutate} /></label>
           </div>
-
           <div className="grid gap-4">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment terms</span>
-              <Textarea
-                name="payment_terms"
-                value={textFields.paymentTerms}
-                onChange={(event) => setTextFields((current) => ({ ...current, paymentTerms: event.target.value }))}
-                disabled={!canMutate}
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Delivery terms</span>
-              <Textarea
-                name="delivery_terms"
-                value={textFields.deliveryTerms}
-                onChange={(event) => setTextFields((current) => ({ ...current, deliveryTerms: event.target.value }))}
-                disabled={!canMutate}
-              />
-            </label>
-
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes</span>
-              <Textarea
-                name="notes"
-                value={textFields.notes}
-                onChange={(event) => setTextFields((current) => ({ ...current, notes: event.target.value }))}
-                disabled={!canMutate}
-              />
-            </label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Payment terms</span><Textarea name="payment_terms" value={textFields.paymentTerms} onChange={(event) => setTextFields((current) => ({ ...current, paymentTerms: event.target.value }))} disabled={!canMutate} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Delivery terms</span><Textarea name="delivery_terms" value={textFields.deliveryTerms} onChange={(event) => setTextFields((current) => ({ ...current, deliveryTerms: event.target.value }))} disabled={!canMutate} /></label>
+            <label className="space-y-2"><span className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes</span><Textarea name="notes" value={textFields.notes} onChange={(event) => setTextFields((current) => ({ ...current, notes: event.target.value }))} disabled={!canMutate} /></label>
           </div>
 
-          <QuoteAiAssistant
-            formRef={formRef}
-            canMutate={canMutate}
-            readOnlyMessage={readOnlyMessage}
-            onApplyDraft={applyAiDraft}
-          />
+          <QuoteAiAssistant formRef={formRef} canMutate={canMutate} readOnlyMessage={readOnlyMessage} onApplyDraft={applyAiDraft} />
 
-          <div className="space-y-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-950 dark:text-white">Line items</h3>
-                <p className="mt-1 text-sm text-slate-500">Mix product-linked rows with manual lines.</p>
+          <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="flex items-start justify-between gap-4"><div><h3 className="text-base font-semibold text-slate-950 dark:text-white">Quote attachments</h3><p className="mt-1 text-sm text-slate-500">Add logo-free supporting documents, catalogs or technical files to this quote.</p></div><Paperclip className="mt-1 h-5 w-5 text-slate-500" /></div>
+            <input ref={attachmentInputRef} type="file" className="hidden" accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={!canMutate || !quote?.id || attachmentBusy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadAttachment(file); event.currentTarget.value = ""; }} />
+            <button type="button" onClick={() => attachmentInputRef.current?.click()} disabled={!canMutate || !quote?.id || attachmentBusy} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"><Upload className="h-4 w-4" />{attachmentBusy ? "Uploading..." : "Choose a file"}</button>
+            {!quote?.id ? <p className="text-xs text-slate-500">Save the quote first, then you can attach files.</p> : null}
+            {attachmentError ? <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">{attachmentError}</p> : null}
+            {attachments.length > 0 ? <div className="space-y-2">{attachments.map((attachment) => <div key={attachment.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 px-3 py-3 dark:border-white/10"><div className="flex min-w-0 items-center gap-3"><FileText className="h-4 w-4 shrink-0 text-slate-500" /><div className="min-w-0"><p className="truncate text-sm font-medium text-slate-900 dark:text-white">{attachment.file_name}</p><p className="text-xs text-slate-500">{formatBytes(attachment.file_size_bytes)} · {attachment.kind}</p></div></div></div>)}</div> : <p className="text-sm text-slate-500">No attachments yet.</p>}
+          </section>
+
+          <div className="space-y-4"><div className="flex items-center justify-between gap-3"><div><h3 className="text-base font-semibold text-slate-950 dark:text-white">Line items</h3><p className="mt-1 text-sm text-slate-500">Mix product-linked rows with manual lines.</p></div><button type="button" onClick={addLine} disabled={!canMutate} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"><Plus className="h-4 w-4" />Add line</button></div>
+            <div className="space-y-4">{lines.map((line, index) => <div key={line.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><StatusBadge tone="neutral">Line {index + 1}</StatusBadge>{line.product_id ? <Badge variant="secondary">Product linked</Badge> : <Badge variant="secondary">Manual line</Badge>}</div><button type="button" onClick={() => removeLine(index)} disabled={!canMutate || lines.length === 1} className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"><Trash2 className="h-4 w-4" />Remove</button></div>
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Product</span><Select value={line.product_id} onChange={(event) => applyProduct(index, event.target.value)} disabled={!canMutate}><option value="">Manual line</option>{productOptions.map((product) => <option key={product.id} value={product.id}>{product.label} {product.sku ? `- ${product.sku}` : ""}</option>)}</Select></label>
+                <label className="space-y-2 lg:col-span-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Name</span><Input value={line.name} onChange={(event) => updateLine(index, { name: event.target.value })} disabled={!canMutate} /></label>
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">SKU</span><Input value={line.sku} onChange={(event) => updateLine(index, { sku: event.target.value })} disabled={!canMutate} /></label>
+                <label className="space-y-2 lg:col-span-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Description</span><Input value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} disabled={!canMutate} /></label>
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Unit</span><Input value={line.unit} onChange={(event) => updateLine(index, { unit: event.target.value })} disabled={!canMutate} /></label>
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Quantity</span><Input type="number" step="0.01" min="0" value={line.quantity} onChange={(event) => updateLine(index, { quantity: event.target.value })} disabled={!canMutate} /></label>
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Unit price</span><Input type="number" step="0.01" min="0" value={line.unit_price} onChange={(event) => updateLine(index, { unit_price: event.target.value })} disabled={!canMutate} /></label>
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Discount type</span><Select value={line.discount_type} onChange={(event) => updateLine(index, { discount_type: event.target.value as QuoteDiscountType })} disabled={!canMutate}><option value="percentage">Percentage</option><option value="fixed">Fixed amount</option></Select></label>
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Discount value</span><Input type="number" step="0.01" min="0" value={line.discount_value} onChange={(event) => updateLine(index, { discount_value: event.target.value })} disabled={!canMutate} /></label>
+                <label className="space-y-2"><span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Tax rate</span><Input type="number" step="0.01" min="0" max="100" value={line.tax_rate} onChange={(event) => updateLine(index, { tax_rate: event.target.value })} disabled={!canMutate} /></label>
               </div>
-              <button
-                type="button"
-                onClick={addLine}
-                disabled={!canMutate}
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-              >
-                <Plus className="h-4 w-4" />
-                Add line
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              {lines.map((line, index) => (
-                <div key={line.id} className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <StatusBadge tone="neutral">Line {index + 1}</StatusBadge>
-                      {line.product_id ? (
-                        <Badge key="product-linked" variant="secondary">Product linked</Badge>
-                      ) : (
-                        <Badge key="manual-line" variant="secondary">Manual line</Badge>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeLine(index)}
-                      disabled={!canMutate || lines.length === 1}
-                      className="inline-flex h-9 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Remove
-                    </button>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                    <label className="space-y-2 lg:col-span-1">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Product</span>
-                      <Select
-                        value={line.product_id}
-                        onChange={(event) => applyProduct(index, event.target.value)}
-                        disabled={!canMutate}
-                      >
-                        <option value="">Manual line</option>
-                        {productOptions.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.label} {product.sku ? `- ${product.sku}` : ""}
-                          </option>
-                        ))}
-                      </Select>
-                    </label>
-
-                    <label className="space-y-2 lg:col-span-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Name</span>
-                      <Input value={line.name} onChange={(event) => updateLine(index, { name: event.target.value })} disabled={!canMutate} />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">SKU</span>
-                      <Input value={line.sku} onChange={(event) => updateLine(index, { sku: event.target.value })} disabled={!canMutate} />
-                    </label>
-
-                    <label className="space-y-2 lg:col-span-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Description</span>
-                      <Input value={line.description} onChange={(event) => updateLine(index, { description: event.target.value })} disabled={!canMutate} />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Unit</span>
-                      <Input value={line.unit} onChange={(event) => updateLine(index, { unit: event.target.value })} disabled={!canMutate} />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Quantity</span>
-                      <Input type="number" step="0.01" min="0" value={line.quantity} onChange={(event) => updateLine(index, { quantity: event.target.value })} disabled={!canMutate} />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Unit price</span>
-                      <Input type="number" step="0.01" min="0" value={line.unit_price} onChange={(event) => updateLine(index, { unit_price: event.target.value })} disabled={!canMutate} />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Discount type</span>
-                      <Select value={line.discount_type} onChange={(event) => updateLine(index, { discount_type: event.target.value as QuoteDiscountType })} disabled={!canMutate}>
-                        <option value="percentage">Percentage</option>
-                        <option value="fixed">Fixed amount</option>
-                      </Select>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Discount value</span>
-                      <Input type="number" step="0.01" min="0" value={line.discount_value} onChange={(event) => updateLine(index, { discount_value: event.target.value })} disabled={!canMutate} />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className="text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Tax rate</span>
-                      <Input type="number" step="0.01" min="0" max="100" value={line.tax_rate} onChange={(event) => updateLine(index, { tax_rate: event.target.value })} disabled={!canMutate} />
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
+            </div>)}</div>
           </div>
-
-          <div className="flex items-center justify-end gap-3">
-            <button
-              type="submit"
-              disabled={!canMutate}
-              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-950"
-            >
-              <Save className="h-4 w-4" />
-              {mode === "edit" ? "Save quote" : "Create quote"}
-            </button>
-          </div>
+          <div className="flex items-center justify-end gap-3"><button type="submit" disabled={!canMutate} className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-white dark:text-slate-950"><Save className="h-4 w-4" />{mode === "edit" ? "Save quote" : "Create quote"}</button></div>
         </form>
       </SectionCard>
-
-      <SectionCard title="Summary" description="Calculated from the current line-item model.">
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-            <p className="text-sm text-slate-500">Total status</p>
-            <div className="mt-2 flex items-center gap-2">
-              <StatusBadge tone={quote?.recordMode === "demo" ? "neutral" : "success"}>
-                {quote?.record_badge.label ?? "Draft"}
-              </StatusBadge>
-              <Badge variant="secondary">{quote?.follow_up_state.label ?? "Scheduled"}</Badge>
-            </div>
-          </div>
-
-          <div className="space-y-3 text-sm">
-            <Row label="Subtotal" value={formatCurrency(totals.subtotal, initialCurrency)} />
-            <Row label="Line discounts" value={formatCurrency(totals.line_discount_total, initialCurrency)} />
-            <Row label="Order discount" value={formatCurrency(totals.order_discount_total, initialCurrency)} />
-            <Row label="Shipping" value={formatCurrency(totals.shipping_total, initialCurrency)} />
-            <Row label="Tax" value={formatCurrency(totals.tax_total, initialCurrency)} />
-            <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-semibold text-slate-950 dark:border-white/10 dark:text-white">
-              <span>Grand total</span>
-              <span>{formatCurrency(totals.grand_total, initialCurrency)}</span>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
-            <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              Product-linked lines can be edited manually without breaking the quote snapshot.
-            </div>
-          </div>
-        </div>
-      </SectionCard>
+      <SectionCard title="Summary" description="Calculated from the current line-item model."><div className="space-y-4"><div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5"><p className="text-sm text-slate-500">Total status</p><div className="mt-2 flex items-center gap-2"><StatusBadge tone={quote?.recordMode === "demo" ? "neutral" : "success"}>{quote?.record_badge.label ?? "Draft"}</StatusBadge><Badge variant="secondary">{quote?.follow_up_state.label ?? "Scheduled"}</Badge></div></div><div className="space-y-3 text-sm"><Row label="Subtotal" value={formatCurrency(totals.subtotal, initialCurrency)} /><Row label="Line discounts" value={formatCurrency(totals.line_discount_total, initialCurrency)} /><Row label="Order discount" value={formatCurrency(totals.order_discount_total, initialCurrency)} /><Row label="Shipping" value={formatCurrency(totals.shipping_total, initialCurrency)} /><Row label="Tax" value={formatCurrency(totals.tax_total, initialCurrency)} /><div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-semibold text-slate-950 dark:border-white/10 dark:text-white"><span>Grand total</span><span>{formatCurrency(totals.grand_total, initialCurrency)}</span></div></div><div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"><div className="flex items-center gap-2"><Sparkles className="h-4 w-4" />Product-linked lines can be edited manually without breaking the quote snapshot.</div></div></div></SectionCard>
     </div>
   );
 }
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-950 dark:text-white">{value}</span>
-    </div>
-  );
-}
+function Row({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between"><span className="text-slate-500">{label}</span><span className="font-medium text-slate-950 dark:text-white">{value}</span></div>; }

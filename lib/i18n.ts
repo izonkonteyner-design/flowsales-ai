@@ -8,6 +8,12 @@ export function normalizeLocale(value: string | null | undefined): Locale {
   return value === "en" ? "en" : "tr";
 }
 
+export function getClientLocale(): Locale {
+  if (typeof document === "undefined") return DEFAULT_LOCALE;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${LOCALE_COOKIE}=([^;]*)`));
+  return normalizeLocale(match?.[1]);
+}
+
 export const localeMeta: Record<Locale, { label: string; intl: string; currency: string }> = {
   tr: { label: "Türkçe", intl: "tr-TR", currency: "TRY" },
   en: { label: "English", intl: "en-US", currency: "TRY" },

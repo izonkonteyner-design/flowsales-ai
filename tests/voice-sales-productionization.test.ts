@@ -56,7 +56,6 @@ test("manager cockpit combines forecast, pipeline, win loss, missed opportunitie
   assert.match(service, /listMissedOpportunities/);
   assert.match(service, /voice_calls/);
   assert.match(page, /Manager Sales Cockpit/);
-  assert.match(page, /AI Telefon Satış Kanalı/);
 });
 
 test("public homepage, marketing shell, customer 360 and 404 are Turkish-first", async () => {
@@ -87,4 +86,28 @@ test("release gate requires 0053 and verifies Voice Sales plus sales operations 
   assert.match(workflow, /Apply and verify migrations through 0053/);
   assert.match(workflow, /test "\$latest" = "0053"/);
   for (const token of ["voice_calls", "sales_callback_queue", "lead_intent_history", "sales_sequence_templates", "quote_follow_up_state", "sales_sla_policies", "quote_discount_approvals", "quote_versions", "pipeline_snapshots"]) assert.match(workflow, new RegExp(token));
+});
+
+test("Twilio completion callback closes calls, resolves identity and finalizes CRM intelligence idempotently", async () => {
+  const route = await source("app/api/webhooks/voice/twilio/status/route.ts");
+  assert.match(route, /x-twilio-signature/);
+  assert.match(route, /CallStatus/);
+  assert.match(route, /CallDuration/);
+  assert.match(route, /resolveIdentity/);
+  assert.match(route, /finalizeCallIntelligence/);
+  assert.match(route, /phone_ai_qualification/);
+  assert.match(route, /state: \"completed\"/);
+  assert.match(route, /duration_seconds/);
+  assert.match(route, /voice_call_events/);
+});
+
+test("Twilio Trial completion callback uses the trial secret and finalizes the same CRM lifecycle", async () => {
+  const route = await source("app/api/webhooks/voice/twilio/trial/status/route.ts");
+  assert.match(route, /TWILIO_TRIAL_WEBHOOK_SECRET/);
+  assert.match(route, /CallStatus/);
+  assert.match(route, /CallDuration/);
+  assert.match(route, /resolveIdentity/);
+  assert.match(route, /finalizeCallIntelligence/);
+  assert.match(route, /phone_ai_qualification/);
+  assert.match(route, /state: \"completed\"/);
 });

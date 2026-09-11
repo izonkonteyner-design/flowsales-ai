@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { CURRENCY_CODES } from "@/lib/constants";
-import type { CurrencyCode } from "@/types/crm";
+import type { Activity, CurrencyCode, Lead, Organization, Task } from "@/types/crm";
 
 const agentCurrencies = CURRENCY_CODES.map((c) => c.value) as [
   CurrencyCode,
@@ -212,3 +212,243 @@ export const aiSalesRecommendationResponseJsonSchema = {
 /** Currency normalize helper re-exported for the prompt builder. */
 export { agentCurrencies };
 export type AgentCurrency = CurrencyCode;
+
+// ---------------------------------------------------------------------------
+// Prompt builder + output parser (testable, server-only-free).
+//
+// Kept here rather than `server/services/ai-sales-agent.ts` so unit tests can
+// import the prompt builder and parser without pulling the `"server-only"`
+// guard. The server service re-exports these via `generateAiSalesAgentRecommendation`.
+// ---------------------------------------------------------------------------
+
+/**
+ * Slim projection of a related quote used to seed the prompt. Defined locally
+ * so the prompt builder doesn't pull `server/services/*` (this file is
+ * imported by client components and unit tests). Mirrors `RelatedQuoteSummary`
+ * from `server/services/crm-integration`.
+ */
+type RelatedQuoteSummaryInput = {
+  id: string;
+  quote_number: string;
+  status: string;
+  issue_date: string;
+  currency: CurrencyCode;
+  grand_total: number;
+  total: number;
+  lead_id: string | null;
+  customer_id: string | null;
+};
+
+export type AiSalesAgentLeadInput = {
+  lead: Pick<
+    Lead,
+    | "id"
+    | "full_name"
+    | "company"
+    | "email"
+    | "phone"
+    | "city"
+    | "source"
+    | "status"
+    | "estimated_value"
+    | "currency"
+    | "notes"
+    | "next_follow_up_at"
+    | "created_at"
+  >;
+  tasks: Task[];
+  activities: Activity[];
+  relatedQuotes: RelatedQuoteSummaryInput[];
+  organization: Pick<Organization, "name" | "city" | "default_payment_terms" | "default_delivery_terms">;
+  availableProducts: {
+    id: string;
+    name: string;
+    sku: string | null;
+    unit: string | null;
+    currency: CurrencyCode;
+    unit_price: number | null;
+    base_price: number | null;
+  }[];
+};
+
+export type AiSalesAgentOptions = {
+  temperature?: number;
+  workspacePrompt?: string | null;
+};
+
+export type AiSalesAgentErrorCode =
+  | "ai_not_configured"
+  | "unauthorized"
+  | "workspace_access_error"
+  | "usage_limit_reached"
+  | "validation_error"
+  | "concurrent_request"
+  | "temporary_failure"
+  | "invalid_output";
+
+export const aiSalesAgentErrorMessages: Record<AiSalesAgentErrorCode, string> = {
+  ai_not_configured: "AI is not configured. Set the required environment variables to enable the sales agent.",
+  unauthorized: "You must be signed in to run the AI Sales Agent.",
+  workspace_access_error: "We couldn't verify access to this lead in your workspace.",
+  usage_limit_reached: "You've reached your AI run budget for this billing cycle.",
+  validation_error: "That request didn't pass validation. Please review and try again.",
+  concurrent_request: "An analysis for this lead is already in flight.",
+  temporary_failure: "The AI service is temporarily unavailable. Please try again.",
+  invalid_output: "The AI returned an unexpected response that couldn't be validated.",
+};
+
+export function getAiSalesAgentPublicErrorMessage(code: AiSalesAgentErrorCode): string {
+  return aiSalesAgentErrorMessages[code];
+}
+
+export class AiSalesAgentServiceError extends Error {
+  code: AiSalesAgentErrorCode;
+  status: number;
+  constructor(code: AiSalesAgentErrorCode, status: number) {
+    super(getAiSalesAgentPublicErrorMessage(code));
+    this.name = "AiSalesAgentServiceError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+function asOptionalString(value: string | null | undefined): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function formatCurrency(value: number, currency: string): string {
+  return `${Number(value).toLocaleString("en-US", { maximumFractionDigits: 2 })} ${currency}`;
+}
+
+/**
+ * Build the prompt. We deliberately feed ONLY workspace-authoritative data:
+ * the lead row + tasks + activities + the related-quote history + the
+ * authorized product catalog. The model must NOT invent ids/prices — those
+ * constraints are repeated in the prompt and enforced again by Zod.
+ */
+export function buildAiSalesAgentPrompt(input: AiSalesAgentLeadInput, options: AiSalesAgentOptions = {}): string {
+  const { lead, tasks, activities, relatedQuotes, organization, availableProducts } = input;
+
+  const lines: string[] = [];
+  lines.push("You are FlowSales AI, a senior sales assistant embedded in a CRM.");
+  lines.push("Analyze the lead below and return a STRICT JSON recommendation.");
+  lines.push("");
+  lines.push("Hard rules:");
+  lines.push("- Never invent prices: only quote `quoteSuggestion.items.unitPrice` values that are justified from the catalog or the lead's prior quotes.");
+  lines.push("- `recommendedProducts[].productId` and `quoteSuggestion.items[].productId` MUST be one of the catalog product ids listed below.");
+  lines.push("- `leadScore` is a 0-100 number with higher = more likely to convert.");
+  lines.push("- `priority` must be one of: low, medium, high, urgent.");
+  lines.push("- `nextBestAction.description` should be a concrete, bounded next step in <= 600 chars.");
+  lines.push("- If no follow-up is appropriate, omit `followUpDraft`. If no products are relevant, omit `recommendedProducts`. If no quote is justified, omit `quoteSuggestion`.");
+  lines.push("- Output JSON only. No markdown, no commentary.");
+  lines.push("");
+
+  if (options.workspacePrompt && options.workspacePrompt.trim()) {
+    lines.push("Workspace system prompt (organization-specific guidance):");
+    lines.push(options.workspacePrompt.trim());
+    lines.push("");
+  }
+
+  lines.push(`Organization: ${organization.name}${organization.city ? ` (${organization.city})` : ""}`);
+  if (organization.default_payment_terms || organization.default_delivery_terms) {
+    lines.push(
+      `Terms: payment=${organization.default_payment_terms ?? "n/a"}, delivery=${organization.default_delivery_terms ?? "n/a"}`,
+    );
+  }
+  lines.push("");
+
+  lines.push("Lead:");
+  lines.push(`- id: ${lead.id}`);
+  lines.push(`- name: ${lead.full_name}`);
+  lines.push(`- company: ${lead.company || "n/a"}`);
+  lines.push(`- email: ${lead.email || "n/a"}`);
+  lines.push(`- phone: ${lead.phone || "n/a"}`);
+  lines.push(`- city: ${lead.city || "n/a"}`);
+  lines.push(`- source: ${lead.source}`);
+  lines.push(`- stage: ${lead.status}`);
+  lines.push(`- estimated_value: ${formatCurrency(lead.estimated_value, lead.currency)}`);
+  lines.push(`- next_follow_up_at: ${asOptionalString(lead.next_follow_up_at) ?? "none"}`);
+  lines.push(`- created_at: ${lead.created_at}`);
+  lines.push(`- notes: ${lead.notes?.trim() ? lead.notes.trim() : "none"}`);
+  lines.push("");
+
+  if (tasks.length > 0) {
+    lines.push("Open / recent tasks:");
+    for (const task of tasks.slice(0, 10)) {
+      lines.push(`- [${task.status}] ${task.title} (due ${task.due_at}, priority ${task.priority})`);
+    }
+    lines.push("");
+  }
+
+  if (activities.length > 0) {
+    lines.push("Recent activity (newest first):");
+    for (const activity of activities.slice(0, 12)) {
+      lines.push(`- ${activity.title}${activity.detail ? ` — ${activity.detail}` : ""}`);
+    }
+    lines.push("");
+  }
+
+  if (relatedQuotes.length > 0) {
+    lines.push("Related quotes:");
+    for (const quote of relatedQuotes.slice(0, 10)) {
+      lines.push(
+        `- ${quote.quote_number} [${quote.status}] ${formatCurrency(quote.grand_total ?? quote.total, quote.currency)} issued ${quote.issue_date}`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (availableProducts.length > 0) {
+    lines.push("Authorized catalog (use these product ids only):");
+    for (const product of availableProducts.slice(0, 40)) {
+      const price = product.unit_price ?? product.base_price;
+      lines.push(
+        `- id=${product.id} | ${product.name}${product.sku ? ` (sku ${product.sku})` : ""} | unit=${product.unit ?? "n/a"} | price=${price != null ? formatCurrency(price, product.currency) : "n/a"}`,
+      );
+    }
+    lines.push("");
+  } else {
+    lines.push("Authorized catalog: (empty — do not recommend products or quote suggestions).");
+    lines.push("");
+  }
+
+  lines.push("Return JSON matching this shape:");
+  lines.push("{");
+  lines.push("  \"summary\": string (<=1200 chars),");
+  lines.push("  \"leadScore\": number 0-100,");
+  lines.push("  \"priority\": \"low\" | \"medium\" | \"high\" | \"urgent\",");
+  lines.push("  \"reasoning\": string[] (1-8 items, each <=280 chars),");
+  lines.push("  \"nextBestAction\": { \"type\": string (<=80), \"description\": string (<=600), \"dueAt\"?: string|null },");
+  lines.push("  \"followUpDraft\"?: { \"subject\"?: string|null, \"message\": string (<=4000), \"channel\": \"email\"|\"whatsapp\"|\"phone\"|\"internal\" },");
+  lines.push("  \"recommendedProducts\"?: { \"productId\": string, \"reason\": string (<=280), \"quantity\"?: number }[] (<=8),");
+  lines.push("  \"quoteSuggestion\"?: { \"customerId\"?: string|null, \"leadId\"?: string|null, \"items\": { \"productId\": string, \"quantity\": number>0, \"unitPrice\": number>=0 }[] (1-12), \"discount\"?: number, \"tax\"?: number, \"validityDays\"?: number, \"notes\"?: string|null }");
+  lines.push("}");
+
+  return lines.join("\n");
+}
+
+/**
+ * Parse a raw Gemini response string into a validated `AISalesRecommendation`.
+ * Throws `AiSalesAgentServiceError("invalid_output")` on schema failure so
+ * the caller can mark the run as failed WITHOUT leaking the raw model output.
+ */
+export function parseAiSalesAgentResponse(responseText: string): AISalesRecommendation {
+  const trimmed = responseText?.trim();
+  if (!trimmed) {
+    throw new AiSalesAgentServiceError("invalid_output", 502);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    throw new AiSalesAgentServiceError("invalid_output", 502);
+  }
+
+  const result = aiSalesRecommendationSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new AiSalesAgentServiceError("invalid_output", 502);
+  }
+
+  return result.data;
+}

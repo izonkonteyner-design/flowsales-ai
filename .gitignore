@@ -45,3 +45,14 @@ output.txt
 test-results/
 playwright-report/
 
+# local diagnostics
+*.log
+audit-output.json
+dev-*.log
+
+# build/typecheck scratch output (generated during audits)
+typecheck.log
+build.log
+lint.log
+.eslintcache
+

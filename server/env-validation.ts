@@ -8,7 +8,7 @@ export const serverEnvSchema = z.object({
   
   // Optional: Gemini
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash").optional(),
+  GEMINI_MODEL: z.string().default("gemini-3.1-flash-lite").optional(),
 
   // Feature-specific: Demo Mode
   DEMO_USER_EMAIL: z.string().email().optional(),

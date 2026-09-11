@@ -3,6 +3,11 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  turbopack: {
+    // Pin the workspace root so Next does not mis-detect it from adjacent
+    // lockfiles (e.g. a stray package-lock.json in the user home directory).
+    root: process.cwd(),
+  },
 };
 
 export default withSentryConfig(nextConfig, {

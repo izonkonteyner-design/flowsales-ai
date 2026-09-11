@@ -61,8 +61,7 @@ test("aiSalesRecommendationSchema rejects out-of-range leadScore", () => {
 });
 
 test("aiSalesRecommendationSchema rejects invalid priority enum", () => {
-  const bad = baseValid();
-  bad.priority = "critical";
+  const bad = { ...baseValid(), priority: "critical" };
   assert.throws(() => aiSalesRecommendationSchema.parse(bad));
 });
 
@@ -101,7 +100,7 @@ function baseValid(): AISalesRecommendation {
     priority: "high",
     reasoning: ["Stage qualified"],
     nextBestAction: { type: "call", description: "Call back tomorrow." },
-  };
+  } as AISalesRecommendation;
 }
 
 // ---------------------------------------------------------------------------

@@ -31,6 +31,7 @@ alter table public.social_oauth_states enable row level security;
 create policy social_oauth_owner on public.social_oauth_states for all to authenticated
 using (auth.uid() = user_id and public.has_org_role(organization_id, array['owner','admin']) and not public.is_demo_organization(organization_id))
 with check (auth.uid() = user_id and public.has_org_role(organization_id, array['owner','admin']) and not public.is_demo_organization(organization_id));
+revoke all on public.social_oauth_states from anon, authenticated;
 grant select, insert, delete on public.social_oauth_states to authenticated;
 
 insert into storage.buckets(id, name, public, file_size_limit, allowed_mime_types)
@@ -50,3 +51,7 @@ alter table public.social_media_accounts add column if not exists refresh_encryp
 revoke all on public.social_media_posts from anon;
 revoke insert, update, delete on public.social_media_posts from authenticated;
 grant select on public.social_media_posts to authenticated;
+
+insert into public.deployment_migrations(version, name)
+values ('0058', 'social_access_and_storage')
+on conflict(version) do update set name = excluded.name;

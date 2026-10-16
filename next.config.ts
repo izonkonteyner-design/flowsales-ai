@@ -1,8 +1,10 @@
+import { isReadOnlyRepairPreview } from "./lib/preview-safety";
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 // Deployment refresh marker: reload current Production environment values.
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_REPAIR_PREVIEW: isReadOnlyRepairPreview(process.env) ? "true" : "false" },
   turbopack: { root: process.cwd() },
   experimental: {
     // Product forms upload images directly to Supabase Storage, but the

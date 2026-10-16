@@ -325,10 +325,12 @@ create table if not exists public.conversation_participants (
   channel_contact_id uuid       references public.channel_contacts(id) on delete set null,
   joined_at         timestamptz not null default now(),
   left_at           timestamptz,
-  created_at        timestamptz not null default now(),
-  constraint conversation_participants_unique
-    unique (conversation_id, participant_type, coalesce(user_id::text, ''), coalesce(channel_contact_id::text, ''))
+  created_at        timestamptz not null default now()
 );
+
+-- Expressions belong in an index, not a table UNIQUE constraint.
+create unique index if not exists conversation_participants_unique
+  on public.conversation_participants (conversation_id, participant_type, (coalesce(user_id::text, '')), (coalesce(channel_contact_id::text, '')));
 
 alter table public.conversation_participants enable row level security;
 
@@ -481,11 +483,11 @@ create table if not exists public.message_delivery_events (
   external_event_id text,
   event_at          timestamptz not null default now(),
   metadata          jsonb       not null default '{}'::jsonb,
-  created_at        timestamptz not null default now(),
-  -- Idempotency per event
-  constraint message_delivery_events_message_event_unique
-    unique (message_id, event_type, coalesce(external_event_id, id::text))
+  created_at        timestamptz not null default now()
 );
+
+create unique index if not exists message_delivery_events_message_event_unique
+  on public.message_delivery_events (message_id, event_type, (coalesce(external_event_id, id::text)));
 
 alter table public.message_delivery_events enable row level security;
 

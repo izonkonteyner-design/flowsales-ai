@@ -1,3 +1,4 @@
+import { isReadOnlyRepairPreview } from "@/lib/preview-safety";
 import { amountForCurrency } from "@/lib/currency-value";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -47,4 +48,12 @@ test("monetary intelligence never adds USD or EUR values to a TRY aggregate", ()
   assert.equal(amountForCurrency("120.50", "TRY", "TRY"), 120.5);
   assert.equal(amountForCurrency(100, "USD", "USD"), 100);
   assert.equal(amountForCurrency("bad", "TRY"), 0);
+});
+
+test("repair Preview is isolated while production and unrelated branches keep their configuration", () => {
+  const preview = { VERCEL_ENV: "preview", VERCEL_GIT_COMMIT_REF: "fix/flowsales-complete-repair", SOCIAL_PUBLISHING_ENABLED: "true" };
+  assert.equal(isReadOnlyRepairPreview(preview), true);
+  assert.equal(releaseInfo(preview).publishingEnabled, false);
+  assert.equal(isReadOnlyRepairPreview({ ...preview, VERCEL_ENV: "production" }), false);
+  assert.equal(isReadOnlyRepairPreview({ ...preview, VERCEL_GIT_COMMIT_REF: "another-branch" }), false);
 });

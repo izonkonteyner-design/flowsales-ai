@@ -26,6 +26,11 @@ create policy "service_role_manage_oauth_authorization_codes"
   on public.oauth_authorization_codes for all
   using (auth.role() = 'service_role');
 
+-- The 0022 baseline only had applied_at; later manifests use these fields.
+alter table public.deployment_migrations
+  add column if not exists checksum text,
+  add column if not exists executed_at timestamptz not null default now();
+
 -- Register migration 0030 in deployment manifest
 insert into public.deployment_migrations (version, name, checksum)
 values (

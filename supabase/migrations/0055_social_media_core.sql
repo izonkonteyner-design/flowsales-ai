@@ -1,4 +1,4 @@
--- 0025_social_media_core.sql
+-- 0055_social_media_core.sql
 -- FlowSales AI: Social media publishing core (single-platform MVP: Instagram).
 --
 -- Strategy:
@@ -7,7 +7,7 @@
 --  * Extend the existing `organizations`/`auth.users` tables only via FKs; no
 --    parallel tenant subsystem is created.
 --  * OAuth tokens are stored so the publishing worker can act on behalf of an
---    account. Token encryption at rest is added in migration 0026.
+--    account. Token encryption at rest is added in migration 0056.
 --  * RLS restricts every row to its organization.
 
 -- ============================================================================
@@ -153,3 +153,7 @@ create trigger set_social_media_posts_updated_at
 --   drop table if exists public.social_media_media;
 --   drop table if exists public.social_media_posts;
 --   drop table if exists public.social_media_accounts;
+
+insert into public.deployment_migrations(version, name)
+values ('0055', 'social_media_core')
+on conflict(version) do update set name = excluded.name;

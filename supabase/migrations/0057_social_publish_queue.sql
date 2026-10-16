@@ -24,3 +24,7 @@ create index if not exists social_media_posts_publish_queue_idx
 --     drop column if exists claimed_at,
 --     drop column if exists next_retry_at;
 --   drop index if exists public.social_media_posts_publish_queue_idx;
+
+insert into public.deployment_migrations(version, name)
+values ('0057', 'social_publish_queue')
+on conflict(version) do update set name = excluded.name;

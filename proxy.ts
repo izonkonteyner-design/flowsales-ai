@@ -1,3 +1,4 @@
+import { isReadOnlyRepairPreview } from "@/lib/preview-safety";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
@@ -66,6 +67,7 @@ function buildRedirectResponse(
 }
 
 export async function proxy(request: NextRequest) {
+  if (isReadOnlyRepairPreview(process.env) && !["GET", "HEAD", "OPTIONS"].includes(request.method)) return NextResponse.json({ error: "Bu onarım önizlemesi salt okunurdur. Yazma ve dış iletişim işlemleri kapalıdır." }, { status: 403 });
   const env = getRequiredSupabaseEnv();
   const response = NextResponse.next({
     request: {

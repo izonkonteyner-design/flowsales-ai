@@ -24,8 +24,8 @@ create index if not exists social_media_accounts_key_version_idx
 --    Existing plaintext tokens in access_token can be encrypted by the app on
 --    next use (connect/publish reads encrypted first, falls back to plaintext).
 --    Do NOT run a silent bulk migration here: that would require the encryption
---    key at migration time and risks partial failures. The app layer migrates
---    per-account lazily.
+--    key at migration time and risks partial failures. Existing records require an explicit, separately reviewed
+--    encryption backfill; reads do not silently migrate credentials.
 
 -- Rollback notes:
 --   alter table public.social_media_accounts
@@ -33,3 +33,7 @@ create index if not exists social_media_accounts_key_version_idx
 --     drop column if exists encryption_iv,
 --     drop column if exists token_encryption_key_version;
 --   drop index if exists public.social_media_accounts_key_version_idx;
+
+insert into public.deployment_migrations(version, name)
+values ('0056', 'social_token_encryption')
+on conflict(version) do update set name = excluded.name;

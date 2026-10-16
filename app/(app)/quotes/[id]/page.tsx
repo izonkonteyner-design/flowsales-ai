@@ -1,3 +1,4 @@
+import { canEditWorkspace } from "@/lib/workspace-access";
 import Link from "next/link";
 import { ArrowLeft, Copy, ExternalLink, Pencil, Send } from "lucide-react";
 
@@ -11,7 +12,7 @@ import { duplicateQuoteAction, updateQuoteStatusAction } from "@/app/(app)/quote
 import { QUOTE_STATUSES } from "@/lib/constants";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
-import { canManageQuotes, getQuoteRecordRestrictionMessage } from "@/server/services/quote-domain";
+import { getQuoteRecordRestrictionMessage } from "@/server/services/quote-domain";
 import { getQuoteDetailData } from "@/server/services/quotes";
 
 type QuoteDetailPageProps = {
@@ -41,7 +42,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
 
   const quote = data.quote;
   const backHref = typeof rawSearchParams.redirect_to === "string" && rawSearchParams.redirect_to.startsWith("/") ? rawSearchParams.redirect_to : "/quotes";
-  const canMutate = quote.recordMode === "live" && canManageQuotes(data.context.role);
+  const canMutate = quote.recordMode === "live" && canEditWorkspace(data.context);
   const restriction = getQuoteRecordRestrictionMessage(quote.recordMode, data.context.role);
   const recipientType = quote.customer_id ? "customer" : quote.lead_id ? "lead" : "none";
 
@@ -49,6 +50,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
     <div className="space-y-6">
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
 
+      {quote.money_issues?.length ? <div role="alert" className="rounded-2xl border border-amber-400/25 bg-amber-400/5 p-4 text-sm text-amber-200"><p className="font-semibold">Teklif tutarları doğrulama gerektiriyor</p><ul className="mt-2 list-disc pl-5">{quote.money_issues.map((issue) => <li key={issue}>{issue}</li>)}</ul><p className="mt-2">Tarihsel tutarlar otomatik değiştirilmedi. Doğrulama tamamlanana kadar müşteri belgesi üretilemez.</p></div> : null}
       <PageHeader
         eyebrow="Quote detail"
         title={quote.quote_number}

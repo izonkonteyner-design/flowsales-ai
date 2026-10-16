@@ -136,9 +136,8 @@ export function normalizeProductSpecifications(specifications: ProductSpecificat
 }
 
 export function normalizeProductRecord(product: ProductRecordInput): Product {
-  const specifications = (product.specifications ?? []).map((entry) =>
-    typeof entry === "string" ? { key: entry, value: entry } : entry,
-  );
+  const legacyFeatures = (product.specifications ?? []).filter((entry): entry is string => typeof entry === "string");
+  const specifications = (product.specifications ?? []).filter((entry): entry is ProductSpecificationInput => typeof entry !== "string");
 
   return {
     id: product.id ?? "",
@@ -169,7 +168,7 @@ export function normalizeProductRecord(product: ProductRecordInput): Product {
     internal_code: product.internal_code ?? "",
     barcode: product.barcode ?? "",
     tags: normalizeProductTags(product.tags ?? []),
-    features: normalizeProductFeatures(product.features ?? []),
+    features: normalizeProductFeatures([...(product.features ?? []), ...legacyFeatures]),
     specifications: normalizeProductSpecifications(specifications),
     image_url: product.image_url ?? "",
     gallery_urls: normalizeProductGalleryUrls(product.gallery_urls ?? []),

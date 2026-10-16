@@ -15,7 +15,7 @@ export default async function QuotePrintPage({ params }: QuotePrintPageProps) {
     return (
       <div className="min-h-screen bg-slate-100 p-4 text-slate-950 print:bg-white print:p-0">
         <EmptyState
-          title={result.status === 400 ? "Invalid quote request" : result.status === 403 ? "Access denied" : "Quote not found"}
+          title={result.status === 409 ? "Teklif tutarları doğrulanmalı" : result.status === 400 ? "Invalid quote request" : result.status === 403 ? "Access denied" : "Quote not found"}
           description={result.message}
           actionHref={`/quotes/${id}`}
           actionLabel="Back to quote"

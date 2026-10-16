@@ -25,11 +25,15 @@ export default async function RevenueIntelligencePage() {
   return <div className="space-y-6">
     <PageHeader eyebrow="Gelir Zekâsı 4.0" title="Satış otomasyonu ve gelir kontrol merkezi" description="Takip öncelikleri, teklif hazırlığı, kazanma-kaybetme nedenleri, ağırlıklı forecast ve kimlik eşleştirme sinyallerini tek yerde yönetin." />
 
+    <div role="note" className="rounded-2xl border border-blue-400/20 bg-blue-400/5 p-4 text-sm text-slate-300">
+      Bu ekran yalnızca konuşma analizi bulunan fırsatları kapsar. Tutarlar yalnızca TRY kayıtlarını kapsar; kur dönüşümü yapılmaz. CRM fırsat toplamıyla kapsamı farklıdır; analiz yoksa sıfır tutar satış olmadığı anlamına gelmez. <Link href="/leads" className="font-medium text-blue-300 underline">Tüm CRM fırsatlarını incele</Link>.
+    </div>
+
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <Metric label="Ağırlıklı forecast" value={formatCurrency(forecast.weightedForecast, "TRY")} />
+      <Metric label="Ağırlıklı forecast" value={forecast.opportunities.length ? formatCurrency(forecast.weightedForecast, "TRY") : "Analiz verisi yok"} />
       <Metric label="Commit" value={formatCurrency(forecast.commit, "TRY")} />
       <Metric label="Upside" value={formatCurrency(forecast.upside, "TRY")} />
-      <Metric label="Kazanma oranı" value={`%${winLoss.winRate}`} />
+      <Metric label="Kazanma oranı" value={winLoss.wins + winLoss.losses ? `%${winLoss.winRate}` : "Sonuç verisi yok"} />
       <Metric label="Tekil kimlik adayı" value={String(duplicates.length)} />
     </div>
 

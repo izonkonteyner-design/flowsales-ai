@@ -1,5 +1,7 @@
 "use server";
 
+import { getWorkspaceContext } from "@/server/services/workspace-context";
+import { canEditWorkspace } from "@/lib/workspace-access";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -26,6 +28,8 @@ export async function runLeadAiAction(formData: FormData) {
   });
   if (!parsed.success) redirect("/leads?toast=Invalid+AI+request&tone=danger");
 
+  const workspace = await getWorkspaceContext();
+  if (!canEditWorkspace(workspace)) redirect(`/leads/${parsed.data.leadId}/ai?toast=${encodeURIComponent("YZ çalıştırmak için canlı çalışma alanı ve yazma yetkisi gerekir.")}&tone=danger`);
   const client = await createSupabaseServerClient();
   if (!client) redirect("/login");
   const { data: authData } = await client.auth.getUser();
@@ -35,12 +39,13 @@ export async function runLeadAiAction(formData: FormData) {
     .from("organization_members")
     .select("organization_id")
     .eq("user_id", authData.user.id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (membershipError || !membership) redirect("/onboarding");
 
   const path = `/leads/${parsed.data.leadId}/ai`;
+  let message = "AI analysis completed";
   try {
     const result = await runAiSalesAgent({
       contextRepository: new SupabaseAiContextRepository(client),
@@ -55,12 +60,13 @@ export async function runLeadAiAction(formData: FormData) {
     });
 
     revalidatePath(path);
-    const message = result.approval
+    message = result.approval
       ? "AI recommendation created and sent to Approval Queue"
       : "AI analysis completed";
-    redirect(`${path}?toast=${encodeURIComponent(message)}&tone=success`);
+
   } catch (error) {
     const message = error instanceof Error ? error.message : "AI analysis failed";
     redirect(`${path}?toast=${encodeURIComponent(message)}&tone=danger`);
   }
+  redirect(`${path}?toast=${encodeURIComponent(message)}&tone=success`);
 }

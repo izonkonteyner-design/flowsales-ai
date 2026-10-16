@@ -50,7 +50,7 @@ export default async function AiHistoryPage({ searchParams }: { searchParams: Se
     .from("organization_members")
     .select("organization_id")
     .eq("user_id", authData.user.id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(1);
 
   if (membershipError) throw new Error(`Unable to resolve workspace: ${membershipError.message}`);
@@ -70,7 +70,7 @@ export default async function AiHistoryPage({ searchParams }: { searchParams: Se
   ]);
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Traceability</p>
@@ -174,6 +174,6 @@ export default async function AiHistoryPage({ searchParams }: { searchParams: Se
           </ol>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

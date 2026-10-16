@@ -437,7 +437,7 @@ function StatCard({ label, value, tone = "neutral" }: { label: string; value: st
       <p className="text-sm text-slate-500">{label}</p>
       <div className="mt-2 flex items-center gap-2">
         <p className="text-base font-semibold text-slate-950 dark:text-white">{value}</p>
-        <StatusBadge tone={tone}>{tone}</StatusBadge>
+        <StatusBadge tone={tone}>{tone === "danger" ? "Takip gerekli" : tone === "warning" ? "Dikkat" : "Bilgi"}</StatusBadge>
       </div>
     </div>
   );

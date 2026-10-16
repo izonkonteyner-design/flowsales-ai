@@ -281,8 +281,8 @@ test("legacy product records normalize into the enriched shape", () => {
   assert.equal(normalized.unit_price, 250000);
   assert.equal(normalized.short_description, "");
   assert.deepEqual(normalized.tags, ["legacy"]);
-  assert.deepEqual(normalized.features, ["Portable"]);
-  assert.deepEqual(normalized.specifications, [{ key: "Steel frame", value: "Steel frame" }]);
+  assert.deepEqual(normalized.features, ["Portable", "Steel frame"]);
+  assert.deepEqual(normalized.specifications, []);
   assert.deepEqual(normalized.gallery_urls, []);
 });
 

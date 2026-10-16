@@ -3,6 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 // Deployment refresh marker: reload current Production environment values.
 const nextConfig: NextConfig = {
+  turbopack: { root: process.cwd() },
   experimental: {
     // Product forms upload images directly to Supabase Storage, but the
     // Server Action still receives multipart form metadata. Keep the action

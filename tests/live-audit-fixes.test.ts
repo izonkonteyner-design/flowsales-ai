@@ -56,7 +56,7 @@ test("language, lead search and voice provider controls reflect their actual beh
     source("app/(app)/settings/integrations/voice/page.tsx"),
   ]);
   assert.match(locale, /window\.location\.reload\(\)/);
-  assert.match(shell, /name="search" type="search" required minLength=\{1\}/);
+  assert.match(shell, /name="query" type="search" required minLength=\{1\}/);
   assert.match(voice, /value="telnyx">Telnyx \(FlowSales AI Voice\)/);
 });
 

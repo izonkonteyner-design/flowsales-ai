@@ -1,3 +1,5 @@
+import { resolveQuoteSnapshot } from "@/lib/quote-snapshot";
+import { isDemoWorkspace } from "@/lib/workspace-access";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasSupabaseConfig } from "@/lib/supabase/env";
 import { createDemoWorkspaceContext, loadWorkspaceContext } from "@/server/services/workspace-context";
@@ -45,6 +47,7 @@ const contactColumns = "id, full_name, company";
 function mapDemoSource(context = createDemoWorkspaceContext()) {
   const quotes: QuoteReportingRow[] = demoQuotes.map((quote) => ({
     ...quote,
+    ...resolveQuoteSnapshot(quote),
     lead_name: demoLeads.find((lead) => lead.id === quote.lead_id)?.full_name ?? null,
     lead_company: demoLeads.find((lead) => lead.id === quote.lead_id)?.company ?? null,
     customer_name: null,
@@ -110,6 +113,7 @@ function mapLiveQuoteRows(
 
   return quotes.map((quote) => ({
     ...quote,
+    ...resolveQuoteSnapshot(quote),
     lead_name: quote.lead_name ?? null,
     lead_company: quote.lead_company ?? null,
     customer_name: quote.customer_name ?? null,
@@ -193,6 +197,7 @@ async function loadLiveDashboardReport(filters: DashboardFilters): Promise<Dashb
 
   const enrichedQuotes = quoteRows.map((quote) => ({
     ...quote,
+    ...resolveQuoteSnapshot(quote),
     lead_name: quote.lead_id ? leadMap.get(quote.lead_id)?.full_name ?? null : null,
     lead_company: quote.lead_id ? leadMap.get(quote.lead_id)?.company ?? null : null,
     customer_name: quote.customer_id ? customerMap.get(quote.customer_id)?.full_name ?? null : null,
@@ -225,7 +230,7 @@ async function loadLiveDashboardReport(filters: DashboardFilters): Promise<Dashb
         quotes: mapLiveQuoteRows(enrichedQuotes, (itemResponse.data ?? []) as LiveQuoteItemRow[]),
       },
       {
-        mode: "live",
+        mode: isDemoWorkspace(context) ? "demo" : "live",
         organization: context.organization,
         role: context.role,
         userId: context.userId,
@@ -250,7 +255,8 @@ export async function getDashboardReportData(
   const fallbackCurrency = liveContext?.organization.currency
     ? normalizeDashboardCurrency(liveContext.organization.currency, "TRY")
     : "TRY";
-  const filters = normalizeDashboardSearchParams(input, fallbackCurrency);
+  const effectiveInput = !input.range && (!liveContext || isDemoWorkspace(liveContext)) ? { ...input, range: "all_time" } : input;
+  const filters = normalizeDashboardSearchParams(effectiveInput, fallbackCurrency);
 
   if (!hasSupabaseConfig()) {
     return buildDemoReport(filters);

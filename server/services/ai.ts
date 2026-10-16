@@ -1,6 +1,7 @@
 import "server-only";
 
 import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
+import { AiError, classifyAiError, isAiError } from "@/lib/ai-errors";
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.1-flash-lite";
 
@@ -14,7 +15,7 @@ function readGeminiConfig(): GeminiConfig {
   const model = getGeminiModel();
 
   if (!apiKey) {
-    throw new Error("Gemini is not configured. Set GEMINI_API_KEY on the server.");
+    throw AiError.notConfigured();
   }
 
   return { apiKey, model };
@@ -62,7 +63,7 @@ export async function generateText(prompt: string, options?: GenerateTextOptions
   assertServerRuntime();
   const normalizedPrompt = prompt.trim();
   if (!normalizedPrompt) {
-    throw new Error("Gemini prompt is required.");
+    throw AiError.permanent("Gemini prompt is required.");
   }
 
   const { model } = readGeminiConfig();
@@ -77,7 +78,7 @@ export async function generateText(prompt: string, options?: GenerateTextOptions
 
     const text = response.text?.trim();
     if (!text) {
-      throw new Error("Gemini returned an empty response.");
+      throw AiError.permanent("Gemini returned an empty response.");
     }
 
     return text;
@@ -88,6 +89,8 @@ export async function generateText(prompt: string, options?: GenerateTextOptions
       });
     }
     logGeminiError("generateText failed", error);
-    throw new Error("Unable to generate text with Gemini. Update GEMINI_MODEL if the current model is no longer available.");
+    throw classifyAiError(error);
   }
 }
+
+export { AiError, classifyAiError, isAiError };

@@ -14,6 +14,7 @@ import {
   CalendarDays,
   ClipboardList,
   CreditCard,
+  Image,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -23,12 +24,14 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Smartphone,
   UserCircle2,
   UserRound,
   Users2,
   Users,
   FileText,
   CheckCircle2,
+  Mail,
   Moon,
   SunMedium,
 } from "lucide-react";
@@ -56,6 +59,9 @@ const iconMap = {
   "clipboard-list": ClipboardList,
   braces: Braces,
   settings: Settings,
+  smartphone: Smartphone,
+  image: Image,
+  mail: Mail,
 } as const;
 
 function useThemeMode() {

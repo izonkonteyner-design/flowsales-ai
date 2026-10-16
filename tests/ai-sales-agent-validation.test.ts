@@ -18,6 +18,7 @@ import {
   resolvePlanState,
   type SubscriptionRecord,
 } from "@/lib/entitlements";
+import { getDemoConfig } from "@/lib/demo-config";
 
 // ---------------------------------------------------------------------------
 // AI Sales Agent structured output validation
@@ -244,7 +245,7 @@ test("trial plan enables all features but disables billing", () => {
 });
 
 test("resolvePlanState flags demo workspace regardless of stale subscription row", () => {
-  const DEMO_ORG = "d3e00000-0000-0000-0000-000000000000";
+  const { demoOrgId: DEMO_ORG } = getDemoConfig();
   const stale: SubscriptionRecord = {
     plan: "starter",
     status: "active",

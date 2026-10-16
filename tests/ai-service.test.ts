@@ -43,9 +43,9 @@ test("gemini service is server only and reads configured env vars", () => {
   assert.match(serviceSource, /export function getGeminiModel\(\)/);
   assert.match(serviceSource, /return process\.env\.GEMINI_MODEL\?\.trim\(\) \|\| DEFAULT_GEMINI_MODEL;/);
   assert.match(serviceSource, /export async function generateText\(prompt: string, options\?: GenerateTextOptions\)/);
-  assert.match(serviceSource, /Gemini is not configured\. Set GEMINI_API_KEY on the server\./);
+  assert.match(serviceSource, /throw AiError\.notConfigured\(\);/);
   assert.match(serviceSource, /Gemini model is no longer available to new users\. Update GEMINI_MODEL to a currently supported model such as gemini-3\.1-flash-lite\./);
-  assert.match(serviceSource, /Unable to generate text with Gemini\. Update GEMINI_MODEL if the current model is no longer available\./);
+  assert.match(serviceSource, /throw classifyAiError\(error\);/);
   assert.doesNotMatch(serviceSource, /GEMINI_API_KEY=.*\$\{/);
   assert.doesNotMatch(serviceSource, /GEMINI_MODEL=.*\$\{/);
 });

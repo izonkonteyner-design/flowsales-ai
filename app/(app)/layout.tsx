@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { getWorkspaceContext } from "@/server/services/workspace-context";
-import { AppShell } from "@/components/layout/app-shell";
+import { PageShell } from "@/components/layout/PageShell";
 
 export default async function AppLayout({
   children,
@@ -13,5 +13,6 @@ export default async function AppLayout({
     redirect("/onboarding");
   }
 
-  return <AppShell workspace={workspace}>{children}</AppShell>;
+  return <PageShell workspace={workspace}>{children}</PageShell>;
 }
+

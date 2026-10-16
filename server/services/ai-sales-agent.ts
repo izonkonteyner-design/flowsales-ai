@@ -1,6 +1,6 @@
 import "server-only";
 
-import { generateText } from "@/server/services/ai";
+import { generateText, AiError, classifyAiError, isAiError } from "@/server/services/ai";
 import {
   aiSalesRecommendationResponseJsonSchema,
   AiSalesAgentServiceError,
@@ -82,8 +82,15 @@ export async function generateAiSalesAgentRecommendation(
       leadId: input.lead.id,
     });
 
-    if (error instanceof Error && /Gemini is not configured/i.test(error.message)) {
-      throw new AiSalesAgentServiceError("ai_not_configured", 503);
+    if (isAiError(error)) {
+      switch (error.code) {
+        case "AI_NOT_CONFIGURED":
+          throw new AiSalesAgentServiceError("ai_not_configured", 503);
+        case "AI_TRANSIENT":
+          throw new AiSalesAgentServiceError("temporary_failure", 502);
+        case "AI_PERMANENT":
+          throw new AiSalesAgentServiceError("temporary_failure", 500);
+      }
     }
 
     throw new AiSalesAgentServiceError("temporary_failure", 502);

@@ -1,4 +1,5 @@
 import type { Organization } from "@/types/crm";
+import { isDemoOrganization } from "@/lib/demo-config";
 
 export type PlanId = "demo" | "trial" | "starter" | "pro" | "business";
 
@@ -19,7 +20,8 @@ export type Feature =
   | "activity_history"
   | "advanced_dashboard"
   | "team_members"
-  | "exports";
+  | "exports"
+  | "social_publishing";
 
 /**
  * Entitlement = {(feature -> enabled)} union {limits}.
@@ -57,6 +59,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanId, PlanEntitlement> = {
       advanced_dashboard: true,
       team_members: false,
       exports: false,
+      social_publishing: false,
     },
     limits: { members: 1, aiMessagesPerCycle: 25, billingEnabled: false },
   },
@@ -73,6 +76,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanId, PlanEntitlement> = {
       advanced_dashboard: true,
       team_members: true,
       exports: true,
+      social_publishing: true,
     },
     limits: { members: 3, aiMessagesPerCycle: 100, billingEnabled: false },
   },
@@ -89,6 +93,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanId, PlanEntitlement> = {
       advanced_dashboard: false,
       team_members: false,
       exports: false,
+      social_publishing: true,
     },
     limits: { members: 3, aiMessagesPerCycle: 100, billingEnabled: true },
   },
@@ -105,6 +110,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanId, PlanEntitlement> = {
       advanced_dashboard: true,
       team_members: true,
       exports: true,
+      social_publishing: true,
     },
     limits: { members: 10, aiMessagesPerCycle: 500, billingEnabled: true },
   },
@@ -121,6 +127,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanId, PlanEntitlement> = {
       advanced_dashboard: true,
       team_members: true,
       exports: true,
+      social_publishing: true,
     },
     limits: { members: 50, aiMessagesPerCycle: 2000, billingEnabled: true },
   },
@@ -163,8 +170,6 @@ export type ResolvedPlanState = {
   isDemoWorkspace: boolean;
 };
 
-const DEMO_ORG_ID = "d3e00000-0000-0000-0000-000000000000";
-
 /**
  * Pure resolver: subscription row + org id -> ResolvedPlanState.
  * The resolver is pure and deterministic so unit tests can pin its behavior
@@ -175,7 +180,7 @@ export function resolvePlanState(
   organizationId: string,
 ): ResolvedPlanState {
   // Global demo workspace always reads as demo, regardless of stale row state.
-  const isDemoWorkspace = organizationId === DEMO_ORG_ID;
+  const isDemoWorkspace = isDemoOrganization(organizationId);
   if (isDemoWorkspace) {
     const entitlement = PLAN_ENTITLEMENTS.demo;
     return {

@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   /* config options here */
@@ -10,12 +9,19 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  // For all available options, see:
-  // https://github.com/getsentry/sentry-webpack-plugin#options
-  org: process.env.SENTRY_ORG || "flowsales",
-  project: process.env.SENTRY_PROJECT || "flowsales-ai",
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  silent: true,
-  widenClientFileUpload: true,
-});
+// Only apply Sentry config when DSN is available to avoid build failures
+// in local/preview environments without Sentry configured.
+const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN;
+
+if (SENTRY_DSN) {
+  const { withSentryConfig } = require("@sentry/nextjs");
+  module.exports = withSentryConfig(nextConfig, {
+    org: process.env.SENTRY_ORG || "flowsales",
+    project: process.env.SENTRY_PROJECT || "flowsales-ai",
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    silent: true,
+    widenClientFileUpload: true,
+  });
+} else {
+  module.exports = nextConfig;
+}

@@ -1,5 +1,4 @@
-"use server";
-
+﻿
 import { createClient } from "@supabase/supabase-js";
 import { getSupabaseEnv } from "@/lib/supabase/env";
 import { getProvider, isSocialMediaError } from "@/lib/social-media/registry";
@@ -175,7 +174,7 @@ export async function runPublishQueue(): Promise<{
 
     const account = post.social_media_accounts;
     if (!account || account.status !== "connected") {
-      await recordPublishFailure(client, post, "Hesap bağlı değil.");
+      await recordPublishFailure(client, post, "Hesap baÄŸlÄ± deÄŸil.");
       summary.failed++;
       continue;
     }
@@ -197,7 +196,7 @@ export async function runPublishQueue(): Promise<{
     }
 
     if (!accessToken) {
-      await recordPublishFailure(client, post, "Erişim token'ı bulunamadı.");
+      await recordPublishFailure(client, post, "EriÅŸim token'Ä± bulunamadÄ±.");
       summary.failed++;
       continue;
     }
@@ -207,7 +206,7 @@ export async function runPublishQueue(): Promise<{
       provider = getProvider(post.platform as never);
     } catch (err) {
       const msg = isSocialMediaError(err) ? err.message : String(err);
-      await recordPublishFailure(client, post, "Sağlayıcı yapılandırılmamış: " + msg);
+      await recordPublishFailure(client, post, "SaÄŸlayÄ±cÄ± yapÄ±landÄ±rÄ±lmamÄ±ÅŸ: " + msg);
       summary.failed++;
       continue;
     }
@@ -242,4 +241,5 @@ export async function runPublishQueue(): Promise<{
 
   return summary;
 }
+
 

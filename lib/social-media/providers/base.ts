@@ -1,5 +1,4 @@
-"use server";
-
+﻿
 import type {
   SocialPlatform,
   PublishResult,
@@ -96,3 +95,4 @@ export interface SocialMediaProvider {
     platformPostId: string,
   ) => Promise<Record<string, unknown>>;
 }
+

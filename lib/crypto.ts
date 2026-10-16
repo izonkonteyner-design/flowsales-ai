@@ -1,5 +1,4 @@
-"use server";
-
+﻿
 import * as crypto from "node:crypto";
 
 /**
@@ -84,4 +83,5 @@ export function migrateLegacyPlaintextToken(plaintext: string): {
 } {
   return encryptToken(plaintext);
 }
+
 

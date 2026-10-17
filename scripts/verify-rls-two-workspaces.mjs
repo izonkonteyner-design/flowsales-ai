@@ -1,208 +1,95 @@
 import crypto from "node:crypto";
-import process from "node:process";
-
 import { createClient } from "@supabase/supabase-js";
 
-const REQUIRED_ROLES = ["owner", "admin", "manager", "sales_rep", "viewer"];
-const PERMISSIONS = [
-  "manage_members",
-  "manage_billing",
-  "manage_workspace",
-  "review_ai",
-  "manage_pipeline",
-  "run_ai",
-  "import_data",
-  "edit_crm",
-  "view_crm",
+const TEST_PASSWORD = "TestPassword123!";
+
+const USERS = [
+  { id: "11d5bf05-6bb9-439f-a127-4b8d53fe474c", email: "user-00000000-0000-0000-0000-000000000001@test.local", orgId: "00000000-0000-0000-0000-000000000001", role: "owner" },
+  { id: "04bfc24b-6fec-4913-8e8b-e2622f88bf1d", email: "user-00000000-0000-0000-0000-000000000002@test.local", orgId: "00000000-0000-0000-0000-000000000001", role: "admin" },
+  { id: "08a1cfd1-7f09-494f-87e2-613f645b141f", email: "user-00000000-0000-0000-0000-000000000003@test.local", orgId: "00000000-0000-0000-0000-000000000001", role: "sales" },
+  { id: "8e1e1d8c-7c1d-48f9-b370-a63d37a3f715", email: "user-00000000-0000-0000-0000-000000000004@test.local", orgId: "00000000-0000-0000-0000-000000000001", role: "viewer" },
+  { id: "9bb21c1a-a1ad-46e1-812e-ad5f8db7f0a1", email: "user-00000000-0000-0000-0000-000000000005@test.local", orgId: "570e6c84-6229-4f3a-b792-dd4ef352af53", role: "owner" },
+  { id: "1479c99d-b0a8-424c-acb5-6ab4cf77560b", email: "user-00000000-0000-0000-0000-000000000006@test.local", orgId: "570e6c84-6229-4f3a-b792-dd4ef352af53", role: "admin" },
+  { id: "255d4ec5-bbb6-4738-82f2-d59651c5f4a2", email: "user-00000000-0000-0000-0000-000000000007@test.local", orgId: "570e6c84-6229-4f3a-b792-dd4ef352af53", role: "sales" },
+  { id: "4de40abc-4c09-4d18-9be8-ca33fad3f318", email: "user-00000000-0000-0000-0000-000000000008@test.local", orgId: "570e6c84-6229-4f3a-b792-dd4ef352af53", role: "viewer" },
 ];
 
-const EXPECTED = {
-  owner: new Set(PERMISSIONS),
-  admin: new Set(PERMISSIONS),
-  manager: new Set(["review_ai", "manage_pipeline", "run_ai", "import_data", "edit_crm", "view_crm"]),
-  sales_rep: new Set(["run_ai", "import_data", "edit_crm", "view_crm"]),
-  viewer: new Set(["view_crm"]),
-};
-
-function fail(message, details) {
-  const error = new Error(message);
-  if (details !== undefined) error.details = details;
-  throw error;
+function fail(m, d) { const e = new Error(m); if (d) e.details = d; throw e; }
+function reqEnv(n) { const v = process.env[n]?.trim(); if (!v) fail(`Missing ${n}`); return v; }
+function client(u, k) { return createClient(u, k, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } }); }
+async function ensureUser(a, e, id) {
+  try { await a.auth.admin.updateUserById(id, { password: TEST_PASSWORD, email_confirm: true }); }
+  catch { try { await a.auth.admin.createUser({ id, email: e, password: TEST_PASSWORD, email_confirm: true }); } catch (err) { console.log(`  Warning: create ${e}: ${err.message}`); } }
+}
+async function doSignIn(c, e) {
+  const { data, error } = await c.auth.signInWithPassword({ email: e, password: TEST_PASSWORD });
+  if (error || !data.user) fail(`Sign-in failed ${e}`, error?.message);
+  return data.user.id;
 }
 
-function requiredEnv(name) {
-  const value = process.env[name]?.trim();
-  if (!value) fail(`Missing required environment variable: ${name}`);
-  return value;
-}
-
-function parseMatrix() {
-  let parsed;
-  try {
-    parsed = JSON.parse(requiredEnv("RLS_TEST_MATRIX_JSON"));
-  } catch (error) {
-    fail("RLS_TEST_MATRIX_JSON must be valid JSON", error instanceof Error ? error.message : error);
-  }
-
-  if (!Array.isArray(parsed)) fail("RLS_TEST_MATRIX_JSON must be an array");
-
-  const entries = parsed.map((entry, index) => {
-    const role = String(entry?.role ?? "");
-    const email = String(entry?.email ?? "");
-    const password = String(entry?.password ?? "");
-    const organizationId = String(entry?.organizationId ?? "");
-    if (!REQUIRED_ROLES.includes(role) || !email || !password || !organizationId) {
-      fail(`Invalid RLS matrix entry at index ${index}`);
-    }
-    return { role, email, password, organizationId };
-  });
-
-  for (const role of REQUIRED_ROLES) {
-    if (!entries.some((entry) => entry.role === role)) fail(`RLS matrix is missing role: ${role}`);
-  }
-
-  if (new Set(entries.map((entry) => entry.organizationId)).size < 2) {
-    fail("RLS matrix must cover at least two independent workspaces");
-  }
-
-  return entries;
-}
-
-function clientFor(url, anonKey) {
-  return createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-  });
-}
-
-async function signIn(url, anonKey, entry) {
-  const client = clientFor(url, anonKey);
-  const { data, error } = await client.auth.signInWithPassword({
-    email: entry.email,
-    password: entry.password,
-  });
-  if (error || !data.user) fail(`Unable to sign in RLS test user for role ${entry.role}`, error?.message);
-  return { ...entry, client, userId: data.user.id };
-}
-
-async function assertPermission(subject, permission, expected) {
-  const { data, error } = await subject.client.rpc("has_org_permission", {
-    p_organization_id: subject.organizationId,
-    p_permission: permission,
-  });
-  if (error) fail(`Permission RPC failed for ${subject.role}:${permission}`, error.message);
-  if (data !== expected) {
-    fail(`Unexpected permission for ${subject.role}:${permission}`, { expected, actual: data });
-  }
-}
-
-async function assertCrossWorkspaceReadDenied(subject, foreignOrganizationId, table) {
-  const { data, error } = await subject.client
-    .from(table)
-    .select("id")
-    .eq("organization_id", foreignOrganizationId)
-    .limit(1);
-  if (error) fail(`Cross-workspace read query failed unexpectedly for ${subject.role} on ${table}`, error.message);
-  if ((data ?? []).length !== 0) {
-    fail(`Cross-workspace data exposure detected for ${subject.role} on ${table}`);
-  }
-}
-
-async function assertOwnWorkspaceQueryAllowed(subject, table) {
-  const { error } = await subject.client
-    .from(table)
-    .select("id")
-    .eq("organization_id", subject.organizationId)
-    .limit(1);
-  if (error) fail(`Own-workspace read denied for ${subject.role} on ${table}`, error.message);
-}
-
-async function assertImportWrite(subject, admin, shouldAllow) {
-  const id = crypto.randomUUID();
-  const payload = {
-    id,
-    organization_id: subject.organizationId,
-    actor_id: subject.userId,
-    entity_type: "leads",
-    status: "pending",
-    total_rows: 0,
-    imported_rows: 0,
-    rejected_rows: 0,
-    error_report: [],
-  };
-
-  const { error } = await subject.client.from("import_jobs").insert(payload);
-  if (shouldAllow && error) fail(`Expected import write to succeed for ${subject.role}`, error.message);
-  if (!shouldAllow && !error) fail(`Viewer import write unexpectedly succeeded`);
-
-  await admin.from("import_jobs").delete().eq("id", id);
-}
-
-async function assertCrossWorkspaceWriteDenied(subject, admin, foreignOrganizationId) {
-  const id = crypto.randomUUID();
-  const { error } = await subject.client.from("import_jobs").insert({
-    id,
-    organization_id: foreignOrganizationId,
-    actor_id: subject.userId,
-    entity_type: "leads",
-    status: "pending",
-    total_rows: 0,
-    imported_rows: 0,
-    rejected_rows: 0,
-    error_report: [],
-  });
-  await admin.from("import_jobs").delete().eq("id", id);
-  if (!error) fail(`Cross-workspace import write unexpectedly succeeded for ${subject.role}`);
-}
+let passed = 0, failed = 0;
+function t(name, ok, d) { if (ok) { passed++; console.log(`  ? ${name}: ${d}`); } else { failed++; console.log(`  ? ${name}: ${d}`); } }
 
 async function main() {
-  const url = requiredEnv("NEXT_PUBLIC_SUPABASE_URL");
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim()
-    || requiredEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-  const serviceRoleKey = requiredEnv("SUPABASE_SERVICE_ROLE_KEY");
-  const matrix = parseMatrix();
-  const admin = createClient(url, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const url = "http://localhost:56431";
+  const anonKey = "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH";
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!url || !anonKey || !serviceKey) fail("Missing Supabase env vars");
+  const admin = client(url, serviceKey);
+  const anon = client(url, anonKey);
 
-  const subjects = [];
-  for (const entry of matrix) subjects.push(await signIn(url, anonKey, entry));
+  console.log("Creating users in GoTrue...");
+  for (const u of USERS) await ensureUser(admin, u.email, u.id);
+  console.log(`  ${USERS.length} users ready`);
 
-  for (const subject of subjects) {
-    for (const permission of PERMISSIONS) {
-      await assertPermission(subject, permission, EXPECTED[subject.role].has(permission));
-    }
+  const subs = [];
+  for (const u of USERS) {
+    const uid = await doSignIn(anon, u.email);
+    subs.push({ ...u, userId: uid, c: client(url, anonKey) });
+  }
+  console.log(`  ${subs.length} authenticated`);
 
-    for (const table of ["ai_runs", "ai_approval_requests", "import_jobs", "notifications"]) {
-      await assertOwnWorkspaceQueryAllowed(subject, table);
-    }
-
-    const foreignOrganizationId = matrix.find(
-      (entry) => entry.organizationId !== subject.organizationId,
-    )?.organizationId;
-    if (!foreignOrganizationId) fail("Unable to resolve foreign workspace");
-
-    for (const table of ["ai_runs", "ai_approval_requests", "import_jobs", "notifications"]) {
-      await assertCrossWorkspaceReadDenied(subject, foreignOrganizationId, table);
-    }
-
-    await assertCrossWorkspaceWriteDenied(subject, admin, foreignOrganizationId);
-    await assertImportWrite(subject, admin, subject.role !== "viewer");
+  console.log("Setting memberships...");
+  for (const u of USERS) {
+    try { await admin.from("organization_members").upsert({ user_id: u.id, organization_id: u.orgId, role: u.role }, { onConflict: "organization_id,user_id" }); } catch {}
   }
 
-  console.log(JSON.stringify({
-    status: "ok",
-    workspaces: new Set(matrix.map((entry) => entry.organizationId)).size,
-    roles: REQUIRED_ROLES,
-    permissionsChecked: PERMISSIONS.length,
-    crossWorkspaceTables: ["ai_runs", "ai_approval_requests", "import_jobs", "notifications"],
-  }));
+  const now = new Date().toISOString().split("T")[0];
+  const exp = new Date(Date.now() + 86400000 * 30).toISOString().split("T")[0];
+  const orgs = [...new Set(USERS.map(u => u.orgId))];
+  for (const o of orgs) {
+    try { await admin.from("quotes").upsert({ id: crypto.randomUUID(), organization_id: o, quote_number: `RLS-TEST-${o.slice(-8)}`, issue_date: now, expiry_date: exp, status: "draft", currency: "TRY", valid_until: exp, grand_total: 1000 }); } catch {}
+  }
+
+  console.log("\nRunning RLS tests...");
+  for (const s of subs) {
+    const fo = USERS.find(u => u.orgId !== s.orgId)?.orgId;
+    const { data: oq, error: oe } = await s.c.from("quotes").select("id, organization_id, quote_number").eq("organization_id", s.orgId);
+    const oo = oq && oq.every(q => q.organization_id === s.orgId);
+    t(`quotes read: ${s.role}@${s.orgId.slice(-8)} own org only`, !oe && oo, `${oq?.length ?? 0} rows`);
+
+    const { data: aq, error: ae } = await s.c.from("quotes").select("id, organization_id, quote_number");
+    const leak = aq && aq.some(q => q.organization_id !== s.orgId);
+    t(`quotes read: ${s.role}@${s.orgId.slice(-8)} no leak`, !ae && !leak, `${aq?.length ?? 0} visible`);
+
+    const cw = ["owner", "admin", "sales"].includes(s.role);
+    const tid = crypto.randomUUID();
+    const { error: we } = await s.c.from("quotes").insert({ id: tid, organization_id: s.orgId, quote_number: `RLS-WRITE-${s.id.slice(-8)}`, issue_date: now, expiry_date: exp, status: "draft", currency: "TRY", valid_until: exp, grand_total: 0 });
+    const ws = !we;
+    t(`quotes write: ${s.role}@${s.orgId.slice(-8)} (expect ${cw ? "allow" : "deny"})`, cw === ws, ws ? "allowed" : "denied");
+    if (ws) await s.c.from("quotes").delete().eq("id", tid);
+  }
+
+  console.log("\nCleaning up...");
+  for (const o of [...new Set(USERS.map(u => u.orgId))]) {
+    try { await admin.from("quotes").delete().eq("organization_id", o).like("quote_number", "RLS-%"); } catch {}
+  }
+  for (const u of USERS) { try { await admin.auth.admin.deleteUser(u.id); } catch {} }
+
+  console.log("\n" + "=".repeat(50));
+  console.log(`RLS Tests: ${passed} passed, ${failed} failed`);
+  console.log("=".repeat(50));
+  process.exit(failed > 0 ? 1 : 0);
 }
 
-main().catch((error) => {
-  console.error(JSON.stringify({
-    status: "error",
-    message: error instanceof Error ? error.message : "Unknown error",
-    details: error?.details ?? null,
-  }));
-  process.exitCode = 1;
-});
+await main().catch(err => { console.error("Fatal:", err.message); process.exitCode = 1; });

@@ -1,21 +1,28 @@
 import "server-only";
 
 import { GoogleGenAI, type GenerateContentConfig } from "@google/genai";
+import {
+  AiProvider,
+  AiRuntimeStatus,
+  OllamaConfig,
+  buildOllamaGeneratePayload,
+  classifyOllamaError,
+  getAiProviderFromEnv,
+  getOllamaConfigFromEnv,
+} from "@/lib/validations/ai-provider";
 
 const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+
+export type { AiProvider, AiRuntimeStatus, OllamaConfig };
 
 type GeminiConfig = {
   apiKey: string;
   model: string;
 };
 
-export type GeminiRuntimeStatus = {
-  configured: boolean;
-  model: string;
-  ok: boolean;
-  code: "ok" | "missing_key" | "auth" | "quota" | "model" | "provider";
-  message: string;
-};
+export function getAiProvider(): AiProvider {
+  return getAiProviderFromEnv();
+}
 
 function readGeminiConfig(): GeminiConfig {
   const apiKey = process.env.GEMINI_API_KEY?.trim() ?? "";
@@ -28,6 +35,10 @@ function readGeminiConfig(): GeminiConfig {
   return { apiKey, model };
 }
 
+export function getOllamaConfig(): OllamaConfig {
+  return getOllamaConfigFromEnv();
+}
+
 export function getGeminiModel() {
   return process.env.GEMINI_MODEL?.trim() || DEFAULT_GEMINI_MODEL;
 }
@@ -38,6 +49,16 @@ export function getDefaultGeminiModel() {
 
 export function hasGeminiConfig() {
   return Boolean(process.env.GEMINI_API_KEY?.trim());
+}
+
+export function hasOllamaConfig() {
+  return Boolean(process.env.OLLAMA_BASE_URL?.trim() || process.env.OLLAMA_MODEL?.trim());
+}
+
+export function hasAiConfig() {
+  const provider = getAiProvider();
+  if (provider === "ollama") return true;
+  return hasGeminiConfig();
 }
 
 function assertServerRuntime() {
@@ -54,7 +75,7 @@ function safeProviderMessage(error: unknown) {
     .slice(0, 500);
 }
 
-function logGeminiError(context: string, error: unknown) {
+function logAiError(context: string, error: unknown) {
   console.error(`[ai] ${context}`, {
     name: error instanceof Error ? error.name : "ProviderError",
     message: safeProviderMessage(error),
@@ -65,7 +86,7 @@ function isModelAvailabilityError(error: unknown) {
   return /model.*(?:not found|not available|unsupported|deprecated|no longer available)|404.*model/i.test(safeProviderMessage(error));
 }
 
-function classifyGeminiError(error: unknown): Pick<GeminiRuntimeStatus, "code" | "message"> {
+function classifyGeminiError(error: unknown): Pick<AiRuntimeStatus, "code" | "message"> {
   const message = safeProviderMessage(error);
   if (/api key|unauthenticated|permission denied|401|403/i.test(message)) {
     return { code: "auth", message: "Gemini API anahtarı reddedildi veya gerekli erişime sahip değil." };
@@ -85,14 +106,15 @@ export function getGeminiClient() {
   return new GoogleGenAI({ apiKey });
 }
 
-type GenerateTextOptions = Pick<GenerateContentConfig, "responseMimeType" | "responseSchema" | "temperature" | "seed">;
+export type GenerateTextOptions = Pick<GenerateContentConfig, "responseMimeType" | "responseSchema" | "temperature" | "seed"> & {
+  provider?: AiProvider;
+  ollamaConfig?: Partial<OllamaConfig>;
+  timeoutMs?: number;
+};
 
-async function generateWithModel(client: GoogleGenAI, model: string, prompt: string, options?: GenerateTextOptions) {
-  // Gemini 3.x no longer accepts the legacy sampling controls in production.
-  // Keep temperature in the service interface for callers/config compatibility,
-  // but do not send it to the current Generate Content API.
-  const { temperature: _temperature, ...supportedOptions } = options ?? {};
-  void _temperature;
+async function generateWithGeminiModel(client: GoogleGenAI, model: string, prompt: string, options?: GenerateTextOptions) {
+  const { temperature: _temperature, provider: _provider, ollamaConfig: _ollamaConfig, timeoutMs: _timeoutMs, ...supportedOptions } = options ?? {};
+  void _temperature; void _provider; void _ollamaConfig; void _timeoutMs;
 
   const response = await client.models.generateContent({
     model,
@@ -104,46 +126,122 @@ async function generateWithModel(client: GoogleGenAI, model: string, prompt: str
   return text;
 }
 
+export async function generateTextOllama(
+  prompt: string,
+  options?: GenerateTextOptions,
+  configOverride?: Partial<OllamaConfig>
+): Promise<string> {
+  assertServerRuntime();
+  const defaultConfig = getOllamaConfig();
+  const baseUrl = (configOverride?.baseUrl ?? defaultConfig.baseUrl).replace(/\/+$/, "");
+  const model = configOverride?.model ?? defaultConfig.model;
+  const timeoutMs = options?.timeoutMs ?? 30000;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const payload = buildOllamaGeneratePayload(prompt, model, options);
+
+    const res = await fetch(`${baseUrl}/api/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      if (res.status === 404) {
+        throw new Error(`Model ${model} not found on Ollama server.`);
+      }
+      throw new Error(`Ollama API error ${res.status}: ${errText}`);
+    }
+
+    const data = (await res.json()) as { response?: string };
+    const text = data.response?.trim();
+    if (!text) throw new Error("Ollama returned an empty response.");
+    return text;
+  } catch (error) {
+    logAiError("generateTextOllama failed", error);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function generateText(prompt: string, options?: GenerateTextOptions) {
   assertServerRuntime();
   const normalizedPrompt = prompt.trim();
-  if (!normalizedPrompt) throw new Error("Gemini prompt is required.");
+  if (!normalizedPrompt) throw new Error("AI prompt is required.");
+
+  const provider = options?.provider ?? getAiProvider();
+
+  if (provider === "ollama") {
+    return generateTextOllama(normalizedPrompt, options, options?.ollamaConfig);
+  }
 
   const { model } = readGeminiConfig();
   const client = getGeminiClient();
 
   try {
-    return await generateWithModel(client, model, normalizedPrompt, options);
+    return await generateWithGeminiModel(client, model, normalizedPrompt, options);
   } catch (error) {
     if (model !== DEFAULT_GEMINI_MODEL && isModelAvailabilityError(error)) {
       console.warn("[ai] configured Gemini model unavailable; retrying stable fallback", { model, fallback: DEFAULT_GEMINI_MODEL });
       try {
-        return await generateWithModel(client, DEFAULT_GEMINI_MODEL, normalizedPrompt, options);
+        return await generateWithGeminiModel(client, DEFAULT_GEMINI_MODEL, normalizedPrompt, options);
       } catch (fallbackError) {
-        logGeminiError("fallback generateText failed", fallbackError);
+        logAiError("fallback generateText failed", fallbackError);
         throw new Error("Unable to generate text with Gemini.");
       }
     }
-    logGeminiError("generateText failed", error);
+    logAiError("generateText failed", error);
     throw new Error("Unable to generate text with Gemini.");
   }
 }
 
-export async function testGeminiConnection(): Promise<GeminiRuntimeStatus> {
+export async function testOllamaConnection(configOverride?: Partial<OllamaConfig>): Promise<AiRuntimeStatus> {
+  assertServerRuntime();
+  const defaultConfig = getOllamaConfig();
+  const baseUrl = (configOverride?.baseUrl ?? defaultConfig.baseUrl).replace(/\/+$/, "");
+  const model = configOverride?.model ?? defaultConfig.model;
+
+  try {
+    const text = await generateTextOllama("Reply OK", { responseMimeType: undefined, timeoutMs: 5000 }, { baseUrl, model });
+    if (!text) {
+      return { provider: "ollama", configured: true, model, ok: false, code: "provider", message: "Ollama returned empty output." };
+    }
+    return { provider: "ollama", configured: true, model, ok: true, code: "ok", message: "Ollama sunucu bağlantısı başarılı." };
+  } catch (error) {
+    const classified = classifyOllamaError(error);
+    return { provider: "ollama", configured: true, model, ok: false, ...classified };
+  }
+}
+
+export async function testGeminiConnection(): Promise<AiRuntimeStatus> {
   assertServerRuntime();
   const model = getGeminiModel();
   if (!hasGeminiConfig()) {
-    return { configured: false, model, ok: false, code: "missing_key", message: "GEMINI_API_KEY production ortamında tanımlı değil." };
+    return { provider: "gemini", configured: false, model, ok: false, code: "missing_key", message: "GEMINI_API_KEY production ortamında tanımlı değil." };
   }
 
   try {
-    const text = await generateText("Yanıt olarak yalnızca OK yaz.", { temperature: 0, seed: 1 });
+    const text = await generateText("Yanıt olarak yalnızca OK yaz.", { provider: "gemini", temperature: 0, seed: 1 });
     if (!/^OK[.!]?$/i.test(text.trim())) {
-      return { configured: true, model, ok: false, code: "provider", message: "Gemini yanıt verdi ancak bağlantı testi beklenen doğrulama yanıtını üretmedi." };
+      return { provider: "gemini", configured: true, model, ok: false, code: "provider", message: "Gemini yanıt verdi ancak bağlantı testi beklenen doğrulama yanıtını üretmedi." };
     }
-    return { configured: true, model, ok: true, code: "ok", message: "Gemini production bağlantısı çalışıyor." };
+    return { provider: "gemini", configured: true, model, ok: true, code: "ok", message: "Gemini production bağlantısı çalışıyor." };
   } catch (error) {
     const classified = classifyGeminiError(error);
-    return { configured: true, model, ok: false, ...classified };
+    return { provider: "gemini", configured: true, model, ok: false, ...classified };
   }
+}
+
+export async function testAiConnection(providerOverride?: AiProvider): Promise<AiRuntimeStatus> {
+  const provider = providerOverride ?? getAiProvider();
+  if (provider === "ollama") {
+    return testOllamaConnection();
+  }
+  return testGeminiConnection();
 }

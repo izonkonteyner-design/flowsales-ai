@@ -2,6 +2,7 @@ import { FlashToast } from "@/components/shared/flash-toast";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { WorkspaceSettingsForm } from "@/components/settings/workspace-settings-form";
+import { AiProviderForm } from "@/components/settings/ai-provider-form";
 import { removeWorkspaceLogoAction, updateWorkspaceSettingsAction } from "@/app/(app)/settings/actions";
 import { getWorkspaceCompanySettingsData } from "@/server/services/workspace-settings";
 import Link from "next/link";
@@ -47,16 +48,19 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
         </div>
       ) : null}
 
-      {data.settings ? (
-        <WorkspaceSettingsForm
-          settings={data.settings}
-          canEdit={data.canEdit}
-          mode={data.mode}
-          updateAction={updateWorkspaceSettingsAction}
-          removeLogoAction={removeWorkspaceLogoAction}
-        />
-      ) : null}
+      <div className="space-y-6">
+        <AiProviderForm />
+
+        {data.settings ? (
+          <WorkspaceSettingsForm
+            settings={data.settings}
+            canEdit={data.canEdit}
+            mode={data.mode}
+            updateAction={updateWorkspaceSettingsAction}
+            removeLogoAction={removeWorkspaceLogoAction}
+          />
+        ) : null}
+      </div>
     </div>
   );
 }
-

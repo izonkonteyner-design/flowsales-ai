@@ -4,6 +4,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { applyLeadScoreDecay, calculateDealRisk } from "@/server/services/sales-operations-v5";
 import { persistWeeklyPipelineSnapshot } from "@/server/services/sales-growth-v6";
 import { createSalesHealthAlerts } from "@/server/services/sales-alerts-v6";
+import { isCustomerOptedOut } from "@/lib/validations/sales-automation";
+
+export { isCustomerOptedOut };
 
 function hoursSince(value?: string | null) {
   if (!value) return 9999;
@@ -159,6 +162,20 @@ export async function materializeDueSequenceStepsSafely(organizationId: string) 
 
   let created = 0;
   for (const enrollment of enrollments || []) {
+    // Check if associated lead is opted out
+    if (enrollment.lead_id) {
+      const { data: lead } = await admin.from("leads")
+        .select("tags,notes")
+        .eq("id", enrollment.lead_id)
+        .maybeSingle();
+      if (lead && isCustomerOptedOut(lead.tags, lead.notes)) {
+        await admin.from("sales_sequence_enrollments")
+          .update({ status: "cancelled", updated_at: now })
+          .eq("id", enrollment.id);
+        continue;
+      }
+    }
+
     const { data: step, error: stepError } = await admin.from("sales_sequence_steps")
       .select("step_order,action_type,instruction")
       .eq("organization_id", organizationId)

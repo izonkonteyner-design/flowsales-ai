@@ -10,6 +10,10 @@ export const operationalAlertSchema = z.object({
     "lifecycle_request",
     "stale_approval",
     "entitlement_mismatch",
+    "webhook_failure",
+    "publishing_failure",
+    "provider_outage",
+    "automation_failure",
   ]),
   severity: operationalSeveritySchema,
   title: z.string().min(1).max(200),
@@ -28,4 +32,23 @@ export function summarizeOperationalAlerts(alerts: OperationalAlert[]) {
     high: alerts.filter((alert) => alert.severity === "high").length,
     medium: alerts.filter((alert) => alert.severity === "medium").length,
   };
+}
+
+export function createOperationalAlertRecord(params: {
+  key: string;
+  category: OperationalAlert["category"];
+  severity: OperationalAlert["severity"];
+  title: string;
+  detail: string;
+  href?: string;
+}): OperationalAlert {
+  return operationalAlertSchema.parse({
+    key: params.key,
+    category: params.category,
+    severity: params.severity,
+    title: params.title,
+    detail: params.detail.slice(0, 500),
+    occurredAt: new Date().toISOString(),
+    href: params.href || "/operations",
+  });
 }

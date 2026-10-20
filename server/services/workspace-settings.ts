@@ -243,3 +243,15 @@ export async function removeWorkspaceCompanyLogo() {
     },
   };
 }
+
+export async function updateWorkspaceAiProviderSettings(params: {
+  provider: "gemini" | "ollama";
+  ollamaBaseUrl?: string;
+  ollamaModel?: string;
+}) {
+  process.env.AI_PROVIDER = params.provider;
+  if (params.ollamaBaseUrl) process.env.OLLAMA_BASE_URL = params.ollamaBaseUrl;
+  if (params.ollamaModel) process.env.OLLAMA_MODEL = params.ollamaModel;
+
+  return { success: true };
+}

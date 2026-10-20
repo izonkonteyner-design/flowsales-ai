@@ -11,7 +11,10 @@ import {
 import {
   removeWorkspaceCompanyLogo,
   updateWorkspaceCompanySettings,
+  updateWorkspaceAiProviderSettings,
 } from "@/server/services/workspace-settings";
+import { loadWorkspaceContext } from "@/server/services/workspace-context";
+import { testAiConnection, testOllamaConnection } from "@/server/services/ai";
 
 function readToastMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim()) {
@@ -97,4 +100,38 @@ export async function removeWorkspaceLogoAction() {
   }
 
   redirect("/settings?toast=Workspace%20logo%20removed&tone=success");
+}
+
+export async function updateAiProviderSettingsAction(formData: FormData): Promise<void> {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    redirect("/settings?toast=Oturum%20bulunamad%C4%B1&tone=danger");
+  }
+
+  const rawProvider = formData.get("provider")?.toString() || "gemini";
+  const provider = rawProvider === "ollama" ? "ollama" : "gemini";
+  const ollamaBaseUrl = formData.get("ollamaBaseUrl")?.toString() || "http://localhost:11434";
+  const ollamaModel = formData.get("ollamaModel")?.toString() || "llama3:latest";
+
+  try {
+    await updateWorkspaceAiProviderSettings({
+      provider,
+      ollamaBaseUrl,
+      ollamaModel,
+    });
+    revalidatePath("/settings");
+    revalidatePath("/ai");
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : "AI ayarları güncellenemedi.";
+    redirect(`/settings?toast=${encodeURIComponent(errorMsg)}&tone=danger`);
+  }
+
+  redirect("/settings?toast=AI%20sa%C4%9Flay%C1%B1c%C4%B1%20ayarlar%C1%B1%20kaydedildi&tone=success");
+}
+
+export async function testAiConnectionAction(provider: "gemini" | "ollama", ollamaBaseUrl?: string, ollamaModel?: string) {
+  if (provider === "ollama") {
+    return testOllamaConnection({ baseUrl: ollamaBaseUrl, model: ollamaModel });
+  }
+  return testAiConnection("gemini");
 }

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Cpu, CheckCircle2, AlertCircle, RefreshCw, Server, Sparkles } from "lucide-react";
+import { updateAiProviderSettingsAction, testAiConnectionAction } from "@/app/(app)/settings/actions";
 
 export function AiProviderForm() {
   const [provider, setProvider] = useState<"gemini" | "ollama">("gemini");
@@ -18,23 +19,12 @@ export function AiProviderForm() {
   const handleTestConnection = async () => {
     setStatus({ ok: false, message: "Bağlantı test ediliyor...", loading: true });
     try {
-      if (provider === "gemini") {
-        setStatus({ ok: true, message: "Gemini API bağlantısı başarılı.", loading: false });
-      } else {
-        if (ollamaBaseUrl.includes("localhost") || ollamaBaseUrl.includes("127.0.0.1")) {
-          setStatus({
-            ok: true,
-            message: `Ollama sunucusu (${ollamaBaseUrl}, Model: ${ollamaModel}) yapılandırıldı.`,
-            loading: false,
-          });
-        } else {
-          setStatus({
-            ok: false,
-            message: "Ollama sunucusuna erişilemedi. Lütfen sunucunun açık ve erişilebilir olduğunu doğrulayın.",
-            loading: false,
-          });
-        }
-      }
+      const result = await testAiConnectionAction(provider, ollamaBaseUrl, ollamaModel);
+      setStatus({
+        ok: result.ok,
+        message: result.message,
+        loading: false,
+      });
     } catch {
       setStatus({ ok: false, message: "Bağlantı testi sırasında bir hata oluştu.", loading: false });
     }
@@ -45,7 +35,8 @@ export function AiProviderForm() {
       title="Yapay Zeka (AI) Sağlayıcı Ayarları"
       description="CRM asistanı, teklif taslağı üretimi ve lead skorlama için bulut (Gemini) veya yerel açık kaynak (Ollama) AI modelini seçin."
     >
-      <div className="space-y-6">
+      <form action={updateAiProviderSettingsAction} className="space-y-6">
+        <input type="hidden" name="provider" value={provider} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div
             onClick={() => setProvider("gemini")}
@@ -94,6 +85,7 @@ export function AiProviderForm() {
                 <label className="text-xs font-medium">Ollama Sunucu URL&apos;si</label>
                 <input
                   type="text"
+                  name="ollamaBaseUrl"
                   value={ollamaBaseUrl}
                   onChange={(e) => setOllamaBaseUrl(e.target.value)}
                   className="w-full mt-1 p-2 text-sm rounded-lg border bg-background"
@@ -104,6 +96,7 @@ export function AiProviderForm() {
                 <label className="text-xs font-medium">Model Adı</label>
                 <input
                   type="text"
+                  name="ollamaModel"
                   value={ollamaModel}
                   onChange={(e) => setOllamaModel(e.target.value)}
                   className="w-full mt-1 p-2 text-sm rounded-lg border bg-background"
@@ -137,14 +130,14 @@ export function AiProviderForm() {
           </button>
 
           <button
-            type="button"
+            type="submit"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Cpu className="h-3.5 w-3.5" />
             Ayarları Kaydet
           </button>
         </div>
-      </div>
+      </form>
     </SectionCard>
   );
 }

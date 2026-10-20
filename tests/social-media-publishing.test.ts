@@ -22,8 +22,8 @@ const serviceSource = readFileSync(servicePath, "utf8");
 describe("Social Media Publishing Module Tests", () => {
   test("0055 migration defines social_posts table, RLS, and indexes", () => {
     assert.match(migrationSource, /CREATE TABLE IF NOT EXISTS public\.social_posts/);
-    assert.match(migrationSource, /workspace_id UUID NOT NULL REFERENCES public\.workspaces/);
-    assert.match(migrationSource, /platform TEXT NOT NULL CHECK \(platform IN \('instagram', 'facebook', 'both'\)\)/);
+    assert.match(migrationSource, /organization_id UUID REFERENCES public\.organizations/);
+    assert.match(migrationSource, /CREATE TABLE IF NOT EXISTS public\.social_publishing_queue/);
     assert.match(migrationSource, /ALTER TABLE public\.social_posts ENABLE ROW LEVEL SECURITY;/);
     assert.match(migrationSource, /CREATE POLICY "Users can manage social posts for their workspaces"/);
   });

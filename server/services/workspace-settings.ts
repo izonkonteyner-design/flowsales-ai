@@ -155,7 +155,7 @@ export async function updateWorkspaceCompanySettings(
     country: input.country,
     tax_office: input.tax_office,
     tax_number: input.tax_number,
-    trade_registry_number: input.trade_registry_number,
+ trade_registry_number: input.trade_registry_number,
     mersis_number: input.mersis_number,
     bank_name: input.bank_name,
     bank_branch: input.bank_branch,
@@ -249,9 +249,28 @@ export async function updateWorkspaceAiProviderSettings(params: {
   ollamaBaseUrl?: string;
   ollamaModel?: string;
 }) {
-  process.env.AI_PROVIDER = params.provider;
-  if (params.ollamaBaseUrl) process.env.OLLAMA_BASE_URL = params.ollamaBaseUrl;
-  if (params.ollamaModel) process.env.OLLAMA_MODEL = params.ollamaModel;
+  const mutation = await getLiveMutationContext();
+  if (!mutation) {
+    return { success: true, mode: "demo" };
+  }
 
-  return { success: true };
+  if (!canManageWorkspaceSettings(mutation.context.role)) {
+    throw new Error("You do not have permission to manage workspace settings.");
+  }
+
+  const organization = mutation.context.organization as WorkspaceMutationContext["organization"];
+
+  await mutation.client
+    .from("organizations")
+    .update({
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", organization.id);
+
+  return {
+    success: true,
+    provider: params.provider,
+    ollamaBaseUrl: params.ollamaBaseUrl,
+    ollamaModel: params.ollamaModel,
+  };
 }

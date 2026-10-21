@@ -36,13 +36,16 @@ export async function processGoogleLeadSubmission(
   try {
     const parsed = parseGoogleLeadPayload(rawPayload);
 
-    if (googleWebhookKey && parsed.rawPayload.google_key && parsed.rawPayload.google_key !== googleWebhookKey) {
-      return { success: false, errorMessage: "Google webhook anahtarı doğrulanamadı." };
+    if (googleWebhookKey) {
+      const providedKey = parsed.rawPayload.google_key?.trim();
+      if (!providedKey || providedKey !== googleWebhookKey.trim()) {
+        return { success: false, errorMessage: "Google webhook anahtarı doğrulanamadı." };
+      }
     }
 
     const admin = createSupabaseAdminClient();
 
-    // Check for existing duplicate lead by google_lead_id / source or email
+    // Check for existing duplicate lead by email
     if (parsed.email) {
       const { data: existing } = await admin
         .from("leads")

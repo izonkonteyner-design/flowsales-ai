@@ -155,7 +155,7 @@ export async function updateWorkspaceCompanySettings(
     country: input.country,
     tax_office: input.tax_office,
     tax_number: input.tax_number,
- trade_registry_number: input.trade_registry_number,
+    trade_registry_number: input.trade_registry_number,
     mersis_number: input.mersis_number,
     bank_name: input.bank_name,
     bank_branch: input.bank_branch,

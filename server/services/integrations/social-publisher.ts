@@ -2,6 +2,19 @@ import "server-only";
 
 export * from "./social-domain";
 import { SocialPlatform } from "./social-domain";
+import {
+  socialPlatformSchema,
+  socialPostInputSchema,
+  socialPostStatusSchema,
+  buildMockSocialPost,
+} from "@/lib/validations/social-publisher";
+
+export {
+  socialPlatformSchema,
+  socialPostInputSchema,
+  socialPostStatusSchema,
+  buildMockSocialPost,
+};
 
 export async function generateSocialCaptionSuggestions(params: {
   topic: string;
@@ -48,11 +61,23 @@ Aşağıdaki JSON formatında yanıt ver:
   }
 }
 
-export async function generateCaptionAi(params: { topic: string; callToAction?: string; platform?: SocialPlatform }) {
+export async function generateCaptionAi(params: {
+  topic: string;
+  callToAction?: string;
+  platform?: SocialPlatform;
+  tone?: string;
+}): Promise<{ caption: string; hashtags: string[]; headlines?: string[] }> {
   return generateSocialCaptionSuggestions(params);
 }
 
-export async function publishSocialPostToMeta(post: { content: string; platform: string }, token?: string) {
+export async function publishSocialPostToMeta(
+  post: { content?: string; platform?: string; [key: string]: unknown },
+  token?: string
+): Promise<{
+  success: boolean;
+  metaPostId?: string;
+  errorMessage?: string;
+}> {
   if (!token || !token.trim()) {
     return { success: false, errorMessage: "Meta sayfa erişim tokenı tanımlı değil." };
   }

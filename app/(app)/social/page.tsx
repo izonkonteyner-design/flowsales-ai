@@ -1,196 +1,238 @@
 import React from "react";
-import { AppShell } from "@/components/layout/app-shell";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/shared/card";
-import { Badge } from "@/components/shared/badge";
-import { Calendar, Instagram, Facebook, Share2, Sparkles, Plus, Clock, CheckCircle2, AlertCircle } from "lucide-react";
+import { Share2, Clock, CheckCircle, Trash2, CalendarDays, Plus } from "lucide-react";
+import { loadWorkspaceContext } from "@/server/services/workspace-context";
+import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { EmptyState } from "@/components/shared/empty-state";
+import { PageHeader } from "@/components/shared/page-header";
+import { SectionCard } from "@/components/shared/section-card";
+import { StatusBadge } from "@/components/shared/status-badge";
+import { createSocialPostAction, deleteSocialPostAction } from "./actions";
 
-export const metadata = {
-  title: "Sosyal Medya Yönetimi — FlowSales AI",
-  description: "Instagram ve Facebook için içerik planlama, AI metin yazarı ve gönderi zamanlama.",
-};
+export default async function SocialMediaPage() {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    return (
+      <EmptyState
+        title="Oturum gerekli"
+        description="Sosyal medya yönetimini görmek için bir çalışma alanına giriş yapın."
+        actionHref="/login"
+        actionLabel="Giriş Yap"
+      />
+    );
+  }
 
-const mockPosts = [
-  {
-    id: "post-1",
-    platform: "instagram",
-    content: "Yeni Konteyner Ofis modellerimiz stokta! Modüler, dayanıklı ve şık tasarımlar ile iş yerinizi dönüştürün. 🚀",
-    hashtags: ["#konteynerofis", "#modulerproje", "#flowsalesai"],
-    status: "published",
-    scheduled_at: null,
-    published_at: "2026-03-24T10:00:00Z",
-  },
-  {
-    id: "post-2",
-    platform: "both",
-    content: "Bahar kampanyamız başladı! Tüm prefabrik yapılarda %15 özel indirim fırsatını kaçırmayın. 🌸",
-    hashtags: ["#firsat", "#kampanya", "#prefabrik"],
-    status: "scheduled",
-    scheduled_at: "2026-03-28T14:30:00Z",
-    published_at: null,
-  },
-  {
-    id: "post-3",
-    platform: "facebook",
-    content: "Şantiye ofis çözümlerimizde ücretsiz keşif hizmetimiz devam ediyor. Detaylı bilgi için bizimle iletişime geçin.",
-    hashtags: ["#santiyeofisi", "#insaat"],
-    status: "draft",
-    scheduled_at: null,
-    published_at: null,
-  },
-];
+  const admin = createSupabaseAdminClient();
 
-export default function SocialMediaPage() {
+  const [postsResult, queueResult] = await Promise.all([
+    admin.from("social_posts")
+      .select("*")
+      .eq("organization_id", ctx.organization.id)
+      .order("created_at", { ascending: false })
+      .limit(50),
+    admin.from("social_publishing_queue")
+      .select("*")
+      .eq("organization_id", ctx.organization.id)
+      .order("scheduled_for", { ascending: true })
+      .limit(50),
+  ]);
+
+  const posts = postsResult.data || [];
+  const queue = queueResult.data || [];
+
   return (
-    <AppShell title="Sosyal Medya Yönetimi">
-      <div className="space-y-6 p-6 max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Sosyal Medya Planlayıcı</h1>
-            <p className="text-sm text-muted-foreground">
-              Instagram ve Facebook hesaplarınız için içerik oluşturun, AI metin yazarı kullanın ve zamanlayın.
-            </p>
-          </div>
-          <button className="inline-flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90">
-            <Plus className="h-4 w-4" />
-            Yeni Gönderi Taslağı
-          </button>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        eyebrow="Pazarlama & Sosyal Medya"
+        title="Sosyal Medya Yönetimi"
+        description="Instagram Business ve Facebook Sayfaları için içerik planlama, AI taslak üretimi ve zamanlanmış yayın yönetimi."
+        actions={
+          <StatusBadge tone="success">
+            Erişim Hazır
+          </StatusBadge>
+        }
+      />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Planlanan Gönderiler</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">1</div>
-              <p className="text-xs text-muted-foreground">Önümüzdeki 7 gün içinde yayımlanacak</p>
-            </CardContent>
-          </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <SectionCard title="Yeni Gönderi & Taslak Oluştur" description="Görsel açıklaması yazın, platformları seçin ve hemen yayınlayın veya zamanlayın.">
+            <form action={createSocialPostAction} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Başlık (İsteğe Bağlı)
+                </label>
+                <input
+                  type="text"
+                  name="title"
+                  placeholder="Örn: Sonbahar Kampanyası"
+                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                />
+              </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Yayımlanan İçerikler</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">Bu ay yayımlanan toplam gönderi</p>
-            </CardContent>
-          </Card>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Gönderi Açıklaması (Caption) *
+                </label>
+                <textarea
+                  name="caption"
+                  required
+                  rows={4}
+                  placeholder="Sosyal medya gönderi metnini girin..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                />
+              </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Taslaklar</CardTitle>
-              <Share2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">3</div>
-              <p className="text-xs text-muted-foreground">Onay bekleyen veya hazırlık aşamasında</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Gönderi Akışı & Takvim</CardTitle>
-                <CardDescription>Oluşturulan ve zamanlanan sosyal medya paylaşımları.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {mockPosts.map((post) => (
-                  <div key={post.id} className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {post.platform === "instagram" && <Instagram className="h-4 w-4 text-pink-500" />}
-                        {post.platform === "facebook" && <Facebook className="h-4 w-4 text-blue-600" />}
-                        {post.platform === "both" && (
-                          <div className="flex items-center gap-1">
-                            <Instagram className="h-4 w-4 text-pink-500" />
-                            <Facebook className="h-4 w-4 text-blue-600" />
-                          </div>
-                        )}
-                        <span className="text-xs font-semibold capitalize">{post.platform}</span>
-                      </div>
-
-                      {post.status === "published" && <Badge variant="outline" className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">Yayımlandı</Badge>}
-                      {post.status === "scheduled" && <Badge variant="outline" className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">Zamanlandı</Badge>}
-                      {post.status === "draft" && <Badge variant="secondary">Taslak</Badge>}
-                    </div>
-
-                    <p className="text-sm leading-relaxed">{post.content}</p>
-
-                    {post.hashtags.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {post.hashtags.map((tag) => (
-                          <span key={tag} className="text-xs text-primary font-medium">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="text-xs text-muted-foreground pt-2 border-t flex items-center justify-between">
-                      {post.scheduled_at && <span>Zamanlanmış: {new Date(post.scheduled_at).toLocaleString("tr-TR")}</span>}
-                      {post.published_at && <span>Yayımlandı: {new Date(post.published_at).toLocaleString("tr-TR")}</span>}
-                      {!post.scheduled_at && !post.published_at && <span>Taslak kayıt</span>}
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  AI Metin & Başlık Üretici
-                </CardTitle>
-                <CardDescription>Ürün veya duyurularınız için AI ile Türkçe paylaşım metni hazırlayın.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground">Konu veya Ürün Detayı</label>
-                  <textarea
-                    rows={3}
-                    placeholder="Örn: 3x7m demonte şantiye konteyneri yaz kampanyası..."
-                    className="w-full mt-1 p-2 text-sm rounded-md border bg-background"
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Paylaşım Platformları *
+                  </label>
+                  <div className="flex gap-4 pt-1">
+                    <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" name="platforms" value="instagram" defaultChecked className="rounded border-slate-300 text-primary" />
+                      Instagram Business
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" name="platforms" value="facebook" defaultChecked className="rounded border-slate-300 text-primary" />
+                      Facebook Page
+                    </label>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Zamanlama (İsteğe Bağlı)
+                  </label>
+                  <input
+                    type="datetime-local"
+                    name="scheduledAt"
+                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
                   />
                 </div>
-                <button className="w-full inline-flex items-center justify-center gap-2 rounded-md bg-secondary px-3 py-2 text-xs font-medium text-secondary-foreground hover:bg-secondary/80">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Metin ve Hashtag Üret
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="submit"
+                  name="status"
+                  value="draft"
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5"
+                >
+                  Taslak Olarak Kaydet
                 </button>
-              </CardContent>
-            </Card>
+                <button
+                  type="submit"
+                  name="status"
+                  value="scheduled"
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  <Plus className="h-4 w-4" />
+                  Gönderiyi Yayınla / Zamanla
+                </button>
+              </div>
+            </form>
+          </SectionCard>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Bağlı Hesaplar</CardTitle>
-                <CardDescription>Meta Business Manager entegrasyon durumu.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 text-xs">
-                <div className="flex items-center justify-between p-2 rounded border">
-                  <div className="flex items-center gap-2">
-                    <Instagram className="h-4 w-4 text-pink-500" />
-                    <span className="font-medium">Instagram Business</span>
+          <SectionCard title="İçerik Akışı ve Taslaklar" description="Kayıtlı taslaklar, zamanlanmış gönderiler ve geçmiş yayınlar.">
+            {posts.length === 0 ? (
+              <div className="border rounded-2xl p-6 bg-slate-50 dark:bg-white/5 text-center py-8">
+                <Clock className="h-8 w-8 text-slate-400 mx-auto mb-2" />
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Henüz kaydedilmiş gönderi bulunmuyor</p>
+                <p className="text-xs text-slate-500 mt-1">
+                  Yukarıdaki formu kullanarak ilk sosyal medya taslağınızı oluşturabilirsiniz.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {posts.map((post) => (
+                  <div key={post.id} className="p-4 rounded-xl border border-slate-200/80 dark:border-white/10 bg-white dark:bg-slate-900 flex justify-between items-start gap-4">
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        {post.title ? <span className="font-semibold text-sm text-slate-900 dark:text-white">{post.title}</span> : null}
+                        <StatusBadge tone={post.status === "published" ? "success" : post.status === "scheduled" ? "info" : "neutral"}>
+                          {post.status}
+                        </StatusBadge>
+                        <span className="text-xs text-slate-400">
+                          {Array.isArray(post.platforms) ? post.platforms.join(", ") : ""}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-wrap line-clamp-2">
+                        {post.caption || post.content}
+                      </p>
+                      {post.scheduled_at ? (
+                        <p className="text-[11px] text-slate-400 flex items-center gap-1">
+                          <CalendarDays className="h-3 w-3" />
+                          Planlanan: {new Date(post.scheduled_at).toLocaleString("tr-TR")}
+                        </p>
+                      ) : null}
+                    </div>
+                    <form action={async () => {
+                      "use server";
+                      await deleteSocialPostAction(post.id);
+                    }}>
+                      <button type="submit" title="Sil" className="text-slate-400 hover:text-rose-600 p-1">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </form>
                   </div>
-                  <Badge variant="outline" className="text-emerald-600 border-emerald-300">Aktif</Badge>
-                </div>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </div>
 
-                <div className="flex items-center justify-between p-2 rounded border">
-                  <div className="flex items-center gap-2">
-                    <Facebook className="h-4 w-4 text-blue-600" />
-                    <span className="font-medium">Facebook Sayfası</span>
+        <div className="space-y-6">
+          <SectionCard title="Zamanlanmış Yayın Kuyruğu" description="Otomatik işleyici tarafından sırayla işlenecek yayınlar.">
+            {queue.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 dark:bg-white/5 rounded-xl">
+                Kuyrukta bekleyen işlem yok.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {queue.map((item) => (
+                  <div key={item.id} className="p-3 border rounded-xl bg-white dark:bg-slate-900 text-xs flex justify-between items-center">
+                    <div>
+                      <p className="font-medium capitalize">{item.platform}</p>
+                      <p className="text-[10px] text-slate-400">{new Date(item.scheduled_for).toLocaleString("tr-TR")}</p>
+                    </div>
+                    <StatusBadge tone={item.status === "completed" ? "success" : item.status === "failed" ? "danger" : "info"}>
+                      {item.status}
+                    </StatusBadge>
                   </div>
-                  <Badge variant="outline" className="text-emerald-600 border-emerald-300">Aktif</Badge>
-                </div>
-              </CardContent>
-            </Card>
+                ))}
+              </div>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Bağlı Hesaplar" description="Meta Graph API kanalları">
+            <div className="space-y-2 text-xs">
+              <div className="flex justify-between items-center p-2.5 border rounded-xl bg-white dark:bg-slate-900">
+                <span className="font-medium flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-pink-500" />
+                  Instagram Business
+                </span>
+                <StatusBadge tone="success">Hazır</StatusBadge>
+              </div>
+              <div className="flex justify-between items-center p-2.5 border rounded-xl bg-white dark:bg-slate-900">
+                <span className="font-medium flex items-center gap-2">
+                  <Share2 className="h-4 w-4 text-blue-500" />
+                  Facebook Page
+                </span>
+                <StatusBadge tone="success">Hazır</StatusBadge>
+              </div>
+            </div>
+          </SectionCard>
+
+          <div className="p-4 rounded-2xl border border-blue-200/70 bg-blue-50/50 dark:border-blue-500/20 dark:bg-blue-500/10 space-y-2 text-xs text-blue-900 dark:text-blue-200">
+            <div className="flex items-center gap-1.5 font-semibold">
+              <CheckCircle className="h-4 w-4 text-blue-600" />
+              Güvenlik & Yinelenen Yayın Koruması
+            </div>
+            <p className="leading-relaxed">
+              Tüm gönderiler Meta Graph API standartlarına uygun olarak kuyruklanır ve idempotent dedupe anahtarı ile yinelenen paylaşımlar engellenir.
+            </p>
           </div>
         </div>
       </div>
-    </AppShell>
+    </div>
   );
 }

@@ -26,7 +26,7 @@ export default function Error({
     Sentry.captureException(error);
   }, [error]);
 
-  const locale = useMemo(readLocale, []);
+  const locale = useMemo(() => readLocale(), []);
 
   return (
     <main className="mx-auto flex min-h-screen max-w-2xl items-center px-6">

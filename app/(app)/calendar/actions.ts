@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { createCalendarEvent } from "@/server/services/productivity";
+import { syncSalesAppointmentToGoogleCalendar } from "@/server/services/integrations/google-calendar";
+import { loadWorkspaceContext } from "@/server/services/workspace-context";
 
 const eventSchema = z.object({
   title: z.string().trim().min(2),
@@ -29,6 +31,7 @@ export async function createCalendarEventAction(formData: FormData): Promise<voi
 
   let failureMessage: string | null = null;
   try {
+    const ctx = await loadWorkspaceContext();
     await createCalendarEvent({
       title: parsed.data.title,
       startsAt: new Date(parsed.data.starts_at).toISOString(),
@@ -36,6 +39,15 @@ export async function createCalendarEventAction(formData: FormData): Promise<voi
       eventType: parsed.data.event_type,
       location: parsed.data.location || null,
     });
+
+    if (ctx?.organization?.id) {
+      await syncSalesAppointmentToGoogleCalendar(ctx.organization.id, {
+        summary: parsed.data.title,
+        startTime: parsed.data.starts_at,
+        endTime: parsed.data.ends_at,
+        location: parsed.data.location,
+      });
+    }
   } catch (error) {
     failureMessage = error instanceof Error ? error.message : "Etkinlik oluşturulamadı.";
   }

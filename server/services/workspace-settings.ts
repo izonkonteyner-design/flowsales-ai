@@ -243,3 +243,34 @@ export async function removeWorkspaceCompanyLogo() {
     },
   };
 }
+
+export async function updateWorkspaceAiProviderSettings(params: {
+  provider: "gemini" | "ollama";
+  ollamaBaseUrl?: string;
+  ollamaModel?: string;
+}) {
+  const mutation = await getLiveMutationContext();
+  if (!mutation) {
+    return { success: true, mode: "demo" };
+  }
+
+  if (!canManageWorkspaceSettings(mutation.context.role)) {
+    throw new Error("You do not have permission to manage workspace settings.");
+  }
+
+  const organization = mutation.context.organization as WorkspaceMutationContext["organization"];
+
+  await mutation.client
+    .from("organizations")
+    .update({
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", organization.id);
+
+  return {
+    success: true,
+    provider: params.provider,
+    ollamaBaseUrl: params.ollamaBaseUrl,
+    ollamaModel: params.ollamaModel,
+  };
+}

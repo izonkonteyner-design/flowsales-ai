@@ -1,3 +1,4 @@
+import { resolveQuoteSnapshot } from "@/lib/quote-snapshot";
 import { CURRENCY_CODES, QUOTE_STATUSES } from "@/lib/constants";
 import { getLeadStatusLabel } from "@/server/services/lead-domain";
 import { getQuoteStatusLabel, getQuoteStatusTone } from "@/server/services/quote-domain";
@@ -417,7 +418,7 @@ function buildPipeline(currentCurrencyQuotes: DashboardQuote[]): QuotePipelineMe
 
   for (const quote of currentCurrencyQuotes) {
     countByStatus.set(quote.status, (countByStatus.get(quote.status) ?? 0) + 1);
-    valueByStatus.set(quote.status, (valueByStatus.get(quote.status) ?? 0) + safeNumber(quote.grand_total ?? quote.total ?? 0));
+    valueByStatus.set(quote.status, (valueByStatus.get(quote.status) ?? 0) + resolveQuoteSnapshot(quote).grand_total);
   }
 
   return QUOTE_STATUSES.map((status) => ({
@@ -490,7 +491,7 @@ function buildTopRecipients(quotes: DashboardQuote[], currency: CurrencyCode): T
     const key = getRecipientKey(quote);
     const recipientName = quote.customer_name ?? quote.lead_name ?? "Unassigned";
     const company = quote.customer_company ?? quote.lead_company ?? null;
-    const totalValue = safeNumber(quote.grand_total ?? quote.total ?? 0);
+    const totalValue = resolveQuoteSnapshot(quote).grand_total;
     const acceptedValue = quote.status === "accepted" ? totalValue : 0;
     const existing = map.get(key);
     if (!existing) {
@@ -538,7 +539,7 @@ function buildRecentQuotes(quotes: DashboardQuote[]) {
       recipient: getRecipientLabel(quote),
       status: quote.status,
       statusLabel: getQuoteStatusLabel(quote.status),
-      grandTotal: safeNumber(quote.grand_total ?? quote.total ?? 0),
+      grandTotal: resolveQuoteSnapshot(quote).grand_total,
       currency: quote.currency as CurrencyCode,
       updatedAt: quote.updated_at,
       href: `/quotes/${quote.id}`,
@@ -609,13 +610,13 @@ function buildCurrentQuoteMetrics(quotes: DashboardQuote[]) {
   const cancelledQuotes = countStatus(quotes, "cancelled");
   const acceptedRevenue = quotes
     .filter((quote) => quote.status === "accepted")
-    .reduce((total, quote) => total + safeNumber(quote.grand_total ?? quote.total ?? 0), 0);
+    .reduce((total, quote) => total + resolveQuoteSnapshot(quote).grand_total, 0);
   const openQuoteValue = quotes
     .filter((quote) => quote.status === "draft" || quote.status === "sent" || quote.status === "viewed")
-    .reduce((total, quote) => total + safeNumber(quote.grand_total ?? quote.total ?? 0), 0);
+    .reduce((total, quote) => total + resolveQuoteSnapshot(quote).grand_total, 0);
   const totalQuotedValue = quotes
     .filter((quote) => quote.status !== "cancelled")
-    .reduce((total, quote) => total + safeNumber(quote.grand_total ?? quote.total ?? 0), 0);
+    .reduce((total, quote) => total + resolveQuoteSnapshot(quote).grand_total, 0);
   const averageQuoteValue = totalQuotes ? totalQuotedValue / totalQuotes : 0;
   const averageAcceptedQuoteValue = acceptedQuotes ? acceptedRevenue / acceptedQuotes : 0;
   const quoteConversionRate = acceptedQuotes + rejectedQuotes ? (acceptedQuotes / (acceptedQuotes + rejectedQuotes)) * 100 : 0;
@@ -763,11 +764,11 @@ function buildRevenueBuckets(quotes: DashboardQuote[], period: DashboardPeriod) 
 
     const point = points[bucketIndex];
     point.quoteCount += 1;
-    point.totalQuotedValue += safeNumber(quote.grand_total ?? quote.total ?? 0);
+    point.totalQuotedValue += resolveQuoteSnapshot(quote).grand_total;
 
     if (quote.status === "accepted") {
       point.acceptedCount += 1;
-      point.acceptedRevenue += safeNumber(quote.grand_total ?? quote.total ?? 0);
+      point.acceptedRevenue += resolveQuoteSnapshot(quote).grand_total;
     }
   }
 

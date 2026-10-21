@@ -64,6 +64,7 @@ export type CommonTranslationKey = keyof (typeof common)["tr"];
 export function t(locale: Locale, key: CommonTranslationKey): string { return common[locale][key] ?? common.tr[key]; }
 
 const turkishNavigation: Record<string, string> = {
+  "Social Accounts": "Sosyal Medya Hesapları", "Content Studio": "İçerik Stüdyosu", "Publishing Calendar": "Yayın Takvimi", "Media Library": "Medya Kütüphanesi",
   Dashboard: "Kontrol Paneli", Inbox: "Gelen Kutusu", "Phone Inbox": "Telefon Gelen Kutusu", Leads: "Potansiyel Müşteriler",
   Customers: "Müşteriler", Products: "Ürünler", Quotes: "Teklifler", Tasks: "Görevler", Calendar: "Takvim",
   AI: "Yapay Zekâ", "Sales Operations": "Satış Operasyonları", "Command Center": "Komuta Merkezi", "Sales Analyst": "Satış Analisti",
@@ -74,6 +75,7 @@ const turkishNavigation: Record<string, string> = {
 };
 
 const englishNavigation: Record<string, string> = {
+  "Social Accounts": "Social Accounts", "Content Studio": "Content Studio", "Publishing Calendar": "Publishing Calendar", "Media Library": "Media Library",
   Dashboard: "Dashboard", Inbox: "Inbox", "Phone Inbox": "Phone Inbox", Leads: "Leads",
   Customers: "Customers", Products: "Products", Quotes: "Quotes", Tasks: "Tasks", Calendar: "Calendar",
   AI: "AI", "Sales Operations": "Sales Operations", "Command Center": "Command Center", "Sales Analyst": "Sales Analyst",

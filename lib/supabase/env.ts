@@ -1,3 +1,4 @@
+import { isReadOnlyRepairPreview } from "@/lib/preview-safety";
 export type SupabaseEnv = {
   url: string | null;
   anonKey: string | null;
@@ -5,6 +6,7 @@ export type SupabaseEnv = {
 };
 
 export function getSupabaseEnv(): SupabaseEnv {
+  if (process.env.NEXT_PUBLIC_REPAIR_PREVIEW === "true" || isReadOnlyRepairPreview(process.env)) return { url: null, anonKey: null, serviceRoleKey: null };
   return {
     url: process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? null,
     anonKey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? null,

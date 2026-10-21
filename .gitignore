@@ -45,3 +45,9 @@ output.txt
 test-results/
 playwright-report/
 
+
+# Local diagnostics and test artifacts
+*.log
+audit-output.json
+.eslintcache
+artifacts/

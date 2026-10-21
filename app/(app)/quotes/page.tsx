@@ -1,3 +1,4 @@
+import { canEditWorkspace, isDemoWorkspace } from "@/lib/workspace-access";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { Filter, Plus } from "lucide-react";
@@ -13,7 +14,7 @@ import { Select } from "@/components/ui/select";
 import { QUOTE_STATUSES } from "@/lib/constants";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { canManageQuotes, getQuoteRecordRestrictionMessage, normalizeQuoteSearchParams, type QuoteFilterState } from "@/server/services/quote-domain";
+import { getQuoteRecordRestrictionMessage, normalizeQuoteSearchParams, type QuoteFilterState } from "@/server/services/quote-domain";
 import { getQuotePageData } from "@/server/services/quotes";
 
 type QuotesPageProps = { searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -64,13 +65,13 @@ export default async function QuotesPage({ searchParams }: QuotesPageProps) {
   return (
     <div className="space-y-6">
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
-      <PageHeader eyebrow={c.eyebrow} title={c.title} description={c.description} actions={<Link href={createHref} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />{c.newQuote}</Link>} />
+      <PageHeader eyebrow={c.eyebrow} title={c.title} description={c.description} actions={canEditWorkspace(data.context) ? <Link href={createHref} className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"><Plus className="h-4 w-4" />{c.newQuote}</Link> : <button disabled className="h-10 rounded-2xl border border-white/10 px-4 text-sm opacity-50">{c.newQuote}</button>} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric label={c.results} value={String(data.total)} delta={data.totalPages > 1 ? `${c.page} ${data.page} ${c.of} ${data.totalPages}` : c.page} />
-        <Metric label={c.recordMode} value={data.context.mode === "live" ? c.live : c.demo} delta={data.context.role} />
+        <Metric label={c.recordMode} value={isDemoWorkspace(data.context) ? c.demo : c.live} delta={isDemoWorkspace(data.context) ? "DEMO" : data.context.role} />
         <Metric label={c.viewState} value={filters.status ? statusLabel(filters.status, filters.status) : c.all} delta={filters.sort} />
-        <Metric label={c.permissions} value={canManageQuotes(data.context.role) ? c.editable : c.readOnly} delta={c.tenant} />
+        <Metric label={c.permissions} value={canEditWorkspace(data.context) ? c.editable : c.readOnly} delta={c.tenant} />
       </div>
 
       <SectionCard title={c.filters} description={c.filtersDesc}>
@@ -88,7 +89,7 @@ export default async function QuotesPage({ searchParams }: QuotesPageProps) {
           <div className="space-y-3">
             {data.quotes.map((quote) => {
               const restriction = getQuoteRecordRestrictionMessage(quote.recordMode, data.context.role);
-              const canEdit = canManageQuotes(data.context.role) && quote.recordMode === "live";
+              const canEdit = canEditWorkspace(data.context) && quote.recordMode === "live";
               const partyLabel = quote.lead_name ?? quote.customer_name ?? c.unassigned;
               const partySub = quote.lead_company ?? quote.customer_company ?? c.noCompany;
               const recordLabel = quote.recordMode === "live" ? c.liveRecord : c.demoRecord;
@@ -102,7 +103,7 @@ export default async function QuotesPage({ searchParams }: QuotesPageProps) {
                     </div>
                     <div className="grid gap-3 sm:grid-cols-3 xl:min-w-[440px]"><Mini label={c.issue} value={formatDate(quote.issue_date)} /><Mini label={c.validUntil} value={formatDate(quote.valid_until ?? quote.expiry_date ?? quote.issue_date)} /><Mini label={c.total} value={formatCurrency(quote.grand_total ?? quote.total ?? 0, quote.currency)} /></div>
                   </div>
-                  <div className="mt-4 flex flex-wrap gap-2"><Link href={`/quotes/${quote.id}`} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{c.view}</Link>{canEdit ? <Link href={`/quotes/${quote.id}/edit?redirect_to=${encodeURIComponent(currentHref)}`} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{c.edit}</Link> : <span title={localizedRestriction} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">{c.edit}</span>}<QuoteDeleteDialog quoteId={quote.id} quoteNumber={quote.quote_number} redirectTo={currentHref} recordMode={quote.recordMode} role={data.context.role} restrictionMessage={localizedRestriction} /></div>
+                  <div className="mt-4 flex flex-wrap gap-2"><Link href={`/quotes/${quote.id}`} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{c.view}</Link>{canEdit ? <Link href={`/quotes/${quote.id}/edit?redirect_to=${encodeURIComponent(currentHref)}`} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">{c.edit}</Link> : <span aria-disabled="true" title={localizedRestriction} className="inline-flex h-10 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">{c.edit}</span>}<QuoteDeleteDialog quoteId={quote.id} quoteNumber={quote.quote_number} redirectTo={currentHref} recordMode={quote.recordMode} role={data.context.role} restrictionMessage={localizedRestriction} /></div>
                 </article>
               );
             })}

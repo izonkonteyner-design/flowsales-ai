@@ -1,3 +1,4 @@
+import { amountForCurrency } from "@/lib/currency-value";
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
@@ -174,6 +175,7 @@ export async function getPipelineIntelligence(params: {
   organizationId: string;
   userId: string;
   userRole: string;
+  currency?: string;
 }): Promise<PipelineIntelligence> {
   const admin = createSupabaseAdminClient();
   const { data: qualifications, error } = await admin
@@ -190,7 +192,7 @@ export async function getPipelineIntelligence(params: {
   if (!openRows.length) return { totalOpen: 0, weightedScore: 0, staleCount: 0, highPriorityCount: 0, estimatedValue: 0, stages: [], topRisk: [] };
 
   const leadIds = openRows.map((row) => row.lead_id).filter((id): id is string => Boolean(id));
-  let leadQuery = admin.from("leads").select("id,assigned_to,estimated_value").eq("organization_id", params.organizationId).in("id", leadIds);
+  let leadQuery = admin.from("leads").select("id,assigned_to,estimated_value,currency").eq("organization_id", params.organizationId).in("id", leadIds);
   if (isSalesRepresentativeRole(params.userRole as "sales" | "sales_rep")) leadQuery = leadQuery.or(`assigned_to.eq.${params.userId},assigned_to.is.null`);
   const { data: leads } = await leadQuery;
   const leadMap = new Map((leads || []).map((row) => [row.id, row]));
@@ -207,7 +209,7 @@ export async function getPipelineIntelligence(params: {
     current.scoreTotal += row.score || 0;
     current.high += row.priority === "high" ? 1 : 0;
     current.stale += row.lead_id && staleIds.has(row.lead_id) ? 1 : 0;
-    current.value += Number(lead?.estimated_value || 0);
+    current.value += amountForCurrency(lead?.estimated_value, lead?.currency, params.currency);
     stageMap.set(stage, current);
   }
 

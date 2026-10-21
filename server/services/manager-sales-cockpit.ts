@@ -1,3 +1,4 @@
+import { amountForCurrency } from "@/lib/currency-value";
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
@@ -9,13 +10,14 @@ export async function getManagerSalesCockpit(input: {
   organizationId: string;
   userId: string;
   userRole: string;
+  currency?: string;
 }) {
   const scope = { organizationId: input.organizationId, userId: input.userId, userRole: input.userRole };
   const admin = createSupabaseAdminClient();
   const [pipeline, forecast, winLoss, followUps, missed, voiceResult, leadResult] = await Promise.all([
-    getPipelineIntelligence(scope),
-    getSalesForecast(scope),
-    getWinLossIntelligence(scope),
+    getPipelineIntelligence({ ...scope, currency: input.currency }),
+    getSalesForecast(scope, input.currency),
+    getWinLossIntelligence(scope, input.currency),
     listFollowUpAutomationV2(scope),
     listMissedOpportunities({ ...scope, limit: 25 }),
     admin
@@ -27,7 +29,7 @@ export async function getManagerSalesCockpit(input: {
       .limit(500),
     admin
       .from("leads")
-      .select("id,assigned_to,status,estimated_value,created_at")
+      .select("id,assigned_to,status,estimated_value,currency,created_at")
       .eq("organization_id", input.organizationId)
       .limit(1500),
   ]);
@@ -50,7 +52,7 @@ export async function getManagerSalesCockpit(input: {
     current.leadCount += 1;
     current.openCount += ["won", "lost"].includes(lead.status) ? 0 : 1;
     current.wonCount += lead.status === "won" ? 1 : 0;
-    current.pipelineValue += ["won", "lost"].includes(lead.status) ? 0 : Number(lead.estimated_value || 0);
+    current.pipelineValue += ["won", "lost"].includes(lead.status) ? 0 : amountForCurrency(lead.estimated_value, lead.currency, input.currency);
     repMap.set(key, current);
   }
 

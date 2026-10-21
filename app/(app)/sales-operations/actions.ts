@@ -1,5 +1,6 @@
 "use server";
 
+import { canEditWorkspace } from "@/lib/workspace-access";
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { getWorkspaceContext } from "@/server/services/workspace-context";
@@ -7,7 +8,7 @@ import { completeCallback, createFollowUpSequence, enrollLeadInSequence, enqueue
 
 function requireWritable(context: Awaited<ReturnType<typeof getWorkspaceContext>>) {
   if (context.mode !== "live" || !context.userId) throw new Error("Bu işlem yalnızca canlı çalışma alanında kullanılabilir.");
-  if (context.role === "viewer") throw new Error("Salt okunur erişim.");
+  if (!canEditWorkspace(context)) throw new Error("Salt okunur erişim.");
   return context;
 }
 

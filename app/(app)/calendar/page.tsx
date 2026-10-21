@@ -1,5 +1,8 @@
 import { CalendarDays, Clock3, MapPin } from "lucide-react";
 
+import { getWorkspaceContext } from "@/server/services/workspace-context";
+import { canEditWorkspace } from "@/lib/workspace-access";
+
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,22 +14,24 @@ import { createCalendarEventAction } from "./actions";
 
 export default async function CalendarPage() {
   const events = await listCalendarEvents();
+  const canEdit = canEditWorkspace(await getWorkspaceContext());
 
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Operasyonlar" title="Takvim" description="Arama, demo, toplantı, teslimat ve takip planlarını çalışma alanı takviminde yönetin." />
 
       <SectionCard title="Etkinlik planla" description="Takvim kaydı ekip ve CRM çalışma alanına bağlı tutulur.">
-        <form action={createCalendarEventAction} className="grid gap-3 xl:grid-cols-6">
-          <Input name="title" required minLength={2} placeholder="Etkinlik başlığı" className="xl:col-span-2" />
-          <Input name="starts_at" type="datetime-local" required />
-          <Input name="ends_at" type="datetime-local" required />
-          <Select name="event_type" defaultValue="meeting">
+        <p className="mb-3 text-sm text-slate-400">{!canEdit ? "Salt okunur erişim: bu işlem için canlı çalışma alanı ve yazma yetkisi gerekir." : ""}</p>
+        <form action={createCalendarEventAction}><fieldset disabled={!canEdit} className="grid gap-3 xl:grid-cols-6">
+          <Input aria-label="Etkinlik başlığı" name="title" required minLength={2} placeholder="Etkinlik başlığı" className="xl:col-span-2" />
+          <Input aria-label="Başlangıç zamanı" name="starts_at" type="datetime-local" required />
+          <Input aria-label="Bitiş zamanı" name="ends_at" type="datetime-local" required />
+          <Select aria-label="Etkinlik türü" name="event_type" defaultValue="meeting">
             <option value="call">Arama</option><option value="demo">Demo</option><option value="meeting">Toplantı</option><option value="delivery">Teslimat</option><option value="follow_up">Takip</option><option value="other">Diğer</option>
           </Select>
           <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950"><CalendarDays className="h-4 w-4" /> Kaydet</button>
-          <Input name="location" placeholder="Konum / görüşme bağlantısı (opsiyonel)" className="xl:col-span-6" />
-        </form>
+          <Input aria-label="Konum veya görüşme bağlantısı" name="location" placeholder="Konum / görüşme bağlantısı (opsiyonel)" className="xl:col-span-6" />
+        </fieldset></form>
       </SectionCard>
 
       <SectionCard title="Yaklaşan etkinlikler" description="Dün ve sonrasındaki planlar başlangıç zamanına göre sıralanır.">

@@ -4,7 +4,7 @@ import { CreditCard, Crown, ReceiptText, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getWorkspacePlan } from "@/server/services/workspace-plan";
 import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { getLemonSqueezyBillingConfigStatus } from "@/server/services/lemonsqueezy-billing";
 
@@ -17,12 +17,10 @@ const plans = [
 export default async function BillingPage() {
   const workspace = await getWorkspaceContext();
   const config = getLemonSqueezyBillingConfigStatus();
-  const client = await createSupabaseServerClient();
-  const entitlement = client && workspace.mode === "live"
-    ? (await client.from("organization_entitlements").select("plan_key,subscription_status,trial_ends_at,seat_limit,monthly_ai_run_limit,billing_subscription_id").eq("organization_id", workspace.organization.id).maybeSingle()).data
-    : null;
+  const plan = await getWorkspacePlan(workspace);
+  const entitlement = { plan_key: plan.planKey, subscription_status: plan.status, seat_limit: plan.seatLimit, monthly_ai_run_limit: plan.monthlyAiRunLimit, billing_subscription_id: plan.subscriptionId };
 
-  const canManage = workspace.mode === "live" && (workspace.role === "owner" || workspace.role === "admin");
+  const canManage = !plan.demo && workspace.mode === "live" && (workspace.role === "owner" || workspace.role === "admin");
 
   return (
     <div className="space-y-6">
@@ -32,8 +30,8 @@ export default async function BillingPage() {
         <div className="grid gap-4 md:grid-cols-4">
           <Info title="Plan" value={entitlement?.plan_key ?? (workspace.mode === "demo" ? "demo" : "trial")} icon={Crown} />
           <Info title="Durum" value={entitlement?.subscription_status ?? (workspace.mode === "demo" ? "demo" : "trialing")} icon={ShieldCheck} />
-          <Info title="Koltuk limiti" value={String(entitlement?.seat_limit ?? 3)} icon={ReceiptText} />
-          <Info title="Aylık YZ limiti" value={String(entitlement?.monthly_ai_run_limit ?? 100)} icon={CreditCard} />
+          <Info title="Koltuk limiti" value={String(entitlement?.seat_limit ?? "Yapılandırılmadı")} icon={ReceiptText} />
+          <Info title="Aylık YZ limiti" value={String(entitlement?.monthly_ai_run_limit ?? "Yapılandırılmadı")} icon={CreditCard} />
         </div>
         {entitlement?.billing_subscription_id && canManage ? <Link href="/api/billing/portal" className="mt-5 inline-flex h-10 items-center rounded-2xl border border-white/[0.1] px-4 text-sm font-semibold text-white hover:bg-white/[0.06]">Aboneliği müşteri portalında yönet</Link> : null}
       </SectionCard>

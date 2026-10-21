@@ -1,5 +1,8 @@
 import { CheckCircle2, Circle, Plus } from "lucide-react";
 
+import { getWorkspaceContext } from "@/server/services/workspace-context";
+import { canEditWorkspace } from "@/lib/workspace-access";
+
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -11,6 +14,7 @@ import { createTaskAction, setTaskStatusAction } from "./actions";
 
 export default async function TasksPage() {
   const tasks = await listWorkspaceTasks();
+  const canEdit = canEditWorkspace(await getWorkspaceContext());
   const openCount = tasks.filter((task) => task.status === "open").length;
 
   return (
@@ -18,16 +22,17 @@ export default async function TasksPage() {
       <PageHeader eyebrow="Operasyonlar" title="Görevler" description="Takipleri, son tarihleri ve sorumlulukları gerçek çalışma alanı verisiyle yönetin." />
 
       <SectionCard title="Yeni görev" description="Görevi oluşturun; kayıt çalışma alanınıza güvenli biçimde yazılır.">
-        <form action={createTaskAction} className="grid gap-3 lg:grid-cols-[1.5fr_1fr_0.8fr_auto]">
-          <Input name="title" required minLength={2} placeholder="Örn. Teklif sonrası müşteriyi ara" />
-          <Input name="due_at" type="datetime-local" required />
-          <Select name="priority" defaultValue="medium">
+        {!canEdit ? <p className="mb-3 text-sm text-slate-400">Salt okunur erişim: görev oluşturmak veya tamamlamak için yazma yetkisi gerekir.</p> : null}
+        <form action={createTaskAction}><fieldset disabled={!canEdit} className="grid gap-3 lg:grid-cols-[1.5fr_1fr_0.8fr_auto]">
+          <Input aria-label="Görev başlığı" name="title" required minLength={2} placeholder="Örn. Teklif sonrası müşteriyi ara" />
+          <Input aria-label="Son tarih" name="due_at" type="datetime-local" required />
+          <Select aria-label="Öncelik" name="priority" defaultValue="medium">
             <option value="low">Düşük</option>
             <option value="medium">Orta</option>
             <option value="high">Yüksek</option>
           </Select>
           <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950"><Plus className="h-4 w-4" /> Görev oluştur</button>
-        </form>
+        </fieldset></form>
       </SectionCard>
 
       <SectionCard title={`Görev panosu · ${openCount} açık`} description="Açık ve tamamlanan görevler son tarihe göre sıralanır.">
@@ -42,7 +47,7 @@ export default async function TasksPage() {
                 <form action={setTaskStatusAction}>
                   <input type="hidden" name="id" value={task.id} />
                   <input type="hidden" name="status" value={task.status === "completed" ? "open" : "completed"} />
-                  <button type="submit" className="rounded-xl border border-white/[0.1] px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/[0.06]">{task.status === "completed" ? "Yeniden aç" : "Tamamla"}</button>
+                  <button type="submit" disabled={!canEdit} className="rounded-xl disabled:opacity-50 border border-white/[0.1] px-3 py-2 text-xs font-semibold text-slate-300 hover:bg-white/[0.06]">{task.status === "completed" ? "Yeniden aç" : "Tamamla"}</button>
                 </form>
               </article>
             ))}

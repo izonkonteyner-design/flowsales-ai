@@ -1,3 +1,5 @@
+import { getWorkspaceContext } from "@/server/services/workspace-context";
+import { canEditWorkspace } from "@/lib/workspace-access";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -11,11 +13,12 @@ export const metadata: Metadata = {
 };
 
 type PageProps = {
-  params: Promise<{ leadId: string }>;
+  params: Promise<{ id: string }>;
   searchParams: Promise<{ toast?: string; tone?: string }>;
 };
 
 const capabilities = [
+  { key: "opportunity_summary", title: "Fırsat özeti", description: "Doğrulanmış CRM bağlamından fırsatın mevcut durumunu özetleyin." },
   { key: "lead_scoring", title: "Lead Scoring", description: "Evaluate lead quality, evidence and sales readiness." },
   { key: "next_best_action", title: "Next Best Action", description: "Recommend the safest and most useful next sales step." },
   { key: "follow_up_draft", title: "Follow-up Draft", description: "Create a contextual draft without sending it automatically." },
@@ -28,7 +31,7 @@ function label(value: string) {
 }
 
 export default async function LeadAiPage({ params, searchParams }: PageProps) {
-  const [{ leadId }, query] = await Promise.all([params, searchParams]);
+  const [{ id: leadId }, query] = await Promise.all([params, searchParams]);
   const client = await createSupabaseServerClient();
   if (!client) redirect("/login");
   const { data: authData } = await client.auth.getUser();
@@ -36,9 +39,9 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
 
   const { data: membership } = await client
     .from("organization_members")
-    .select("organization_id")
+    .select("organization_id,role")
     .eq("user_id", authData.user.id)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (!membership) redirect("/onboarding");
@@ -63,9 +66,10 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
   if (!lead) notFound();
   if (runsError) throw new Error(`Unable to load lead AI history: ${runsError.message}`);
   const isDemo = demoFlag === true;
+  const canRun = !isDemo && canEditWorkspace(await getWorkspaceContext());
 
   return (
-    <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-600">Lead intelligence</p>
@@ -88,7 +92,7 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
 
       {isDemo ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Demo Safe Mode is active. AI may analyze data, but protected mutations and quote actions remain blocked or approval-gated.
+          Demo salt okunurdur. YZ analizleri çalıştırılmaz; mevcut sonuçlar görüntülenebilir.
         </div>
       ) : null}
 
@@ -99,7 +103,7 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
             <input type="hidden" name="capability" value={capability.key} />
             <h2 className="text-base font-semibold text-slate-950">{capability.title}</h2>
             <p className="mt-2 flex-1 text-sm leading-6 text-slate-600">{capability.description}</p>
-            <button type="submit" className="mt-5 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            <button type="submit" disabled={!canRun} className="disabled:opacity-40 mt-5 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
               Run analysis
             </button>
           </form>
@@ -149,6 +153,6 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
           })}
         </div>
       </section>
-    </main>
+    </div>
   );
 }

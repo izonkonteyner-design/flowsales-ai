@@ -1,4 +1,6 @@
+import { canEditWorkspace } from "@/lib/workspace-access";
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { resolveQuoteSnapshot } from "@/lib/quote-snapshot";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { demoQuotes, demoLeads, demoProducts } from "@/server/services/crm-data";
 import { demoCustomers } from "@/server/services/workspace-data";
@@ -11,7 +13,6 @@ import {
 } from "@/server/services/crm-integration";
 import { createDemoWorkspaceContext, getWorkspaceContext, type WorkspaceRole } from "@/server/services/workspace-context";
 import {
-  canManageQuotes,
   calculateNormalizedQuoteTotals,
   filterQuotes,
   formatQuoteFollowUpState,
@@ -48,6 +49,7 @@ type ProductOption = {
 };
 
 export type QuoteRow = Quote & {
+  money_issues?: string[];
   recordMode: QuoteRecordMode;
   lead_name: string | null;
   lead_company: string | null;
@@ -216,16 +218,16 @@ function normalizeQuoteRecord(
 ): QuoteRow {
   const issueDate = toStringValue(raw.issue_date, "");
   const validUntil = toStringValue(raw.valid_until ?? raw.expiry_date ?? issueDate, issueDate);
-  const subtotal = Number(raw.subtotal ?? items.reduce((sum, item) => sum + Number(item.line_subtotal ?? 0), 0));
-  const lineDiscountTotal = Number(
-    raw.line_discount_total ?? raw.discount_total ?? items.reduce((sum, item) => sum + Number(item.line_discount ?? 0), 0),
-  );
-  const orderDiscountTotal = Number(raw.order_discount_total ?? 0);
-  const taxableSubtotal = Number(raw.taxable_subtotal ?? subtotal - lineDiscountTotal - orderDiscountTotal);
-  const taxTotal = Number(raw.tax_total ?? items.reduce((sum, item) => sum + Number(item.line_tax ?? 0), 0));
-  const shippingTotal = Number(raw.shipping_total ?? 0);
-  const grandTotal = Number(raw.grand_total ?? raw.total ?? taxableSubtotal + taxTotal + shippingTotal);
   const status = raw.status as QuoteStatus;
+  const snapshot = resolveQuoteSnapshot({ ...raw, subtotal: raw.subtotal ?? items.reduce((sum, item) => sum + Number(item.line_subtotal ?? 0), 0), tax_total: raw.tax_total ?? items.reduce((sum, item) => sum + Number(item.line_tax ?? 0), 0) });
+  const moneyIssues = [...snapshot.issues];
+  if (!items.length && snapshot.subtotal > 0) moneyIssues.push("Teklif satırları eksik; ticari belge oluşturulmadan önce kontrol edilmelidir.");
+  if (items.length) {
+    try {
+      const calculated = calculateNormalizedQuoteTotals(items.map(item => ({ ...item, description: item.description ?? undefined, sku: item.sku ?? undefined })), { currency: raw.currency, order_discount_type: raw.order_discount_type, order_discount_value: Number(raw.order_discount_value ?? 0) });
+      if (items.some((item, index) => Math.abs(Number(item.line_total ?? 0) - calculated.line_items[index].total) > 0.01)) moneyIssues.push("Saklanan satır toplamları miktar, birim fiyat, indirim veya vergiyle uyuşmuyor.");
+    } catch { moneyIssues.push("Teklif satırları geçerli bir para hesabı oluşturmuyor."); }
+  }
 
   return {
     id: String(raw.id ?? ""),
@@ -241,17 +243,10 @@ function normalizeQuoteRecord(
     notes: toStringValue(raw.notes, ""),
     payment_terms: toStringValue(raw.payment_terms, ""),
     delivery_terms: toStringValue(raw.delivery_terms, ""),
-    shipping_total: shippingTotal,
-    subtotal,
-    discount_total: Number(raw.discount_total ?? lineDiscountTotal + orderDiscountTotal),
-    line_discount_total: lineDiscountTotal,
     order_discount_type: raw.order_discount_type ?? "percentage",
     order_discount_value: Number(raw.order_discount_value ?? 0),
-    order_discount_total: orderDiscountTotal,
-    taxable_subtotal: taxableSubtotal,
-    tax_total: taxTotal,
-    grand_total: grandTotal,
-    total: Number(raw.total ?? grandTotal),
+    ...snapshot,
+    money_issues: moneyIssues,
     items,
     created_by: toStringValue(raw.created_by, ""),
     created_at: toStringValue(raw.created_at, ""),
@@ -668,7 +663,7 @@ export async function getQuoteDetailData(id: string): Promise<QuoteDetailData> {
 
 export async function getQuoteFormData(id?: string, hints: QuoteRecipientHints = {}): Promise<QuoteFormData> {
   const context = await getContext();
-  const canMutate = context.mode === "live" && canManageQuotes(context.role);
+  const canMutate = canEditWorkspace(context);
   const options = await loadQuoteOptions(context, hints);
   const workspaceSettingsResult = await getWorkspaceCompanySettingsData();
   const workspaceSettings = workspaceSettingsResult.settings ?? mapOrganizationToWorkspaceSettings(context.organization as any);
@@ -703,7 +698,7 @@ export async function getQuoteFormData(id?: string, hints: QuoteRecipientHints =
 }
 
 function assertCanMutate(context: QuoteWorkspaceContext) {
-  if (!canManageQuotes(context.role)) {
+  if (!canEditWorkspace(context)) {
     throw new Error("You do not have permission to manage quotes.");
   }
 }

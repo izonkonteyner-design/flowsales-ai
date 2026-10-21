@@ -14,12 +14,13 @@ export default async function SalesCockpitPage() {
   if (!ctx?.userId) return <EmptyState title="Oturum gerekli" description="Satış yönetim kokpitini görmek için giriş yapın." actionHref="/login" actionLabel="Giriş yap" />;
   if (ctx.role === "viewer") return <EmptyState title="Yetki gerekli" description="Bu ekran satış operasyonu görünümü gerektirir." actionHref="/dashboard" actionLabel="Kontrol paneline dön" />;
 
-  const data = await getManagerSalesCockpit({ organizationId: ctx.organization.id, userId: ctx.userId, userRole: ctx.role });
+  const data = await getManagerSalesCockpit({ organizationId: ctx.organization.id, userId: ctx.userId, userRole: ctx.role, currency: ctx.organization.currency || "TRY" });
   const currency = ctx.organization.currency || "TRY";
 
   return <div className="space-y-6">
     <PageHeader eyebrow="Manager Sales Cockpit" title="Satış operasyonu kontrol merkezi" description="Pipeline, forecast, kaçan fırsatlar, telefon performansı, kazanma-kaybetme ve temsilci yükünü aynı yönetim görünümünde birleştirir." />
 
+    <p className="rounded-xl border border-white/10 p-4 text-sm text-slate-400">Konuşma zekâsı göstergeleri analiz edilmiş fırsatları kapsar. Para toplamlarına yalnızca {currency} kayıtları katılır; kur dönüşümü yapılmaz. Temsilci sayıları tüm CRM kayıtlarını kapsar.</p>
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
       <Metric label="Açık fırsat" value={String(data.pipeline.totalOpen)} />
       <Metric label="Pipeline" value={formatCurrency(data.pipeline.estimatedValue, currency)} />

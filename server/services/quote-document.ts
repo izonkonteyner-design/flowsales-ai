@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasSupabaseConfig } from "@/lib/supabase/env";
 import { demoCustomers } from "@/server/services/workspace-data";
 import { loadWorkspaceContext } from "@/server/services/workspace-context";
-import { demoLeads, demoProducts, demoOrganization } from "@/server/services/crm-data";
+import { demoLeads, demoProducts, demoOrganization, demoQuotes } from "@/server/services/crm-data";
 import { getQuoteStatusLabel, type QuoteRecordMode } from "@/server/services/quote-domain";
 import { getQuoteDetailData, type QuoteRow } from "@/server/services/quotes";
 import type { CurrencyCode, Organization, QuoteStatus } from "@/types/crm";
@@ -107,7 +107,7 @@ export type QuoteDocumentModel = {
 
 export type QuoteDocumentResult =
   | { ok: true; document: QuoteDocumentModel }
-  | { ok: false; status: 400 | 403 | 404 | 500; message: string };
+  | { ok: false; status: 400 | 403 | 404 | 409 | 500; message: string };
 
 function safeString(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
@@ -317,6 +317,7 @@ async function loadLiveQuoteDocument(quoteId: string): Promise<QuoteDocumentResu
     return { ok: false, status: 404, message: "Quote not found." };
   }
 
+  if (detail.quote.money_issues?.length) return { ok: false, status: 409, message: "Teklif tutarları veya satırları tutarsız. Belge oluşturmadan önce teklif kaydını doğrulayın." };
   const client = await createSupabaseServerClient();
   if (!client) {
     return { ok: false, status: 500, message: "Unable to load quote document." };
@@ -422,6 +423,7 @@ async function loadDemoQuoteDocument(quoteId: string): Promise<QuoteDocumentResu
 }
 
 export async function getQuoteDocumentData(quoteId: string): Promise<QuoteDocumentResult> {
+  if (!hasSupabaseConfig() && demoQuotes.some((quote) => quote.id === quoteId)) return loadDemoQuoteDocument(quoteId);
   const parsed = quoteDocumentIdSchema.safeParse(quoteId);
   if (!parsed.success) {
     return { ok: false, status: 400, message: "Invalid quote id." };

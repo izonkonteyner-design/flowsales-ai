@@ -6,6 +6,7 @@ import type {
   Quote,
   Task,
 } from "@/types/crm";
+import { calculateQuoteTotals } from "@/server/services/quote-math";
 import { formatCurrency } from "@/lib/utils";
 
 export const demoOrganization = {
@@ -428,6 +429,13 @@ export const demoQuotes: Quote[] = [
     updated_at: "2026-07-15T09:00:00.000Z",
   },
 ];
+
+for (const quote of demoQuotes) {
+  const items = quote.items.map((item) => ({ ...item, quantity: item.quantity ?? 1, unit_price: item.unit_price ?? 0, description: item.description ?? undefined, sku: item.sku ?? undefined, currency: "TRY" as const, discount_type: "percentage" as const, discount_value: item.discount ?? 0 }));
+  const totals = calculateQuoteTotals(items, { currency: "TRY" });
+  Object.assign(quote, totals, { total: totals.grand_total });
+  quote.items = items.map((item, index) => ({ ...item, line_subtotal: totals.line_items[index].subtotal, line_discount: totals.line_items[index].line_discount, taxable_subtotal: totals.line_items[index].taxable_subtotal, line_tax: totals.line_items[index].tax_total, line_total: totals.line_items[index].total }));
+}
 
 export const demoTasks: Task[] = [
   {

@@ -1,3 +1,5 @@
+import { getWorkspaceContext } from "@/server/services/workspace-context";
+import { canManageWorkspace } from "@/lib/workspace-access";
 import { Braces, KeyRound, ServerCog } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -19,14 +21,15 @@ const endpoints = [
 
 export default async function ApiLayerPage() {
   const keys = await listApiKeys();
+  const canManage = canManageWorkspace(await getWorkspaceContext());
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Platform" title="API ve Entegrasyon Katmanı" description="Çalışma alanı API anahtarlarını güvenli biçimde oluşturun, iptal edin ve doğrulanmış sistem endpoint'lerini izleyin." actions={<div className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-4 text-sm font-medium text-slate-300"><ServerCog className="h-4 w-4" /> Sunucu sınırı aktif</div>} />
 
-      <SectionCard title="API anahtarı oluştur" description="Ham anahtar yalnız oluşturma anında gösterilir; veritabanında yalnız SHA-256 hash tutulur."><ApiKeyCreator /></SectionCard>
+      <SectionCard title="API anahtarı oluştur" description="Ham anahtar yalnız oluşturma anında gösterilir; veritabanında yalnız SHA-256 hash tutulur.">{!canManage ? <p className="mb-3 text-sm text-amber-300">API anahtarlarını yalnızca canlı çalışma alanının sahibi veya yöneticisi yönetebilir.</p> : null}<ApiKeyCreator disabled={!canManage} /></SectionCard>
 
       <SectionCard title={`API anahtarları · ${keys.length}`} description="Owner/Admin anahtarları iptal edebilir; iptal edilen anahtar tekrar etkinleştirilmez.">
-        {keys.length ? <div className="space-y-3">{keys.map((key) => <div key={key.id} className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-4 w-4 text-violet-300" /><div><p className="font-medium text-white">{key.name}</p><p className="mt-1 text-xs text-slate-500">{key.key_prefix}… · {key.scopes.join(", ")} · {key.revoked_at ? "İptal edildi" : "Aktif"}</p><p className="mt-1 text-xs text-slate-600">Oluşturma: {formatDateTime(key.created_at)}{key.last_used_at ? ` · Son kullanım: ${formatDateTime(key.last_used_at)}` : ""}</p></div></div>{!key.revoked_at ? <form action={revokeApiKeyAction}><input type="hidden" name="id" value={key.id} /><button className="rounded-xl border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/[0.06]">İptal et</button></form> : null}</div>)}</div> : <p className="text-sm text-slate-500">Henüz API anahtarı oluşturulmadı.</p>}
+        {keys.length ? <div className="space-y-3">{keys.map((key) => <div key={key.id} className="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 md:flex-row md:items-center md:justify-between"><div className="flex items-start gap-3"><KeyRound className="mt-0.5 h-4 w-4 text-violet-300" /><div><p className="font-medium text-white">{key.name}</p><p className="mt-1 text-xs text-slate-500">{key.key_prefix}… · {key.scopes.join(", ")} · {key.revoked_at ? "İptal edildi" : "Aktif"}</p><p className="mt-1 text-xs text-slate-600">Oluşturma: {formatDateTime(key.created_at)}{key.last_used_at ? ` · Son kullanım: ${formatDateTime(key.last_used_at)}` : ""}</p></div></div>{canManage && !key.revoked_at ? <form action={revokeApiKeyAction}><input type="hidden" name="id" value={key.id} /><button className="rounded-xl border border-rose-400/20 px-3 py-2 text-xs font-semibold text-rose-200 hover:bg-rose-400/[0.06]">İptal et</button></form> : null}</div>)}</div> : <p className="text-sm text-slate-500">Henüz API anahtarı oluşturulmadı.</p>}
       </SectionCard>
 
       <SectionCard title="Public API kullanım kuralları" description="Anahtarlar tenant ve scope bazlıdır; istekler rate-limit edilir.">

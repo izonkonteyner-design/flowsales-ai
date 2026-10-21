@@ -1,3 +1,4 @@
+import { amountForCurrency } from "@/lib/currency-value";
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
@@ -148,7 +149,7 @@ export async function getQuoteIntelligence(scope: Scope, leadId: string) {
   };
 }
 
-export async function getWinLossIntelligence(scope: Scope) {
+export async function getWinLossIntelligence(scope: Scope, currency = "TRY") {
   const closed = (await latestQualifications(scope)).filter((row) => ["won", "lost"].includes(row.sales_stage || ""));
   const ids = closed.map((row) => row.lead_id).filter((id): id is string => Boolean(id));
   const leads = await scopedLeads(scope, ids);
@@ -159,7 +160,7 @@ export async function getWinLossIntelligence(scope: Scope) {
     if (!lead) return [];
     const reasons = qualificationSignals(row.signals).objections;
     if (row.sales_stage === "lost") for (const reason of reasons.length ? reasons : ["Neden belirtilmedi"]) reasonCounts.set(reason, (reasonCounts.get(reason) || 0) + 1);
-    return [{ leadId: lead.id, name: lead.full_name, outcome: row.sales_stage, value: Number(lead.estimated_value || 0), score: row.score, reasons, summary: row.summary, closedAt: row.created_at }];
+    return [{ leadId: lead.id, name: lead.full_name, outcome: row.sales_stage, value: amountForCurrency(lead.estimated_value, lead.currency, currency), score: row.score, reasons, summary: row.summary, closedAt: row.created_at }];
   });
   const wins = records.filter((row) => row.outcome === "won");
   const losses = records.filter((row) => row.outcome === "lost");
@@ -174,7 +175,7 @@ export async function getWinLossIntelligence(scope: Scope) {
   };
 }
 
-export async function getSalesForecast(scope: Scope) {
+export async function getSalesForecast(scope: Scope, currency = "TRY") {
   const open = await latestQualifications(scope, false);
   const ids = open.map((row) => row.lead_id).filter((id): id is string => Boolean(id));
   const leads = await scopedLeads(scope, ids);
@@ -185,7 +186,7 @@ export async function getSalesForecast(scope: Scope) {
     const stageProbability = STAGE_PROBABILITY[row.sales_stage || "new_lead"] || 0.08;
     const scoreProbability = Math.max(0.05, Math.min(0.95, (row.score || 0) / 100));
     const probability = Math.round(((stageProbability * 0.6) + (scoreProbability * 0.4)) * 100);
-    const value = Number(lead.estimated_value || 0);
+    const value = amountForCurrency(lead.estimated_value, lead.currency, currency);
     return [{ leadId: lead.id, name: lead.full_name, stage: row.sales_stage || "new_lead", score: row.score || 0, probability, value, weightedValue: Math.round(value * probability / 100), priority: row.priority || "medium", nextBestAction: row.next_best_action }];
   }).sort((a, b) => b.weightedValue - a.weightedValue);
   const weightedForecast = opportunities.reduce((sum, row) => sum + row.weightedValue, 0);

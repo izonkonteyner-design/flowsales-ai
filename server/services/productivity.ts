@@ -5,6 +5,13 @@ import { createHash, randomBytes } from "node:crypto";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
+import { canWriteSalesRecords } from "@/lib/workspace-roles";
+
+const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
+
+function isWritableWorkspace(workspace: Awaited<ReturnType<typeof getWorkspaceContext>>) {
+  return workspace.mode === "live" && workspace.organization.id !== DEMO_ORGANIZATION_ID && canWriteSalesRecords(workspace.role);
+}
 
 async function liveContext() {
   const workspace = await getWorkspaceContext();
@@ -30,7 +37,7 @@ export async function listWorkspaceTasks() {
 
 export async function createWorkspaceTask(input: { title: string; dueAt: string; priority: "low" | "medium" | "high"; leadId?: string | null; assignedTo?: string | null }) {
   const { workspace, client } = await liveContext();
-  if (!client || workspace.mode === "demo") throw new Error("Demo çalışma alanında görev oluşturulamaz.");
+  if (!client || !isWritableWorkspace(workspace)) throw new Error("Demo veya salt okunur çalışma alanında görev oluşturulamaz.");
   const { data: auth } = await client.auth.getUser();
   if (!auth.user) throw new Error("Oturum gerekli.");
   const { error } = await client.from("tasks").insert({
@@ -49,7 +56,7 @@ export async function createWorkspaceTask(input: { title: string; dueAt: string;
 
 export async function updateWorkspaceTaskStatus(taskId: string, status: "open" | "completed") {
   const { workspace, client } = await liveContext();
-  if (!client || workspace.mode === "demo") throw new Error("Demo çalışma alanı salt okunurdur.");
+  if (!client || !isWritableWorkspace(workspace)) throw new Error("Demo veya salt okunur çalışma alanı salt okunurdur.");
   const { error } = await client.from("tasks").update({ status }).eq("organization_id", workspace.organization.id).eq("id", taskId);
   if (error) throw new Error("Görev güncellenemedi.");
   await writeAudit("task.status_changed", "task", taskId, { status });
@@ -71,7 +78,7 @@ export async function listCalendarEvents() {
 
 export async function createCalendarEvent(input: { title: string; startsAt: string; endsAt: string; eventType: string; location?: string | null; leadId?: string | null }) {
   const { workspace, client } = await liveContext();
-  if (!client || workspace.mode === "demo") throw new Error("Demo çalışma alanında etkinlik oluşturulamaz.");
+  if (!client || !isWritableWorkspace(workspace)) throw new Error("Demo veya salt okunur çalışma alanında etkinlik oluşturulamaz.");
   const { data: auth } = await client.auth.getUser();
   if (!auth.user) throw new Error("Oturum gerekli.");
   if (new Date(input.endsAt) <= new Date(input.startsAt)) throw new Error("Bitiş zamanı başlangıçtan sonra olmalıdır.");
@@ -142,7 +149,7 @@ export async function createApiKey(name: string, scopes: string[]) {
 
 export async function revokeApiKey(id: string) {
   const { workspace, client } = await liveContext();
-  if (!client || workspace.mode === "demo") throw new Error("Demo çalışma alanı salt okunurdur.");
+  if (!client || !isWritableWorkspace(workspace)) throw new Error("Demo veya salt okunur çalışma alanı salt okunurdur.");
   if (workspace.role !== "owner" && workspace.role !== "admin") throw new Error("Bu işlem için yönetici yetkisi gerekir.");
   const { error } = await client.from("api_keys").update({ revoked_at: new Date().toISOString() }).eq("organization_id", workspace.organization.id).eq("id", id);
   if (error) throw new Error("API anahtarı iptal edilemedi.");

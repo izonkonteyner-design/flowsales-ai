@@ -5,7 +5,7 @@ import { completeCallbackAction, createCallbackAction } from "../actions";
 
 export default async function CallbackQueuePage() {
   const context = await getWorkspaceContext();
-  const canWrite = context.mode === "live" && Boolean(context.userId) && context.role !== "viewer";
+  const canWrite = context.mode === "live" && Boolean(context.userId) && context.organization.id !== "d3e00000-0000-0000-0000-000000000000" && context.role !== "viewer";
   const rows = context.mode === "live" && context.userId
     ? await listCallbackQueue(context.organization.id, context.userId, context.role)
     : [];
@@ -24,7 +24,7 @@ export default async function CallbackQueuePage() {
 
   return <div className="space-y-6">
     <div>
-      <h1 className="text-3xl font-bold text-slate-900">Callback Kuyruğu</h1>
+      <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Callback Kuyruğu</h1>
       <p className="mt-2 text-slate-500">Geri aranacak lead kayıtlarını tarih, sorumlu ve sonuçla yönetin.</p>
     </div>
 

@@ -64,7 +64,7 @@ export type CommonTranslationKey = keyof (typeof common)["tr"];
 export function t(locale: Locale, key: CommonTranslationKey): string { return common[locale][key] ?? common.tr[key]; }
 
 const turkishNavigation: Record<string, string> = {
-  Dashboard: "Kontrol Paneli", Inbox: "Gelen Kutusu", "Phone Inbox": "Telefon Gelen Kutusu", Leads: "Potansiyel Müşteriler",
+  Dashboard: "Kontrol Paneli", Inbox: "Gelen Kutusu", "Phone Inbox": "Telefon Gelen Kutusu", "E-posta": "E-posta", "Email Inbox": "E-posta Gelen Kutusu", Leads: "Potansiyel Müşteriler",
   Customers: "Müşteriler", Products: "Ürünler", Quotes: "Teklifler", Tasks: "Görevler", Calendar: "Takvim", "Social Media": "Sosyal Medya", "Sosyal Medya": "Sosyal Medya",
   AI: "Yapay Zekâ", "Sales Operations": "Satış Operasyonları", "Command Center": "Komuta Merkezi", "Sales Analyst": "Satış Analisti",
   "Growth Control": "Büyüme Kontrolü", "Sales Cockpit": "Satış Kokpiti", "Revenue Intelligence": "Gelir Zekâsı", "AI History": "YZ Geçmişi",
@@ -74,7 +74,7 @@ const turkishNavigation: Record<string, string> = {
 };
 
 const englishNavigation: Record<string, string> = {
-  Dashboard: "Dashboard", Inbox: "Inbox", "Phone Inbox": "Phone Inbox", Leads: "Leads",
+  Dashboard: "Dashboard", Inbox: "Inbox", "Phone Inbox": "Phone Inbox", "E-posta": "Email Inbox", "Email Inbox": "Email Inbox", Leads: "Leads",
   Customers: "Customers", Products: "Products", Quotes: "Quotes", Tasks: "Tasks", Calendar: "Calendar", "Social Media": "Social Media", "Sosyal Medya": "Social Media",
   AI: "AI", "Sales Operations": "Sales Operations", "Command Center": "Command Center", "Sales Analyst": "Sales Analyst",
   "Growth Control": "Growth Control", "Sales Cockpit": "Sales Cockpit", "Revenue Intelligence": "Revenue Intelligence", "AI History": "AI History",

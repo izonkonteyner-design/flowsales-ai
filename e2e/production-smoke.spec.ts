@@ -103,6 +103,13 @@ test.describe('Production Smoke & Security Tests', () => {
     await page.goto('/notifications');
     await assertExactPath(page, '/notifications');
 
+    const socialNavLink = page.locator('aside a[href="/social"]').first();
+    await expect(socialNavLink).toBeVisible();
+    await socialNavLink.click();
+    await waitAndAssertPath(page, '/social');
+    await expect(page.getByRole('heading', { name: 'Sosyal Medya Yönetimi' })).toBeVisible();
+    await expect(page.locator('a[href="/settings/integrations"]').first()).toBeVisible();
+
     await page.goto('/operations');
     await assertExactPath(page, '/operations');
 

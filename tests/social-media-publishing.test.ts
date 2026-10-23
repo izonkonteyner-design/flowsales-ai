@@ -631,4 +631,34 @@ describe("Social Media Publishing Module & RLS Security Tests", () => {
       await admin.auth.admin.deleteUser(userBOwnerId).catch(() => null);
     }
   });
+
+  test("Social Media navigation visibility, route protection, RBAC, and disconnected account rendering", async () => {
+    const { APP_NAVIGATION } = await import("@/lib/constants");
+    const { navLabel } = await import("@/lib/i18n");
+
+    const socialNavItem = APP_NAVIGATION.find((item) => item.href === "/social");
+    assert.ok(socialNavItem, "APP_NAVIGATION must include /social");
+    assert.equal(socialNavItem.label, "Social Media");
+    assert.equal(socialNavItem.icon, "share-2");
+    assert.equal(navLabel("tr", socialNavItem.label), "Sosyal Medya");
+    assert.equal(navLabel("en", socialNavItem.label), "Social Media");
+
+    const appShellSource = readFileSync(join(testsDir, "..", "components", "layout", "app-shell.tsx"), "utf8");
+    assert.match(appShellSource, /"share-2":\s*Share2/, "AppShell iconMap must register share-2");
+    assert.match(appShellSource, /"\/social"/, "AppShell workspace navigation group must include /social");
+    assert.match(appShellSource, /overflow-y-auto/, "Mobile navigation drawer must be scrollable");
+
+    const proxySource = readFileSync(join(testsDir, "..", "proxy.ts"), "utf8");
+    assert.match(proxySource, /"\/social"/, "proxy.ts protectedRoutes must include /social");
+
+    const socialActionsSource = readFileSync(join(testsDir, "..", "app", "(app)", "social", "actions.ts"), "utf8");
+    assert.match(socialActionsSource, /canWriteSalesRecords/, "Social server actions must enforce role-based write access");
+    assert.match(socialActionsSource, /canManageSocialPosts/, "Social server actions must guard create/delete/AI mutations");
+
+    const socialPageSource = readFileSync(join(testsDir, "..", "app", "(app)", "social", "page.tsx"), "utf8");
+    assert.match(socialPageSource, /Sosyal Medya Yönetimi/, "Social page must render Sosyal Medya Yönetimi heading");
+    assert.match(socialPageSource, /\/settings\/integrations/, "Social page must link disconnected channels to /settings/integrations");
+    assert.match(socialPageSource, /Meta Sosyal Medya Kanallarınızı Bağlayın/, "Social page must show setup guidance when channels are disconnected");
+    assert.doesNotMatch(socialPageSource, /SOCIAL_PUBLISHING_ENABLED/, "Social page UI must not be hidden by worker flag SOCIAL_PUBLISHING_ENABLED");
+  });
 });

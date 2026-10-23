@@ -65,7 +65,7 @@ export function t(locale: Locale, key: CommonTranslationKey): string { return co
 
 const turkishNavigation: Record<string, string> = {
   Dashboard: "Kontrol Paneli", Inbox: "Gelen Kutusu", "Phone Inbox": "Telefon Gelen Kutusu", Leads: "Potansiyel Müşteriler",
-  Customers: "Müşteriler", Products: "Ürünler", Quotes: "Teklifler", Tasks: "Görevler", Calendar: "Takvim",
+  Customers: "Müşteriler", Products: "Ürünler", Quotes: "Teklifler", Tasks: "Görevler", Calendar: "Takvim", "Social Media": "Sosyal Medya", "Sosyal Medya": "Sosyal Medya",
   AI: "Yapay Zekâ", "Sales Operations": "Satış Operasyonları", "Command Center": "Komuta Merkezi", "Sales Analyst": "Satış Analisti",
   "Growth Control": "Büyüme Kontrolü", "Sales Cockpit": "Satış Kokpiti", "Revenue Intelligence": "Gelir Zekâsı", "AI History": "YZ Geçmişi",
   Approvals: "Onaylar", Reports: "Raporlar", Operations: "Operasyonlar", Notifications: "Bildirimler", Usage: "Kullanım",
@@ -75,7 +75,7 @@ const turkishNavigation: Record<string, string> = {
 
 const englishNavigation: Record<string, string> = {
   Dashboard: "Dashboard", Inbox: "Inbox", "Phone Inbox": "Phone Inbox", Leads: "Leads",
-  Customers: "Customers", Products: "Products", Quotes: "Quotes", Tasks: "Tasks", Calendar: "Calendar",
+  Customers: "Customers", Products: "Products", Quotes: "Quotes", Tasks: "Tasks", Calendar: "Calendar", "Social Media": "Social Media", "Sosyal Medya": "Social Media",
   AI: "AI", "Sales Operations": "Sales Operations", "Command Center": "Command Center", "Sales Analyst": "Sales Analyst",
   "Growth Control": "Growth Control", "Sales Cockpit": "Sales Cockpit", "Revenue Intelligence": "Revenue Intelligence", "AI History": "AI History",
   Approvals: "Approvals", Reports: "Reports", Operations: "Operations", Notifications: "Notifications", Usage: "Usage",

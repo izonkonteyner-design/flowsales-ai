@@ -1,6 +1,20 @@
 import React from "react";
-import { Share2, Clock, CheckCircle, Trash2, CalendarDays, Plus } from "lucide-react";
-import { loadWorkspaceContext } from "@/server/services/workspace-context";
+import type { Metadata } from "next";
+import Link from "next/link";
+import {
+  Share2,
+  Clock,
+  CheckCircle,
+  Trash2,
+  CalendarDays,
+  Plus,
+  Plug,
+  AlertTriangle,
+  Lock,
+  ArrowUpRight,
+} from "lucide-react";
+import { canWriteSalesRecords } from "@/lib/workspace-roles";
+import { createDemoWorkspaceContext, loadWorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
@@ -8,8 +22,17 @@ import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { createSocialPostAction, deleteSocialPostAction } from "./actions";
 
+export const metadata: Metadata = {
+  title: "Sosyal Medya Yönetimi | FlowSales AI",
+  description: "Instagram Business ve Facebook Sayfaları için içerik planlama, AI taslak üretimi ve zamanlanmış yayın yönetimi.",
+};
+
+const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
+
 export default async function SocialMediaPage() {
-  const ctx = await loadWorkspaceContext();
+  const liveCtx = await loadWorkspaceContext();
+  const ctx = liveCtx ?? (process.env.NODE_ENV !== "production" ? createDemoWorkspaceContext() : null);
+
   if (!ctx?.organization?.id) {
     return (
       <EmptyState
@@ -21,28 +44,65 @@ export default async function SocialMediaPage() {
     );
   }
 
-  const admin = createSupabaseAdminClient();
+  const isDemoWorkspace = ctx.mode === "demo" || ctx.organization.id === DEMO_ORGANIZATION_ID;
+  const canMutate = !isDemoWorkspace && canWriteSalesRecords(ctx.role);
 
-  const [postsResult, queueResult, connectionsResult] = await Promise.all([
-    admin.from("social_posts")
-      .select("*")
-      .eq("organization_id", ctx.organization.id)
-      .order("created_at", { ascending: false })
-      .limit(50),
-    admin.from("social_publishing_queue")
-      .select("*")
-      .eq("organization_id", ctx.organization.id)
-      .order("scheduled_for", { ascending: true })
-      .limit(50),
-    admin.from("channel_connections")
-      .select("provider, status, display_name, external_account_id")
-      .eq("organization_id", ctx.organization.id)
-      .in("provider", ["instagram", "facebook"]),
-  ]);
+  let posts: Array<{
+    id: string;
+    title?: string | null;
+    caption?: string | null;
+    content?: string | null;
+    status: string;
+    platforms?: string[] | null;
+    scheduled_at?: string | null;
+  }> = [];
+  let queue: Array<{
+    id: string;
+    platform: string;
+    status: string;
+    scheduled_for: string;
+  }> = [];
+  let connections: Array<{
+    provider: string;
+    status: string;
+    display_name?: string | null;
+    external_account_id?: string | null;
+  }> = [];
+  let queryWarning: string | null = null;
 
-  const posts = postsResult.data || [];
-  const queue = queueResult.data || [];
-  const connections = connectionsResult.data || [];
+  try {
+    const admin = createSupabaseAdminClient();
+    const [postsResult, queueResult, connectionsResult] = await Promise.all([
+      admin
+        .from("social_posts")
+        .select("*")
+        .eq("organization_id", ctx.organization.id)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      admin
+        .from("social_publishing_queue")
+        .select("*")
+        .eq("organization_id", ctx.organization.id)
+        .order("scheduled_for", { ascending: true })
+        .limit(50),
+      admin
+        .from("channel_connections")
+        .select("provider, status, display_name, external_account_id")
+        .eq("organization_id", ctx.organization.id)
+        .in("provider", ["instagram", "facebook"]),
+    ]);
+
+    posts = postsResult.data ?? [];
+    queue = queueResult.data ?? [];
+    connections = connectionsResult.data ?? [];
+
+    if (postsResult.error || queueResult.error || connectionsResult.error) {
+      queryWarning = "Bazı sosyal medya verileri yüklenirken geçici bir gecikme oluştu. Mevcut kayıtlar aşağıda listelenmektedir.";
+    }
+  } catch {
+    queryWarning = "Sosyal medya veritabanı bağlantısı şu anda salt okunur önbellek modunda çalışıyor.";
+  }
+
   const igConnection = connections.find((c) => c.provider === "instagram");
   const fbConnection = connections.find((c) => c.provider === "facebook");
   const isIgConnected = igConnection?.status === "connected" && Boolean(igConnection?.external_account_id);
@@ -56,11 +116,62 @@ export default async function SocialMediaPage() {
         title="Sosyal Medya Yönetimi"
         description="Instagram Business ve Facebook Sayfaları için içerik planlama, AI taslak üretimi ve zamanlanmış yayın yönetimi."
         actions={
-          <StatusBadge tone={hasAnyConnectedChannel ? "success" : "warning"}>
-            {hasAnyConnectedChannel ? "Kanal Bağlı" : "OAuth Bağlantısı Gerekli"}
-          </StatusBadge>
+          <div className="flex flex-wrap items-center gap-2">
+            {!canMutate ? (
+              <StatusBadge tone="neutral">
+                {isDemoWorkspace ? "Salt Okunur Demo" : "Salt Okunur Rol"}
+              </StatusBadge>
+            ) : null}
+            <StatusBadge tone={hasAnyConnectedChannel ? "success" : "warning"}>
+              {hasAnyConnectedChannel ? "Kanal Bağlı" : "OAuth Bağlantısı Gerekli"}
+            </StatusBadge>
+          </div>
         }
       />
+
+      {queryWarning ? (
+        <div
+          role="status"
+          className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-xs text-amber-200"
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+          <span>{queryWarning}</span>
+        </div>
+      ) : null}
+
+      {!hasAnyConnectedChannel ? (
+        <div className="rounded-2xl border border-violet-400/25 bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-cyan-500/10 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <Plug className="h-4 w-4 text-violet-300" />
+                <span>Meta Sosyal Medya Kanallarınızı Bağlayın</span>
+              </div>
+              <p className="text-xs leading-relaxed text-slate-300">
+                Şu anda bağlı bir Instagram Business veya Facebook Sayfası bulunmuyor. Kanallarınız bağlı olmasa bile içerik taslakları hazırlayabilir ve yayın takviminizi planlayabilirsiniz; gerçek zamanlı otomatik paylaşım için Meta OAuth bağlantısını tamamlayın.
+              </p>
+            </div>
+            <Link
+              href="/settings/integrations"
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-400/30 bg-violet-500/20 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-violet-500/30"
+            >
+              <span>Entegrasyon Ayarlarına Git</span>
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {!canMutate ? (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-300">
+          <Lock className="h-4 w-4 shrink-0 text-slate-400" />
+          <span>
+            {isDemoWorkspace
+              ? "Demo çalışma alanında sosyal medya modülü salt okunur önizleme modundadır. Gönderi oluşturmak ve zamanlamak için canlı çalışma alanınıza geçiş yapın."
+              : "Mevcut çalışma alanı rolünüz (Görüntüleyici) yalnızca içerik akışını ve kuyruk durumunu inceleme yetkisine sahiptir."}
+          </span>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
@@ -73,8 +184,9 @@ export default async function SocialMediaPage() {
                 <input
                   type="text"
                   name="title"
+                  disabled={!canMutate}
                   placeholder="Örn: Sonbahar Kampanyası"
-                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
 
@@ -86,8 +198,9 @@ export default async function SocialMediaPage() {
                   name="caption"
                   required
                   rows={4}
+                  disabled={!canMutate}
                   placeholder="Sosyal medya gönderi metnini girin..."
-                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
 
@@ -98,11 +211,25 @@ export default async function SocialMediaPage() {
                   </label>
                   <div className="flex gap-4 pt-1">
                     <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                      <input type="checkbox" name="platforms" value="instagram" defaultChecked className="rounded border-slate-300 text-primary" />
+                      <input
+                        type="checkbox"
+                        name="platforms"
+                        value="instagram"
+                        defaultChecked
+                        disabled={!canMutate}
+                        className="rounded border-slate-300 text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      />
                       Instagram Business
                     </label>
                     <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-                      <input type="checkbox" name="platforms" value="facebook" defaultChecked className="rounded border-slate-300 text-primary" />
+                      <input
+                        type="checkbox"
+                        name="platforms"
+                        value="facebook"
+                        defaultChecked
+                        disabled={!canMutate}
+                        className="rounded border-slate-300 text-primary disabled:cursor-not-allowed disabled:opacity-60"
+                      />
                       Facebook Page
                     </label>
                   </div>
@@ -115,7 +242,8 @@ export default async function SocialMediaPage() {
                   <input
                     type="datetime-local"
                     name="scheduledAt"
-                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
+                    disabled={!canMutate}
+                    className="w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -125,7 +253,8 @@ export default async function SocialMediaPage() {
                   type="submit"
                   name="status"
                   value="draft"
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5"
+                  disabled={!canMutate}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-white/10 px-4 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Taslak Olarak Kaydet
                 </button>
@@ -133,7 +262,8 @@ export default async function SocialMediaPage() {
                   type="submit"
                   name="status"
                   value="scheduled"
-                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  disabled={!canMutate}
+                  className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Plus className="h-4 w-4" />
                   Gönderiyi Yayınla / Zamanla
@@ -175,14 +305,16 @@ export default async function SocialMediaPage() {
                         </p>
                       ) : null}
                     </div>
-                    <form action={async () => {
-                      "use server";
-                      await deleteSocialPostAction(post.id);
-                    }}>
-                      <button type="submit" title="Sil" className="text-slate-400 hover:text-rose-600 p-1">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </form>
+                    {canMutate ? (
+                      <form action={async () => {
+                        "use server";
+                        await deleteSocialPostAction(post.id);
+                      }}>
+                        <button type="submit" title="Sil" className="text-slate-400 hover:text-rose-600 p-1">
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </form>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -261,6 +393,17 @@ export default async function SocialMediaPage() {
                         : "Bağlı Değil"}
                 </StatusBadge>
               </div>
+              {!hasAnyConnectedChannel ? (
+                <div className="pt-2">
+                  <Link
+                    href="/settings/integrations"
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10"
+                  >
+                    <Plug className="h-3.5 w-3.5" />
+                    <span>Meta Hesaplarını Bağla</span>
+                  </Link>
+                </div>
+              ) : null}
             </div>
           </SectionCard>
 

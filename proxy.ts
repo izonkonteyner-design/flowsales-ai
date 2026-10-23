@@ -12,6 +12,7 @@ const protectedRoutes = [
   "/quotes",
   "/tasks",
   "/calendar",
+  "/social",
   "/notifications",
   "/ai",
   "/reports",

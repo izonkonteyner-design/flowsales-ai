@@ -31,4 +31,6 @@ test("navigation labels are localized", () => {
   assert.equal(navLabel("en", "Leads"), "Leads");
   assert.equal(navLabel("tr", "Revenue Intelligence"), "Gelir Zekâsı");
   assert.equal(navLabel("en", "Revenue Intelligence"), "Revenue Intelligence");
+  assert.equal(navLabel("tr", "Social Media"), "Sosyal Medya");
+  assert.equal(navLabel("en", "Social Media"), "Social Media");
 });

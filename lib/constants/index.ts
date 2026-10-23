@@ -45,6 +45,7 @@ export const APP_NAVIGATION = [
   { label: "Quotes", href: "/quotes", icon: "file-text" },
   { label: "Tasks", href: "/tasks", icon: "check-circle-2" },
   { label: "Calendar", href: "/calendar", icon: "calendar" },
+  { label: "Social Media", href: "/social", icon: "share-2" },
   { label: "AI", href: "/ai", icon: "bot" },
   { label: "Sales Operations", href: "/sales-operations", icon: "check-circle-2" },
   { label: "Command Center", href: "/command-center", icon: "braces" },

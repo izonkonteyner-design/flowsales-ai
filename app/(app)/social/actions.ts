@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { loadWorkspaceContext } from "@/server/services/workspace-context";
+import { canWriteSalesRecords } from "@/lib/workspace-roles";
+import { loadWorkspaceContext, type WorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import {
   validateSocialPostInput,
@@ -9,9 +10,21 @@ import {
   SocialPlatform,
 } from "@/server/services/integrations/social-publisher";
 
+const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
+
+function canManageSocialPosts(ctx: WorkspaceContext | null): ctx is WorkspaceContext {
+  if (!ctx?.organization?.id || !ctx.userId) {
+    return false;
+  }
+  if (ctx.mode !== "live" || ctx.organization.id === DEMO_ORGANIZATION_ID) {
+    return false;
+  }
+  return canWriteSalesRecords(ctx.role);
+}
+
 export async function createSocialPostAction(formData: FormData): Promise<void> {
   const ctx = await loadWorkspaceContext();
-  if (!ctx?.organization?.id) return;
+  if (!canManageSocialPosts(ctx)) return;
 
   const caption = formData.get("caption")?.toString() ?? "";
   const title = formData.get("title")?.toString() ?? "";
@@ -35,6 +48,7 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
 
   const { data: post, error } = await admin.from("social_posts").insert({
     organization_id: ctx.organization.id,
+    workspace_id: ctx.organization.id,
     title: title.trim() || null,
     caption: caption.trim(),
     platforms,
@@ -65,6 +79,9 @@ export async function generateCaptionSuggestionsAction(topic: string, callToActi
   if (!ctx?.organization?.id) {
     return { success: false, error: "Oturum gerekli." };
   }
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yazma yetkisi olan canlı bir çalışma alanı gereklidir." };
+  }
 
   if (!topic || !topic.trim()) {
     return { success: false, error: "İçerik konusu girilmelidir." };
@@ -83,7 +100,7 @@ export async function generateCaptionSuggestionsAction(topic: string, callToActi
 
 export async function deleteSocialPostAction(postId: string): Promise<void> {
   const ctx = await loadWorkspaceContext();
-  if (!ctx?.organization?.id) return;
+  if (!canManageSocialPosts(ctx)) return;
 
   const admin = createSupabaseAdminClient();
   await admin.from("social_posts")

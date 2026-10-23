@@ -23,7 +23,7 @@ export default async function SocialMediaPage() {
 
   const admin = createSupabaseAdminClient();
 
-  const [postsResult, queueResult] = await Promise.all([
+  const [postsResult, queueResult, connectionsResult] = await Promise.all([
     admin.from("social_posts")
       .select("*")
       .eq("organization_id", ctx.organization.id)
@@ -34,10 +34,20 @@ export default async function SocialMediaPage() {
       .eq("organization_id", ctx.organization.id)
       .order("scheduled_for", { ascending: true })
       .limit(50),
+    admin.from("channel_connections")
+      .select("provider, status, display_name, external_account_id")
+      .eq("organization_id", ctx.organization.id)
+      .in("provider", ["instagram", "facebook"]),
   ]);
 
   const posts = postsResult.data || [];
   const queue = queueResult.data || [];
+  const connections = connectionsResult.data || [];
+  const igConnection = connections.find((c) => c.provider === "instagram");
+  const fbConnection = connections.find((c) => c.provider === "facebook");
+  const isIgConnected = igConnection?.status === "connected" && Boolean(igConnection?.external_account_id);
+  const isFbConnected = fbConnection?.status === "connected" && Boolean(fbConnection?.external_account_id);
+  const hasAnyConnectedChannel = isIgConnected || isFbConnected;
 
   return (
     <div className="space-y-6">
@@ -46,8 +56,8 @@ export default async function SocialMediaPage() {
         title="Sosyal Medya Yönetimi"
         description="Instagram Business ve Facebook Sayfaları için içerik planlama, AI taslak üretimi ve zamanlanmış yayın yönetimi."
         actions={
-          <StatusBadge tone="success">
-            Erişim Hazır
+          <StatusBadge tone={hasAnyConnectedChannel ? "success" : "warning"}>
+            {hasAnyConnectedChannel ? "Kanal Bağlı" : "OAuth Bağlantısı Gerekli"}
           </StatusBadge>
         }
       />
@@ -210,14 +220,46 @@ export default async function SocialMediaPage() {
                   <Share2 className="h-4 w-4 text-pink-500" />
                   Instagram Business
                 </span>
-                <StatusBadge tone="success">Hazır</StatusBadge>
+                <StatusBadge
+                  tone={
+                    isIgConnected
+                      ? "success"
+                      : igConnection?.status === "expired" || igConnection?.status === "error"
+                        ? "danger"
+                        : "neutral"
+                  }
+                >
+                  {isIgConnected
+                    ? "Bağlı"
+                    : igConnection?.status === "expired"
+                      ? "Süresi Dolmuş"
+                      : igConnection?.status === "connecting"
+                        ? "Hesap Seçimi Bekleniyor"
+                        : "Bağlı Değil"}
+                </StatusBadge>
               </div>
               <div className="flex justify-between items-center p-2.5 border rounded-xl bg-white dark:bg-slate-900">
                 <span className="font-medium flex items-center gap-2">
                   <Share2 className="h-4 w-4 text-blue-500" />
                   Facebook Page
                 </span>
-                <StatusBadge tone="success">Hazır</StatusBadge>
+                <StatusBadge
+                  tone={
+                    isFbConnected
+                      ? "success"
+                      : fbConnection?.status === "expired" || fbConnection?.status === "error"
+                        ? "danger"
+                        : "neutral"
+                  }
+                >
+                  {isFbConnected
+                    ? "Bağlı"
+                    : fbConnection?.status === "expired"
+                      ? "Süresi Dolmuş"
+                      : fbConnection?.status === "connecting"
+                        ? "Sayfa Seçimi Bekleniyor"
+                        : "Bağlı Değil"}
+                </StatusBadge>
               </div>
             </div>
           </SectionCard>

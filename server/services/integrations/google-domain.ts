@@ -7,6 +7,11 @@ export type GoogleCalendarEventInput = {
   location?: string;
   leadId?: string;
   contactId?: string;
+  taskId?: string;
+  eventId?: string;
+  googleEventId?: string;
+  timeZone?: string;
+  idempotencyKey?: string;
 };
 
 export type GoogleCalendarEvent = {
@@ -44,9 +49,31 @@ export function validateCalendarEventInput(input: GoogleCalendarEventInput): { o
   return { ok: true, data: input };
 }
 
-export function formatGoogleCalendarEventPayload(input: GoogleCalendarEventInput) {
+export function formatGoogleCalendarEventPayload(input: GoogleCalendarEventInput, organizationId?: string) {
   const startIso = new Date(input.startTime).toISOString();
   const endIso = new Date(input.endTime).toISOString();
+  const timeZone = input.timeZone?.trim() || "Europe/Istanbul";
+
+  const privateProps: Record<string, string> = {};
+  if (organizationId) {
+    privateProps.flowsales_workspace_id = organizationId;
+  }
+  if (input.leadId) {
+    privateProps.flowsales_lead_id = input.leadId;
+  }
+  if (input.contactId) {
+    privateProps.flowsales_contact_id = input.contactId;
+  }
+  if (input.taskId) {
+    privateProps.flowsales_task_id = input.taskId;
+  }
+  const syncKey =
+    input.idempotencyKey ||
+    (input.taskId && organizationId ? `task_${organizationId}_${input.taskId}` : "") ||
+    (input.leadId && organizationId ? `lead_${organizationId}_${input.leadId}_${startIso}` : "");
+  if (syncKey) {
+    privateProps.flowsales_sync_key = syncKey;
+  }
 
   return {
     summary: input.summary.trim(),
@@ -54,11 +81,16 @@ export function formatGoogleCalendarEventPayload(input: GoogleCalendarEventInput
     location: input.location?.trim() ?? "",
     start: {
       dateTime: startIso,
+      timeZone,
     },
     end: {
       dateTime: endIso,
+      timeZone,
     },
     attendees: (input.attendees ?? []).map((email) => ({ email: email.trim() })),
+    ...(Object.keys(privateProps).length > 0
+      ? { extendedProperties: { private: privateProps } }
+      : {}),
   };
 }
 

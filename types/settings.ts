@@ -5,6 +5,7 @@ export type QuoteDefaults = {
   default_tax_rate: number;
   default_payment_terms: string | null;
   default_delivery_terms: string | null;
+  default_warranty_terms?: string | null;
   default_quote_notes: string | null;
   default_quote_validity_days: number;
 };
@@ -36,6 +37,7 @@ export type WorkspaceCompanySettings = QuoteDefaults & {
   signature_name: string | null;
   signature_title: string | null;
   company_slogan: string | null;
+  ai_language?: string | null;
 };
 
 export type WorkspaceCompanySettingsInput = {
@@ -63,12 +65,14 @@ export type WorkspaceCompanySettingsInput = {
   default_tax_rate: number;
   default_payment_terms: string | null;
   default_delivery_terms: string | null;
+  default_warranty_terms?: string | null;
   default_quote_notes: string | null;
   default_quote_validity_days: number;
   quote_footer_text: string | null;
   signature_name: string | null;
   signature_title: string | null;
   company_slogan: string | null;
+  ai_language?: string | null;
 };
 
 export type WorkspaceCompanySettingsUpdate = WorkspaceCompanySettingsInput;

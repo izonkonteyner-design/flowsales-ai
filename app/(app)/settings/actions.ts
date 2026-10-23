@@ -61,12 +61,14 @@ function readWorkspaceSettingsInput(formData: FormData): { input: WorkspaceSetti
     default_tax_rate: String(formData.get("default_tax_rate") ?? "20"),
     default_payment_terms: String(formData.get("default_payment_terms") ?? ""),
     default_delivery_terms: String(formData.get("default_delivery_terms") ?? ""),
+    default_warranty_terms: String(formData.get("default_warranty_terms") ?? ""),
     default_quote_notes: String(formData.get("default_quote_notes") ?? ""),
     default_quote_validity_days: String(formData.get("default_quote_validity_days") ?? "30"),
     quote_footer_text: String(formData.get("quote_footer_text") ?? ""),
     signature_name: String(formData.get("signature_name") ?? ""),
     signature_title: String(formData.get("signature_title") ?? ""),
     company_slogan: String(formData.get("company_slogan") ?? ""),
+    ai_language: String(formData.get("ai_language") ?? "auto"),
   };
 
   return {

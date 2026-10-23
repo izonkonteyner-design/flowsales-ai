@@ -26,7 +26,7 @@ import { upsertChannelConnection } from "@/server/services/integrations/channel-
 // Shared types
 // ============================================================================
 
-export type ChannelProvider = "whatsapp" | "instagram" | "facebook" | "google" | "tiktok";
+export type ChannelProvider = "whatsapp" | "instagram" | "facebook" | "google" | "tiktok" | "youtube";
 
 export type ConnectionStatus =
   | "not_connected"
@@ -687,6 +687,89 @@ export class TikTokAdapter implements ProviderAdapter {
   }
 }
 
+
+// ============================================================================
+// Stub: YouTubeAdapter
+// ============================================================================
+
+export class YouTubeAdapter implements ProviderAdapter {
+  readonly provider: ChannelProvider = "youtube";
+
+  private assertConfigured(): void {
+    const clientId = process.env.YOUTUBE_CLIENT_ID?.trim();
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET?.trim();
+    if (!clientId || !clientSecret) {
+      throw new OAuthConfigurationRequiredError(this.provider);
+    }
+  }
+
+  buildAuthorizationUrl(params: BuildAuthUrlParams): BuildAuthUrlResult {
+    this.assertConfigured();
+
+    const clientId = process.env.YOUTUBE_CLIENT_ID!.trim();
+    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/youtube/callback`;
+
+    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    url.searchParams.set("client_id", clientId);
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set(
+      "scope",
+      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile"
+    );
+    url.searchParams.set("access_type", "offline");
+    url.searchParams.set("prompt", "consent");
+    url.searchParams.set("state", params.stateToken);
+
+    if (params.codeVerifier) {
+      const codeChallenge = crypto
+        .createHash("sha256")
+        .update(params.codeVerifier)
+        .digest("base64url");
+      url.searchParams.set("code_challenge", codeChallenge);
+      url.searchParams.set("code_challenge_method", "S256");
+    }
+
+    return { url: url.toString(), stateToken: params.stateToken };
+  }
+
+  async exchangeCode(params: ExchangeCodeParams): Promise<TokenSet> {
+    this.assertConfigured();
+    assertEncryptionConfigured();
+    void params;
+    throw new OAuthConfigurationRequiredError(this.provider);
+  }
+
+  async refreshAccessToken(params: RefreshTokenParams): Promise<TokenSet> {
+    this.assertConfigured();
+    assertEncryptionConfigured();
+    void params;
+    throw new OAuthConfigurationRequiredError(this.provider);
+  }
+
+  async revokeConnection(params: RevokeConnectionParams): Promise<void> {
+    this.assertConfigured();
+    void params;
+  }
+
+  normalizeAccount(raw: unknown): NormalizedAccount {
+    const data = raw as Record<string, unknown>;
+    return {
+      externalId: String(data.id ?? ""),
+      displayName: String(data.title ?? data.name ?? ""),
+      username: null,
+      profilePictureUrl: null,
+      scopes: [],
+      metadata: {},
+    };
+  }
+
+  validateWebhookSignature(params: ValidateWebhookSignatureParams): boolean {
+    void params;
+    return false;
+  }
+}
+
 // ============================================================================
 // Factory
 // ============================================================================
@@ -703,6 +786,8 @@ export function getProviderAdapter(provider: ChannelProvider): ProviderAdapter {
       return new GoogleAdapter();
     case "tiktok":
       return new TikTokAdapter();
+    case "youtube":
+      return new YouTubeAdapter();
     default: {
       const _exhaustive: never = provider;
       void _exhaustive;

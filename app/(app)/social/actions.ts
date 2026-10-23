@@ -7,7 +7,9 @@ import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import {
   validateSocialPostInput,
   generateSocialCaptionSuggestions,
-  SocialPlatform,
+  type SocialPlatform,
+  type SocialContentType,
+  type PlatformCustomizations,
 } from "@/server/services/integrations/social-publisher";
 
 const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
@@ -28,16 +30,38 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
 
   const caption = formData.get("caption")?.toString() ?? "";
   const title = formData.get("title")?.toString() ?? "";
+  const contentType = (formData.get("contentType")?.toString() || "post") as SocialContentType;
   const rawPlatforms = formData.getAll("platforms").map((p) => p.toString());
   const scheduledAt = formData.get("scheduledAt")?.toString() || null;
   const statusInput = formData.get("status")?.toString() || "draft";
+  const mediaUrl = formData.get("mediaUrl")?.toString()?.trim() || "";
+  const mediaUrls = mediaUrl ? [mediaUrl] : [];
+  const aiGeneratedDisclosure = formData.get("aiGeneratedDisclosure") === "true" || formData.get("aiGeneratedDisclosure") === "on";
 
-  const platforms = rawPlatforms.filter((p): p is SocialPlatform => p === "instagram" || p === "facebook");
+  // Platform-specific customizations from form
+  const rawCustomizations = formData.get("platformCustomizations")?.toString();
+  let platformCustomizations: PlatformCustomizations = {};
+  if (rawCustomizations) {
+    try {
+      platformCustomizations = JSON.parse(rawCustomizations);
+    } catch {
+      platformCustomizations = {};
+    }
+  }
+
+  const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube"];
+  const platforms = rawPlatforms.filter((p): p is SocialPlatform => validPlatforms.includes(p as SocialPlatform));
+
+  if (platforms.length === 0) return;
 
   const validation = validateSocialPostInput({
     caption,
     title,
+    contentType,
+    mediaUrls,
     platforms,
+    platformCustomizations,
+    aiGeneratedDisclosure,
     scheduledAt,
   });
 
@@ -51,7 +75,13 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
     workspace_id: ctx.organization.id,
     title: title.trim() || null,
     caption: caption.trim(),
+    content: caption.trim(),
+    content_type: contentType,
     platforms,
+    platform: platforms.length === 1 ? platforms[0] : (platforms.length === 2 && platforms.includes("instagram") && platforms.includes("facebook")) ? "both" : "all",
+    media_urls: mediaUrls,
+    platform_customizations: platformCustomizations,
+    ai_generated_disclosure: aiGeneratedDisclosure,
     status,
     scheduled_at: status === "scheduled" ? new Date(scheduledAt!).toISOString() : null,
     created_by: ctx.userId,
@@ -74,7 +104,14 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
   revalidatePath("/social");
 }
 
-export async function generateCaptionSuggestionsAction(topic: string, callToAction?: string) {
+export async function generateCaptionSuggestionsAction(params: {
+  topic: string;
+  callToAction?: string;
+  platform?: SocialPlatform;
+  contentType?: string;
+  tone?: string;
+  language?: "tr" | "en" | "auto";
+}) {
   const ctx = await loadWorkspaceContext();
   if (!ctx?.organization?.id) {
     return { success: false, error: "Oturum gerekli." };
@@ -83,14 +120,19 @@ export async function generateCaptionSuggestionsAction(topic: string, callToActi
     return { success: false, error: "Bu işlem için yazma yetkisi olan canlı bir çalışma alanı gereklidir." };
   }
 
-  if (!topic || !topic.trim()) {
+  const topic = params.topic?.trim();
+  if (!topic) {
     return { success: false, error: "İçerik konusu girilmelidir." };
   }
 
   try {
     const suggestions = await generateSocialCaptionSuggestions({
-      topic: topic.trim(),
-      callToAction: callToAction?.trim(),
+      topic,
+      callToAction: params.callToAction?.trim(),
+      platform: params.platform,
+      contentType: params.contentType,
+      tone: params.tone,
+      language: params.language,
     });
     return { success: true, suggestions };
   } catch {

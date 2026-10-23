@@ -67,3 +67,20 @@ export function toTitleCase(value: string) {
 export function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
+
+export function sanitizeTurkishForPdf(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/ğ/g, "g")
+    .replace(/Ğ/g, "G")
+    .replace(/ş/g, "s")
+    .replace(/Ş/g, "S")
+    .replace(/ı/g, "i")
+    .replace(/İ/g, "I")
+    .replace(/ç/g, "c")
+    .replace(/Ç/g, "C")
+    .replace(/ö/g, "o")
+    .replace(/Ö/g, "O")
+    .replace(/ü/g, "u")
+    .replace(/Ü/g, "U");
+}

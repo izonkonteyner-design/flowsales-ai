@@ -7,7 +7,7 @@ const WORKSPACE_LOGO_BUCKET = "workspace-assets";
 type SupabaseServerClient = NonNullable<Awaited<ReturnType<typeof createSupabaseServerClient>>>;
 
 type WorkspaceMutationContext = Awaited<ReturnType<typeof getWorkspaceContext>> & {
-  organization: Organization & { logo_path?: string | null };
+  organization: Organization & { logo_path?: string | null; default_warranty_terms?: string | null; ai_language?: string | null };
 };
 
 function normalizeText(value: string | null | undefined) {
@@ -52,12 +52,14 @@ export function mapOrganizationToWorkspaceSettings(organization: WorkspaceMutati
     default_tax_rate: normalizeMoney(organization.default_tax_rate, 20),
     default_payment_terms: normalizeText(organization.default_payment_terms),
     default_delivery_terms: normalizeText(organization.default_delivery_terms),
+    default_warranty_terms: normalizeText(organization.default_warranty_terms),
     default_quote_notes: normalizeText(organization.default_quote_notes),
     default_quote_validity_days: Math.max(1, Math.trunc(normalizeMoney(organization.default_quote_validity_days, 30))),
     quote_footer_text: normalizeText(organization.quote_footer_text),
     signature_name: normalizeText(organization.signature_name),
     signature_title: normalizeText(organization.signature_title),
     company_slogan: normalizeText(organization.company_slogan),
+    ai_language: normalizeText(organization.ai_language) ?? "auto",
   };
 }
 
@@ -165,12 +167,14 @@ export async function updateWorkspaceCompanySettings(
     default_tax_rate: input.default_tax_rate,
     default_payment_terms: input.default_payment_terms,
     default_delivery_terms: input.default_delivery_terms,
+    default_warranty_terms: input.default_warranty_terms ?? null,
     default_quote_notes: input.default_quote_notes,
     default_quote_validity_days: input.default_quote_validity_days,
     quote_footer_text: input.quote_footer_text,
     signature_name: input.signature_name,
     signature_title: input.signature_title,
     company_slogan: input.company_slogan,
+    ai_language: input.ai_language ?? "auto",
   };
 
   let logo_url = normalizeText(organization.logo_url);

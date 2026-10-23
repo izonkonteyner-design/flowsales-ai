@@ -3,6 +3,7 @@ import fs from "node:fs";
 import PDFDocument from "pdfkit";
 
 import { buildQuotePdfFileName, type QuoteDocumentModel } from "@/server/services/quote-document";
+import { sanitizeTurkishForPdf } from "@/lib/utils";
 
 type PdfFonts = {
   regular: string | null;
@@ -51,6 +52,15 @@ function formatText(value: string | null | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function cleanText(text: string | null | undefined, fonts: PdfFonts): string {
+  const str = formatText(text);
+  if (!fonts.regular) {
+    // When falling back to Helvetica, sanitize Turkish characters to prevent WinAnsi glyph encoding errors
+    return sanitizeTurkishForPdf(str);
+  }
+  return str;
+}
+
 function setFont(pdf: PDFKit.PDFDocument, fonts: PdfFonts, weight: "regular" | "bold" = "regular") {
   const fontPath = weight === "bold" ? fonts.bold : fonts.regular;
   if (fontPath) {
@@ -61,42 +71,82 @@ function setFont(pdf: PDFKit.PDFDocument, fonts: PdfFonts, weight: "regular" | "
   pdf.font(weight === "bold" ? "Helvetica-Bold" : "Helvetica");
 }
 
-function ensureSpace(pdf: PDFKit.PDFDocument, minHeight: number, fonts: PdfFonts, document?: QuoteDocumentModel) {
-  if (pdf.y + minHeight <= PAGE_HEIGHT - PAGE_MARGIN - 18) {
+function ensureSpace(
+  pdf: PDFKit.PDFDocument,
+  minHeight: number,
+  fonts: PdfFonts,
+  document?: QuoteDocumentModel,
+  logoBuffer?: Buffer | null,
+) {
+  if (pdf.y + minHeight <= PAGE_HEIGHT - PAGE_MARGIN - 24) {
     return;
   }
 
   pdf.addPage({ size: "A4", margin: PAGE_MARGIN });
-  drawPageHeader(pdf, fonts, document);
+  drawPageHeader(pdf, fonts, document, logoBuffer);
 }
 
-function drawKeyValue(pdf: PDFKit.PDFDocument, fonts: PdfFonts, label: string, value: string, x: number, y: number, width: number) {
+function drawKeyValue(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  label: string,
+  value: string,
+  x: number,
+  y: number,
+  width: number,
+) {
   setFont(pdf, fonts, "regular");
-  pdf.fontSize(8.5).fillColor("#64748b").text(label, x, y, { width, continued: false });
+  pdf.fontSize(8.5).fillColor("#64748b").text(cleanText(label, fonts), x, y, { width, continued: false });
   const valueY = y + 11;
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(9.5).fillColor("#0f172a").text(value || "-", x, valueY, { width, continued: false });
+  pdf.fontSize(9.5).fillColor("#0f172a").text(cleanText(value || "-", fonts), x, valueY, { width, continued: false });
 }
 
-function drawPageHeader(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document?: QuoteDocumentModel) {
+function drawPageHeader(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  document?: QuoteDocumentModel,
+  logoBuffer?: Buffer | null,
+) {
   const topY = PAGE_MARGIN;
+  let textStartX = PAGE_MARGIN;
 
-  setFont(pdf, fonts, "bold");
-  pdf.fontSize(18).fillColor("#0f172a").text(document?.company.name ?? "Quote", PAGE_MARGIN, topY, { width: CONTENT_WIDTH * 0.55 });
-  setFont(pdf, fonts, "regular");
-  pdf.fontSize(8.5).fillColor("#64748b").text(document?.company.company_slogan ?? "Branded quote document", PAGE_MARGIN, topY + 22, {
-    width: CONTENT_WIDTH * 0.55,
-  });
-
-  if (document) {
-    const headerX = PAGE_MARGIN + CONTENT_WIDTH * 0.58;
-    drawKeyValue(pdf, fonts, "Quote number", document.quote_number, headerX, topY, CONTENT_WIDTH * 0.42);
-    drawKeyValue(pdf, fonts, "Status", document.status_label, headerX, topY + 28, CONTENT_WIDTH * 0.42);
-    drawKeyValue(pdf, fonts, "Issue date", document.issue_date, headerX, topY + 56, CONTENT_WIDTH * 0.42);
+  if (logoBuffer && logoBuffer.length > 0) {
+    try {
+      pdf.image(logoBuffer, PAGE_MARGIN, topY, { fit: [80, 42] });
+      textStartX = PAGE_MARGIN + 90;
+    } catch {
+      // Fallback cleanly to text if image parsing fails
+      textStartX = PAGE_MARGIN;
+    }
   }
 
-  pdf.moveTo(PAGE_MARGIN, topY + 84).lineTo(PAGE_MARGIN + CONTENT_WIDTH, topY + 84).lineWidth(0.8).strokeColor("#cbd5e1").stroke();
-  pdf.y = topY + 94;
+  setFont(pdf, fonts, "bold");
+  pdf.fontSize(16).fillColor("#0f172a").text(
+    cleanText(document?.company.name ?? "Quote", fonts),
+    textStartX,
+    topY,
+    { width: CONTENT_WIDTH * 0.5 - (textStartX - PAGE_MARGIN) },
+  );
+
+  setFont(pdf, fonts, "regular");
+  pdf.fontSize(8.2).fillColor("#64748b").text(
+    cleanText(document?.company.company_slogan ?? "Kurumsal Teklif Dokümanı", fonts),
+    textStartX,
+    topY + 20,
+    { width: CONTENT_WIDTH * 0.5 - (textStartX - PAGE_MARGIN) },
+  );
+
+  if (document) {
+    const headerX = PAGE_MARGIN + CONTENT_WIDTH * 0.55;
+    drawKeyValue(pdf, fonts, "Teklif No / Quote", document.quote_number, headerX, topY, CONTENT_WIDTH * 0.22);
+    drawKeyValue(pdf, fonts, "Durum / Status", document.status_label, headerX + CONTENT_WIDTH * 0.23, topY, CONTENT_WIDTH * 0.22);
+    drawKeyValue(pdf, fonts, "Tarih / Issue Date", document.issue_date, headerX, topY + 28, CONTENT_WIDTH * 0.22);
+    drawKeyValue(pdf, fonts, "Geçerlilik / Validity", document.valid_until, headerX + CONTENT_WIDTH * 0.23, topY + 28, CONTENT_WIDTH * 0.22);
+  }
+
+  pdf.moveTo(PAGE_MARGIN, topY + 68).lineTo(PAGE_MARGIN + CONTENT_WIDTH, topY + 68).lineWidth(0.8).strokeColor("#cbd5e1").stroke();
+  pdf.y = topY + 76;
 }
 
 function drawPartyCard(
@@ -108,69 +158,61 @@ function drawPartyCard(
   y: number,
   width: number,
 ) {
-  const visibleLineCount = lines.filter(([, value]) => formatText(value).length > 0).length;
-  const boxHeight = Math.max(86, 34 + visibleLineCount * 12 + 10);
-  pdf.roundedRect(x, y, width, boxHeight, 12).fillAndStroke("#ffffff", "#e2e8f0");
+  const visibleLines = lines.filter(([, value]) => formatText(value).length > 0);
+  const boxHeight = Math.max(90, 32 + visibleLines.length * 13 + 8);
+  pdf.roundedRect(x, y, width, boxHeight, 10).fillAndStroke("#ffffff", "#e2e8f0");
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(9.2).fillColor("#0f172a").text(title, x + 12, y + 10, { width: width - 24 });
+  pdf.fontSize(9.2).fillColor("#0f172a").text(cleanText(title, fonts), x + 12, y + 10, { width: width - 24 });
   let currentY = y + 26;
-  for (const [label, value] of lines) {
-    if (!formatText(value)) {
-      continue;
-    }
-
+  for (const [label, value] of visibleLines) {
     setFont(pdf, fonts, "regular");
-    pdf.fontSize(8.2).fillColor("#64748b").text(`${label}:`, x + 12, currentY, { width: width - 24 });
-    setFont(pdf, fonts, "regular");
-    pdf.fontSize(8.6).fillColor("#0f172a").text(formatText(value), x + 58, currentY, { width: width - 70 });
-    currentY += 12;
+    pdf.fontSize(8).fillColor("#64748b").text(`${cleanText(label, fonts)}:`, x + 12, currentY, { width: 70 });
+    setFont(pdf, fonts, "bold");
+    pdf.fontSize(8.4).fillColor("#1e293b").text(cleanText(value, fonts), x + 85, currentY, { width: width - 97 });
+    currentY += 13;
   }
 
   return boxHeight;
 }
 
-function drawMetaCard(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel) {
-  const x = PAGE_MARGIN + CONTENT_WIDTH * 0.62;
-  const width = CONTENT_WIDTH * 0.38;
-  const y = pdf.y;
-
-  pdf.roundedRect(x, y, width, 96, 12).fillAndStroke("#f8fafc", "#e2e8f0");
-  setFont(pdf, fonts, "bold");
-  pdf.fontSize(9.2).fillColor("#0f172a").text("Quote metadata", x + 12, y + 10, { width: width - 24 });
-
-  const rows: Array<[string, string]> = [
-    ["Valid until", document.valid_until],
-    ["Currency", document.currency],
-    ["Record mode", document.recordMode === "demo" ? "Demo" : "Live"],
-    ["Updated", document.updated_at || "-"],
+function drawBankAndWarrantyCard(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  document: QuoteDocumentModel,
+  x: number,
+  y: number,
+  width: number,
+) {
+  const bankRows: Array<[string, string | null | undefined]> = [
+    ["Banka / Bank", document.company.bank_name],
+    ["Şube / Branch", document.company.bank_branch],
+    ["IBAN", document.company.iban],
+    ["Hesap Sahibi", document.company.account_holder],
+    ["Garanti / Warranty", document.warranty_terms || document.company.default_warranty_terms || "2 Yıl Standart Garanti"],
   ];
 
-  let currentY = y + 28;
-  for (const [label, value] of rows) {
-    drawKeyValue(pdf, fonts, label, value, x + 12, currentY, width - 24);
-    currentY += 20;
-  }
+  return drawPartyCard(pdf, fonts, "Banka & Garanti Bilgileri", bankRows, x, y, width);
 }
 
 function drawItemTableHeader(pdf: PDFKit.PDFDocument, fonts: PdfFonts) {
   const headerY = pdf.y;
   const columns = [
-    { label: "#", width: 16 },
-    { label: "Line", width: 202 },
-    { label: "Qty", width: 34 },
-    { label: "Unit", width: 40 },
-    { label: "Price", width: 70 },
-    { label: "Discount", width: 64 },
-    { label: "Tax", width: 52 },
-    { label: "Total", width: 61 },
+    { label: "#", width: 20 },
+    { label: "Ürün / Hizmet (Line Item)", width: 198 },
+    { label: "Miktar", width: 36 },
+    { label: "Birim", width: 40 },
+    { label: "Birim Fiyat", width: 70 },
+    { label: "İndirim", width: 60 },
+    { label: "KDV", width: 48 },
+    { label: "Toplam", width: 67 },
   ];
 
-  pdf.rect(PAGE_MARGIN, headerY, CONTENT_WIDTH, 20).fillAndStroke("#f8fafc", "#e2e8f0");
+  pdf.rect(PAGE_MARGIN, headerY, CONTENT_WIDTH, 20).fillAndStroke("#f1f5f9", "#cbd5e1");
   let x = PAGE_MARGIN;
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(TABLE_HEADER_FONT_SIZE).fillColor("#64748b");
+  pdf.fontSize(TABLE_HEADER_FONT_SIZE).fillColor("#334155");
   for (const column of columns) {
-    pdf.text(column.label, x + 4, headerY + 6, { width: column.width - 8, align: "left" });
+    pdf.text(cleanText(column.label, fonts), x + 4, headerY + 6, { width: column.width - 8, align: "left" });
     x += column.width;
   }
 
@@ -178,23 +220,29 @@ function drawItemTableHeader(pdf: PDFKit.PDFDocument, fonts: PdfFonts) {
   return columns;
 }
 
-function drawItemRow(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel, item: QuoteDocumentModel["items"][number]) {
+function drawItemRow(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  document: QuoteDocumentModel,
+  item: QuoteDocumentModel["items"][number],
+  logoBuffer?: Buffer | null,
+) {
   const columns = [
-    { width: 16, align: "left" as const },
-    { width: 202, align: "left" as const },
-    { width: 34, align: "center" as const },
+    { width: 20, align: "left" as const },
+    { width: 198, align: "left" as const },
+    { width: 36, align: "center" as const },
     { width: 40, align: "left" as const },
     { width: 70, align: "right" as const },
-    { width: 64, align: "right" as const },
-    { width: 52, align: "right" as const },
-    { width: 61, align: "right" as const },
+    { width: 60, align: "right" as const },
+    { width: 48, align: "right" as const },
+    { width: 67, align: "right" as const },
   ];
 
-  const detailText = `${item.name}\n${item.description || "Manual line"}${item.sku ? `\nSKU: ${item.sku}` : ""}`;
+  const detailText = cleanText(`${item.name}\n${item.description || ""}${item.sku ? `\nSKU: ${item.sku}` : ""}`.trim(), fonts);
   const detailHeight = pdf.heightOfString(detailText, { width: columns[1].width - 8, lineGap: 1.5, align: "left" });
-  const rowHeight = Math.max(24, detailHeight + 10);
+  const rowHeight = Math.max(22, detailHeight + 8);
 
-  ensureSpace(pdf, rowHeight + 12, fonts, document);
+  ensureSpace(pdf, rowHeight + 12, fonts, document, logoBuffer);
 
   const startY = pdf.y;
   pdf.rect(PAGE_MARGIN, startY, CONTENT_WIDTH, rowHeight).strokeColor("#e2e8f0").lineWidth(0.5).stroke();
@@ -203,10 +251,10 @@ function drawItemRow(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDo
     String(item.index),
     detailText,
     String(Number.isFinite(item.quantity) ? item.quantity : 0),
-    item.unit,
+    cleanText(item.unit, fonts),
     formatMoney(document.currency, item.unit_price),
-    item.discount,
-    item.tax,
+    cleanText(item.discount, fonts),
+    cleanText(item.tax, fonts),
     formatMoney(document.currency, item.line_total),
   ];
 
@@ -215,7 +263,7 @@ function drawItemRow(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDo
     pdf.save();
     pdf.rect(x, startY, col.width, rowHeight).clip();
     setFont(pdf, fonts, index === 1 || index === 7 ? "bold" : "regular");
-    pdf.fontSize(TABLE_ROW_FONT_SIZE).fillColor("#0f172a").text(value, x + 4, startY + 5, {
+    pdf.fontSize(TABLE_ROW_FONT_SIZE).fillColor("#0f172a").text(value, x + 4, startY + 4, {
       width: col.width - 8,
       align: col.align,
       lineBreak: false,
@@ -228,108 +276,149 @@ function drawItemRow(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDo
   pdf.y = startY + rowHeight;
 }
 
-function drawTotals(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel) {
-  ensureSpace(pdf, 140, fonts, document);
+function drawTotals(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  document: QuoteDocumentModel,
+  logoBuffer?: Buffer | null,
+) {
+  ensureSpace(pdf, 135, fonts, document, logoBuffer);
   const y = pdf.y + 8;
-  const width = 210;
+  const width = 220;
   const x = PAGE_MARGIN + CONTENT_WIDTH - width;
 
-  pdf.roundedRect(x, y, width, 128, 12).fillAndStroke("#ffffff", "#e2e8f0");
+  pdf.roundedRect(x, y, width, 126, 10).fillAndStroke("#ffffff", "#cbd5e1");
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(10).fillColor("#0f172a").text("Totals", x + 12, y + 10, { width: width - 24 });
+  pdf.fontSize(9.5).fillColor("#0f172a").text("Genel Toplamlar (Totals)", x + 12, y + 8, { width: width - 24 });
 
   const rows: Array<[string, number]> = [
-    ["Subtotal", document.subtotal],
-    ["Line discounts", document.line_discount_total],
-    ["Order discount", document.order_discount_total],
-    ["Shipping", document.shipping_total],
-    ["Taxable subtotal", document.taxable_subtotal],
-    ["Tax total", document.tax_total],
+    ["Ara Toplam / Subtotal", document.subtotal],
+    ["Satır İndirimleri", document.line_discount_total],
+    ["Genel İndirim", document.order_discount_total],
+    ["Kargo / Teslimat", document.shipping_total],
+    ["KDV Matrahı", document.taxable_subtotal],
+    ["Toplam KDV / Tax", document.tax_total],
   ];
 
-  let currentY = y + 28;
+  let currentY = y + 24;
   for (const [label, value] of rows) {
     setFont(pdf, fonts, "regular");
-    pdf.fontSize(8.5).fillColor("#64748b").text(label, x + 12, currentY, { width: 104 });
-    pdf.fontSize(8.7).fillColor("#0f172a").text(formatMoney(document.currency, value), x + 118, currentY, {
-      width: 80,
+    pdf.fontSize(8.2).fillColor("#64748b").text(cleanText(label, fonts), x + 12, currentY, { width: 110 });
+    pdf.fontSize(8.4).fillColor("#0f172a").text(formatMoney(document.currency, value), x + 124, currentY, {
+      width: 84,
       align: "right",
     });
-    currentY += 15;
+    currentY += 13.5;
   }
 
-  pdf.moveTo(x + 12, currentY + 3).lineTo(x + width - 12, currentY + 3).strokeColor("#e2e8f0").stroke();
+  pdf.moveTo(x + 10, currentY + 2).lineTo(x + width - 10, currentY + 2).strokeColor("#cbd5e1").stroke();
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(10.2).fillColor("#0f172a").text("Grand total", x + 12, currentY + 8, { width: 104 });
-  pdf.fontSize(10.2).text(formatMoney(document.currency, document.grand_total), x + 118, currentY + 8, {
-    width: 80,
+  pdf.fontSize(10).fillColor("#0f172a").text("Ödenecek Tutar", x + 12, currentY + 7, { width: 110 });
+  pdf.fontSize(10).fillColor("#047857").text(formatMoney(document.currency, document.grand_total), x + 124, currentY + 7, {
+    width: 84,
     align: "right",
   });
-  pdf.y = y + 136;
+  pdf.y = y + 134;
 }
 
-function drawNotesAndTerms(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel) {
-  const sectionHeight = 92;
-  ensureSpace(pdf, sectionHeight + 20, fonts, document);
-  const y = pdf.y + 10;
-  const boxWidth = (CONTENT_WIDTH - 10) / 2;
+function drawNotesAndTerms(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  document: QuoteDocumentModel,
+  logoBuffer?: Buffer | null,
+) {
+  const sectionHeight = 84;
+  ensureSpace(pdf, sectionHeight + 16, fonts, document, logoBuffer);
+  const y = pdf.y + 6;
+  const boxWidth = (CONTENT_WIDTH - 12) / 2;
 
   const renderBox = (x: number, title: string, value: string) => {
-    pdf.roundedRect(x, y, boxWidth, 92, 12).fillAndStroke("#ffffff", "#e2e8f0");
+    pdf.roundedRect(x, y, boxWidth, sectionHeight, 10).fillAndStroke("#ffffff", "#e2e8f0");
     setFont(pdf, fonts, "bold");
-    pdf.fontSize(9.2).fillColor("#0f172a").text(title, x + 12, y + 10, { width: boxWidth - 24 });
+    pdf.fontSize(8.8).fillColor("#0f172a").text(cleanText(title, fonts), x + 10, y + 8, { width: boxWidth - 20 });
     setFont(pdf, fonts, "regular");
-    pdf.fontSize(8.6).fillColor("#334155").text(value || "Not specified", x + 12, y + 28, {
-      width: boxWidth - 24,
-      lineGap: 2.5,
+    pdf.fontSize(8.2).fillColor("#334155").text(cleanText(value || "Belirtilmedi", fonts), x + 10, y + 22, {
+      width: boxWidth - 20,
+      lineGap: 2,
     });
   };
 
-  renderBox(PAGE_MARGIN, "Notes", document.notes || "No notes provided.");
-  renderBox(
-    PAGE_MARGIN + boxWidth + 10,
-    "Payment and delivery",
-    `Payment terms: ${document.payment_terms || "Not specified"}\nDelivery terms: ${document.delivery_terms || "Not specified"}`,
-  );
-  pdf.y = y + 102;
+  renderBox(PAGE_MARGIN, "Ödeme & Teslimat Koşulları", `Ödeme: ${document.payment_terms || "Belirtilmedi"}\nTeslimat: ${document.delivery_terms || "Belirtilmedi"}`);
+  renderBox(PAGE_MARGIN + boxWidth + 12, "Teklif Açıklaması & Notlar", document.notes || "Özel bir not belirtilmemiştir.");
+  pdf.y = y + sectionHeight + 10;
 }
 
-function drawSignature(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel) {
-  ensureSpace(pdf, 90, fonts);
-  const y = pdf.y + 10;
+function drawSignature(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  document: QuoteDocumentModel,
+  logoBuffer?: Buffer | null,
+) {
+  ensureSpace(pdf, 74, fonts, document, logoBuffer);
+  const y = pdf.y + 6;
   const width = CONTENT_WIDTH;
-  pdf.roundedRect(PAGE_MARGIN, y, width, 80, 12).fillAndStroke("#ffffff", "#e2e8f0");
+  pdf.roundedRect(PAGE_MARGIN, y, width, 68, 10).fillAndStroke("#ffffff", "#e2e8f0");
   setFont(pdf, fonts, "bold");
-  pdf.fontSize(9.2).fillColor("#0f172a").text("Signature / approval", PAGE_MARGIN + 12, y + 10, { width: width - 24 });
-  pdf.moveTo(PAGE_MARGIN + 12, y + 52).lineTo(PAGE_MARGIN + width - 12, y + 52).strokeColor("#cbd5e0").stroke();
+  pdf.fontSize(8.8).fillColor("#0f172a").text("Yetkili İmza & Onay / Authorized Approval", PAGE_MARGIN + 12, y + 8, { width: width - 24 });
+  pdf.moveTo(PAGE_MARGIN + 12, y + 44).lineTo(PAGE_MARGIN + width - 12, y + 44).strokeColor("#cbd5e1").stroke();
   setFont(pdf, fonts, "regular");
-  const signer = document.company.signature_name || "Authorized signatory";
+  const signer = document.company.signature_name || "Yetkili İmza";
   const signerTitle = document.company.signature_title ? `, ${document.company.signature_title}` : "";
-  pdf.fontSize(8.6).fillColor("#64748b").text(`${signer}${signerTitle}`, PAGE_MARGIN + 12, y + 58, { width: width - 24 });
-  pdf.y = y + 92;
+  pdf.fontSize(8.2).fillColor("#64748b").text(cleanText(`${signer}${signerTitle}`, fonts), PAGE_MARGIN + 12, y + 49, { width: width - 24 });
+  pdf.y = y + 74;
 }
 
-function drawFooter(pdf: PDFKit.PDFDocument, fonts: PdfFonts, document: QuoteDocumentModel, pageNumber: number, totalPages: number) {
+function drawFooter(
+  pdf: PDFKit.PDFDocument,
+  fonts: PdfFonts,
+  document: QuoteDocumentModel,
+  pageNumber: number,
+  totalPages: number,
+) {
   const footerY = PAGE_HEIGHT - PAGE_MARGIN + 2;
   pdf.moveTo(PAGE_MARGIN, PAGE_HEIGHT - PAGE_MARGIN - 8).lineTo(PAGE_MARGIN + CONTENT_WIDTH, PAGE_HEIGHT - PAGE_MARGIN - 8).strokeColor("#e2e8f0").stroke();
   setFont(pdf, fonts, "regular");
   const footerText = document.company.quote_footer_text
     ? `${document.company.name} - ${document.company.quote_footer_text}`
     : `${document.company.name} - ${document.quote_number}`;
-  pdf.fontSize(7.8).fillColor("#64748b").text(footerText, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH * 0.7 });
-  pdf.text(`Page ${pageNumber} of ${totalPages}`, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH, align: "right" });
+  pdf.fontSize(7.5).fillColor("#64748b").text(cleanText(footerText, fonts), PAGE_MARGIN, footerY, { width: CONTENT_WIDTH * 0.7 });
+  pdf.text(`Sayfa ${pageNumber} / ${totalPages}`, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH, align: "right" });
+}
+
+async function loadLogoBuffer(logoUrl: string | null | undefined): Promise<Buffer | null> {
+  if (!logoUrl) return null;
+  try {
+    if (logoUrl.startsWith("data:image/")) {
+      const base64Data = logoUrl.split(",")[1];
+      return Buffer.from(base64Data, "base64");
+    }
+    if (logoUrl.startsWith("http://") || logoUrl.startsWith("https://")) {
+      const res = await fetch(logoUrl);
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+    } else if (fs.existsSync(logoUrl)) {
+      return fs.readFileSync(logoUrl);
+    }
+  } catch {
+    // Graceful fallback to typography
+  }
+  return null;
 }
 
 export async function renderQuotePdfBuffer(document: QuoteDocumentModel) {
   const fonts = resolveFonts();
+  const logoBuffer = await loadLogoBuffer(document.company.logo_url ?? document.company.logo_path);
+
   const pdf = new PDFDocument({
     size: "A4",
     margin: PAGE_MARGIN,
     bufferPages: true,
     info: {
-      Title: `${document.company.name} quote ${document.quote_number}`,
-      Author: document.company.name,
-      Subject: document.company.company_slogan ?? "Quote document",
+      Title: `${cleanText(document.company.name, fonts)} quote ${document.quote_number}`,
+      Author: cleanText(document.company.name, fonts),
+      Subject: cleanText(document.company.company_slogan ?? "Quote document", fonts),
     },
   });
 
@@ -340,67 +429,74 @@ export async function renderQuotePdfBuffer(document: QuoteDocumentModel) {
     pdf.on("error", reject);
     pdf.on("end", () => resolve(Buffer.concat(chunks)));
 
-    drawPageHeader(pdf, fonts, document);
+    drawPageHeader(pdf, fonts, document, logoBuffer);
 
-    const companyAndRecipientY = pdf.y + 14;
-    const companyCardHeight = drawPartyCard(
+    const cardsY = pdf.y + 6;
+    const cardWidth = (CONTENT_WIDTH - 12) / 2;
+
+    const companyHeight = drawPartyCard(
       pdf,
       fonts,
-      "Company",
+      "Firma Bilgileri (Company)",
       [
-        ["Name", document.company.name],
-        ["Legal name", document.company.legal_name],
-        ["Website", document.company.website],
-        ["Email", document.company.email],
-        ["Phone", document.company.phone],
-        ["Address", [document.company.address_line_1, document.company.address_line_2].filter(Boolean).join(", ")],
-        ["City", [document.company.district, document.company.city, document.company.country].filter(Boolean).join(", ")],
-        ["Tax office", document.company.tax_office],
-        ["Tax number", document.company.tax_number],
-        ["Workspace", document.company.slug],
-        ["Currency", document.company.currency],
+        ["Ticari Unvan", document.company.legal_name || document.company.name],
+        ["Vergi Dairesi", document.company.tax_office],
+        ["Vergi No", document.company.tax_number],
+        ["MERSİS / Tic. Sicil", [document.company.trade_registry_number, document.company.mersis_number].filter(Boolean).join(" / ")],
+        ["Telefon", [document.company.phone, document.company.secondary_phone].filter(Boolean).join(" / ")],
+        ["E-posta / Web", [document.company.email, document.company.website].filter(Boolean).join(" / ")],
+        ["Adres", [document.company.address_line_1, document.company.address_line_2, document.company.district, document.company.city].filter(Boolean).join(", ")],
       ],
       PAGE_MARGIN,
-      companyAndRecipientY,
-      CONTENT_WIDTH * 0.58 - 4,
+      cardsY,
+      cardWidth,
     );
 
-    drawMetaCard(pdf, fonts, document);
-
-    const recipientY = companyAndRecipientY + Math.max(companyCardHeight, 96) + 14;
-    drawPartyCard(
+    const recipientHeight = drawPartyCard(
       pdf,
       fonts,
-      "Recipient",
+      "Müşteri Bilgileri (Recipient)",
       document.recipient.type === "none"
-        ? [["Status", "No recipient information"]]
+        ? [["Durum", "Müşteri bilgisi belirtilmedi"]]
         : [
-            [document.recipient.type === "customer" ? "Customer" : "Lead", document.recipient.name],
-            ["Company", document.recipient.company],
-            ["Email", document.recipient.email],
-            ["Phone", document.recipient.phone],
-            ["City", document.recipient.city],
+            ["Muhatap", document.recipient.name],
+            ["Firma", document.recipient.company],
+            ["E-posta", document.recipient.email],
+            ["Telefon", document.recipient.phone],
+            ["Şehir", document.recipient.city],
           ],
-      PAGE_MARGIN,
-      recipientY,
-      CONTENT_WIDTH * 0.58 - 4,
+      PAGE_MARGIN + cardWidth + 12,
+      cardsY,
+      cardWidth,
     );
 
-    pdf.y = Math.max(recipientY + 100, pdf.y + 12);
-    ensureSpace(pdf, 40, fonts, document);
+    const firstRowHeight = Math.max(companyHeight, recipientHeight);
+    const bankY = cardsY + firstRowHeight + 8;
+    const bankCardHeight = drawBankAndWarrantyCard(
+      pdf,
+      fonts,
+      document,
+      PAGE_MARGIN,
+      bankY,
+      CONTENT_WIDTH,
+    );
+
+    pdf.y = bankY + bankCardHeight + 12;
+    ensureSpace(pdf, 44, fonts, document, logoBuffer);
     drawItemTableHeader(pdf, fonts);
+
     for (const item of document.items) {
-      drawItemRow(pdf, fonts, document, item);
+      drawItemRow(pdf, fonts, document, item, logoBuffer);
       if (pdf.y + 8 > PAGE_HEIGHT - PAGE_MARGIN - 28) {
         pdf.addPage({ size: "A4", margin: PAGE_MARGIN });
-        drawPageHeader(pdf, fonts, document);
+        drawPageHeader(pdf, fonts, document, logoBuffer);
         drawItemTableHeader(pdf, fonts);
       }
     }
 
-    drawTotals(pdf, fonts, document);
-    drawNotesAndTerms(pdf, fonts, document);
-    drawSignature(pdf, fonts, document);
+    drawTotals(pdf, fonts, document, logoBuffer);
+    drawNotesAndTerms(pdf, fonts, document, logoBuffer);
+    drawSignature(pdf, fonts, document, logoBuffer);
 
     const pages = pdf.bufferedPageRange();
     for (let index = 0; index < pages.count; index += 1) {

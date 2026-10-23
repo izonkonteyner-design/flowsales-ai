@@ -6,11 +6,19 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { formatDateTime } from "@/lib/utils";
+import { canWriteSalesRecords } from "@/lib/workspace-roles";
 import { listCalendarEvents } from "@/server/services/productivity";
+import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { createCalendarEventAction } from "./actions";
 
+const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
+
 export default async function CalendarPage() {
-  const events = await listCalendarEvents();
+  const [workspace, events] = await Promise.all([getWorkspaceContext(), listCalendarEvents()]);
+  const canWrite =
+    workspace.mode === "live" &&
+    workspace.organization.id !== DEMO_ORGANIZATION_ID &&
+    canWriteSalesRecords(workspace.role);
 
   return (
     <div className="space-y-6">
@@ -18,14 +26,20 @@ export default async function CalendarPage() {
 
       <SectionCard title="Etkinlik planla" description="Takvim kaydı ekip ve CRM çalışma alanına bağlı tutulur.">
         <form action={createCalendarEventAction} className="grid gap-3 xl:grid-cols-6">
-          <Input name="title" required minLength={2} placeholder="Etkinlik başlığı" className="xl:col-span-2" />
-          <Input name="starts_at" type="datetime-local" required />
-          <Input name="ends_at" type="datetime-local" required />
-          <Select name="event_type" defaultValue="meeting">
+          <Input name="title" required minLength={2} disabled={!canWrite} placeholder="Etkinlik başlığı" className="xl:col-span-2" />
+          <Input name="starts_at" type="datetime-local" required disabled={!canWrite} />
+          <Input name="ends_at" type="datetime-local" required disabled={!canWrite} />
+          <Select name="event_type" defaultValue="meeting" disabled={!canWrite}>
             <option value="call">Arama</option><option value="demo">Demo</option><option value="meeting">Toplantı</option><option value="delivery">Teslimat</option><option value="follow_up">Takip</option><option value="other">Diğer</option>
           </Select>
-          <button type="submit" className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950"><CalendarDays className="h-4 w-4" /> Kaydet</button>
-          <Input name="location" placeholder="Konum / görüşme bağlantısı (opsiyonel)" className="xl:col-span-6" />
+          <button
+            type="submit"
+            disabled={!canWrite}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <CalendarDays className="h-4 w-4" /> Kaydet
+          </button>
+          <Input name="location" disabled={!canWrite} placeholder="Konum / görüşme bağlantısı (opsiyonel)" className="xl:col-span-6" />
         </form>
       </SectionCard>
 

@@ -6,7 +6,7 @@ import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { completeCallback, createFollowUpSequence, enrollLeadInSequence, enqueueCallback } from "@/server/services/sales-operations-v5";
 
 function requireWritable(context: Awaited<ReturnType<typeof getWorkspaceContext>>) {
-  if (context.mode !== "live" || !context.userId) throw new Error("Bu işlem yalnızca canlı çalışma alanında kullanılabilir.");
+  if (context.mode !== "live" || !context.userId || context.organization.id === "d3e00000-0000-0000-0000-000000000000") throw new Error("Bu işlem yalnızca canlı çalışma alanında kullanılabilir.");
   if (context.role === "viewer") throw new Error("Salt okunur erişim.");
   return context;
 }

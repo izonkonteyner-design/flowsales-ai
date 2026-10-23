@@ -22,7 +22,7 @@ export default async function GrowthControlPage() {
     forecast: { openPipelineValue: 0, weightedPipelineValue: 0, forecastConfidence: 0, stageCounts: {}, count: 0 },
   };
   return <div className="space-y-6">
-    <div><h1 className="text-3xl font-bold text-slate-900">Büyüme Kontrol Merkezi</h1><p className="mt-2 text-slate-500">SLA, ekip yükü, veri kalitesi, büyüme fırsatları ve tahmin güvenini tek yerde izleyin.</p></div>
+    <div><h1 className="text-3xl font-bold text-slate-900 dark:text-white">Büyüme Kontrol Merkezi</h1><p className="mt-2 text-slate-500 dark:text-slate-400">SLA, ekip yükü, veri kalitesi, büyüme fırsatları ve tahmin güvenini tek yerde izleyin.</p></div>
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       <Metric label="SLA ihlali" value={String(data.sla.length)} />
       <Metric label="Duplicate grup" value={String(data.duplicates.length)} />

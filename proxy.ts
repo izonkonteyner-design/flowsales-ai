@@ -22,6 +22,22 @@ const protectedRoutes = [
   "/audit-logs",
   "/api-layer",
   "/settings",
+  "/inbox",
+  "/sales-operations",
+  "/command-center",
+  "/sales-analyst",
+  "/growth-control",
+  "/sales-cockpit",
+  "/revenue-intelligence",
+  "/opportunities",
+  "/follow-ups",
+  "/voice",
+  "/account",
+  "/approvals",
+  "/ai-history",
+  "/operations",
+  "/usage",
+  "/upgrade",
 ];
 
 const authPages = ["/login", "/signup", "/register"];

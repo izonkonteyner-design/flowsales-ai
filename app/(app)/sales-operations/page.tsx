@@ -19,7 +19,7 @@ export default async function SalesOperationsPage() {
 
   return <div className="space-y-6">
     <div>
-      <h1 className="text-3xl font-bold text-slate-900">Satış Operasyon Merkezi</h1>
+      <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Satış Operasyon Merkezi</h1>
       <p className="mt-2 text-slate-500">Callback, teklif takibi, risk, gelir kaçağı ve satış hunisini tek ekranda yönetin.</p>
     </div>
     <div className="grid gap-4 md:grid-cols-4">

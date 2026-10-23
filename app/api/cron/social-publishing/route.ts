@@ -12,6 +12,9 @@ import {
 } from "@/server/services/integrations/social-publisher";
 import { logger } from "@/lib/logger";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export type SocialCronWorkerDeps = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adminClient?: any;
@@ -22,10 +25,12 @@ export type SocialCronWorkerDeps = {
   ) => Promise<MetaPublishResult>;
   batchSize?: number;
   workerRunId?: string;
+  publishingEnabled?: boolean;
 };
 
 export type SocialCronWorkerSummary = {
   success: boolean;
+  disabled?: boolean;
   workerRunId: string;
   evaluated: number;
   processed: number;
@@ -34,18 +39,47 @@ export type SocialCronWorkerSummary = {
   error?: string;
 };
 
+export function isSocialPublishingEnabled(override?: boolean): boolean {
+  if (typeof override === "boolean") {
+    return override;
+  }
+  return process.env.SOCIAL_PUBLISHING_ENABLED?.trim().toLowerCase() === "true";
+}
+
 /**
  * Executes a single atomic social publishing worker cycle.
+ * Fails closed when SOCIAL_PUBLISHING_ENABLED is not explicitly "true".
  * Requires the database `claim_due_social_posts` RPC (FOR UPDATE SKIP LOCKED).
  * Never falls back to non-atomic table scans.
  */
 export async function runSocialPublishingWorkerCycle(
   deps: SocialCronWorkerDeps = {},
 ): Promise<{ status: number; body: SocialCronWorkerSummary }> {
+  const workerRunId = deps.workerRunId ?? crypto.randomUUID();
+
+  if (!isSocialPublishingEnabled(deps.publishingEnabled)) {
+    logger.info("social_cron.publishing_disabled", {
+      workerRunId,
+      SOCIAL_PUBLISHING_ENABLED: process.env.SOCIAL_PUBLISHING_ENABLED ?? "false",
+    });
+    return {
+      status: 503,
+      body: {
+        success: false,
+        disabled: true,
+        workerRunId,
+        evaluated: 0,
+        processed: 0,
+        failed: 0,
+        skipped: 0,
+        error: "Social publishing is disabled (SOCIAL_PUBLISHING_ENABLED=false).",
+      },
+    };
+  }
+
   const admin = deps.adminClient ?? createSupabaseAdminClient();
   const publishFn = deps.publishFn ?? publishSocialPostToMeta;
   const batchSize = deps.batchSize ?? 20;
-  const workerRunId = deps.workerRunId ?? crypto.randomUUID();
   const now = new Date().toISOString();
 
   // Strictly require atomic claiming via claim_due_social_posts RPC.

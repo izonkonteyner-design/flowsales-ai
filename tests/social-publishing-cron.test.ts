@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { NextRequest } from "next/server";
 
 const req = createRequire(import.meta.url);
 const serverOnlyPath = req.resolve("server-only");
@@ -14,21 +15,32 @@ req.cache[serverOnlyPath] = {
   exports: {},
 } as NodeModule;
 
-const { runSocialPublishingWorkerCycle } = req(
+const { runSocialPublishingWorkerCycle, GET } = req(
   "../app/api/cron/social-publishing/route",
 ) as typeof import("@/app/api/cron/social-publishing/route");
 
 const testsDir = dirname(fileURLToPath(import.meta.url));
 const cronRoutePath = join(testsDir, "..", "app", "api", "cron", "social-publishing", "route.ts");
 const cronRouteSource = readFileSync(cronRoutePath, "utf8");
+const vercelConfigPath = join(testsDir, "..", "vercel.json");
+const vercelConfigSource = readFileSync(vercelConfigPath, "utf8");
+const migrateWorkflowPath = join(
+  testsDir,
+  "..",
+  ".github",
+  "workflows",
+  "supabase-production-migrate.yml",
+);
+const migrateWorkflowSource = readFileSync(migrateWorkflowPath, "utf8");
 
 const WORKSPACE_A = "550e8400-e29b-41d4-a716-446655440000";
 const WORKSPACE_B = "770e8400-e29b-41d4-a716-446655440000";
 
-describe("Social Publishing Cron Worker Safety & Concurrency Tests", () => {
-  test("social publishing cron route checks authorization secret, updates post status, and removes non-atomic fallback", () => {
+describe("Social Publishing Cron Worker Safety, Feature Flag & Concurrency Tests", () => {
+  test("social publishing cron route checks authorization secret, feature flag, vercel schedule, and removes non-atomic fallback", () => {
     assert.match(cronRouteSource, /import "server-only";/);
     assert.match(cronRouteSource, /CRON_SECRET/);
+    assert.match(cronRouteSource, /SOCIAL_PUBLISHING_ENABLED/);
     assert.match(cronRouteSource, /claim_due_social_posts/);
     assert.match(cronRouteSource, /social_publishing_queue/);
     assert.match(cronRouteSource, /social_posts/);
@@ -41,6 +53,86 @@ describe("Social Publishing Cron Worker Safety & Concurrency Tests", () => {
       /\.from\("social_publishing_queue"\)[\s\S]*?\.select\("\*,\s*social_posts\(\*\)"\)/,
       "Cron worker must not contain a non-atomic SELECT fallback on social_publishing_queue",
     );
+
+    // Ensure vercel.json preserves sales-automation and includes social-publishing on a plan-compatible schedule
+    const vercelConfig = JSON.parse(vercelConfigSource) as {
+      crons: Array<{ path: string; schedule: string }>;
+    };
+    assert.ok(
+      vercelConfig.crons.some(
+        (c) => c.path === "/api/cron/sales-automation" && c.schedule === "0 5 * * *",
+      ),
+      "vercel.json must preserve /api/cron/sales-automation",
+    );
+    assert.ok(
+      vercelConfig.crons.some(
+        (c) => c.path === "/api/cron/social-publishing" && c.schedule === "0 6 * * *",
+      ),
+      "vercel.json must include /api/cron/social-publishing on a daily plan-compatible schedule",
+    );
+
+    // Ensure Supabase migration workflow includes 0054, 0055, and 0060 and verifies RLS & claim_due_social_posts
+    assert.match(migrateWorkflowSource, /0054_email_crm_activities\.sql/);
+    assert.match(migrateWorkflowSource, /0055_social_media_publishing\.sql/);
+    assert.match(migrateWorkflowSource, /0060_fix_social_media_tenant\.sql/);
+    assert.match(migrateWorkflowSource, /claim_due_social_posts\(integer\)/);
+  });
+
+  test("cron GET endpoint rejects unauthorized requests and fails closed when SOCIAL_PUBLISHING_ENABLED=false", async () => {
+    const prevSecret = process.env.CRON_SECRET;
+    const prevEnabled = process.env.SOCIAL_PUBLISHING_ENABLED;
+
+    try {
+      process.env.CRON_SECRET = "test-cron-secret-value";
+      process.env.SOCIAL_PUBLISHING_ENABLED = "false";
+
+      // 1. Missing Authorization header -> 401
+      const unauthReq = new NextRequest("http://localhost:3000/api/cron/social-publishing");
+      const unauthRes = await GET(unauthReq);
+      assert.equal(unauthRes.status, 401);
+
+      // 2. Wrong Authorization header -> 401
+      const wrongReq = new NextRequest("http://localhost:3000/api/cron/social-publishing", {
+        headers: { authorization: "Bearer wrong-secret" },
+      });
+      const wrongRes = await GET(wrongReq);
+      assert.equal(wrongRes.status, 401);
+
+      // 3. Valid Authorization header with SOCIAL_PUBLISHING_ENABLED=false -> 503 fail-closed
+      const validReq = new NextRequest("http://localhost:3000/api/cron/social-publishing", {
+        headers: { authorization: "Bearer test-cron-secret-value" },
+      });
+      const disabledRes = await GET(validReq);
+      assert.equal(disabledRes.status, 503);
+      const disabledBody = (await disabledRes.json()) as {
+        success: boolean;
+        disabled?: boolean;
+        processed: number;
+      };
+      assert.equal(disabledBody.success, false);
+      assert.equal(disabledBody.disabled, true);
+      assert.equal(disabledBody.processed, 0);
+
+      // 4. Default unset SOCIAL_PUBLISHING_ENABLED also fails closed without touching DB
+      delete process.env.SOCIAL_PUBLISHING_ENABLED;
+      let dbCalled = false;
+      const defaultCycle = await runSocialPublishingWorkerCycle({
+        adminClient: {
+          rpc: async () => {
+            dbCalled = true;
+            return { data: [], error: null };
+          },
+        },
+      });
+      assert.equal(defaultCycle.status, 503);
+      assert.equal(defaultCycle.body.disabled, true);
+      assert.equal(dbCalled, false, "Must not query database when publishing is disabled");
+    } finally {
+      if (prevSecret === undefined) delete process.env.CRON_SECRET;
+      else process.env.CRON_SECRET = prevSecret;
+      if (prevEnabled === undefined) delete process.env.SOCIAL_PUBLISHING_ENABLED;
+      else process.env.SOCIAL_PUBLISHING_ENABLED = prevEnabled;
+    }
   });
 
   test("worker stops immediately and returns 500 without publishing if atomic claim RPC fails", async () => {
@@ -59,6 +151,7 @@ describe("Social Publishing Cron Worker Safety & Concurrency Tests", () => {
     };
 
     const result = await runSocialPublishingWorkerCycle({
+      publishingEnabled: true,
       adminClient: mockAdmin,
       publishFn: async () => {
         publishCalls++;
@@ -215,18 +308,21 @@ describe("Social Publishing Cron Worker Safety & Concurrency Tests", () => {
     // Launch 3 concurrent workers competing for the 2 pending items (with batchSize=1)
     const [w1, w2, w3] = await Promise.all([
       runSocialPublishingWorkerCycle({
+        publishingEnabled: true,
         adminClient: createMockAdmin(),
         publishFn,
         batchSize: 1,
         workerRunId: "worker-1",
       }),
       runSocialPublishingWorkerCycle({
+        publishingEnabled: true,
         adminClient: createMockAdmin(),
         publishFn,
         batchSize: 1,
         workerRunId: "worker-2",
       }),
       runSocialPublishingWorkerCycle({
+        publishingEnabled: true,
         adminClient: createMockAdmin(),
         publishFn,
         batchSize: 1,
@@ -363,6 +459,7 @@ describe("Social Publishing Cron Worker Safety & Concurrency Tests", () => {
 
     let alreadyPublishedApiCalled = false;
     const res = await runSocialPublishingWorkerCycle({
+      publishingEnabled: true,
       adminClient: mockAdmin,
       workerRunId: "worker-safety-test",
       publishFn: async (post) => {

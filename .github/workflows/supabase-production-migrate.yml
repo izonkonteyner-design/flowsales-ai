@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   migrate:
-    name: Apply and verify migrations through 0053
+    name: Apply and verify migrations through 0053 and 0060
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -28,12 +28,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Validate migration set
+      - name: Validate migration set and guard against destructive DDL
         shell: bash
         run: |
           set -euo pipefail
-          for version in 0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040 0041 0042 0043 0044 0045 0046 0047 0048 0049 0050 0051 0052 0053; do
-            compgen -G "supabase/migrations/${version}_*.sql" >/dev/null || { echo "Missing migration ${version}" >&2; exit 1; }
+          ordered_versions=(0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040 0041 0042 0043 0044 0045 0046 0047 0048 0049 0050 0051 0052 0053 0054 0055 0060)
+          for version in "${ordered_versions[@]}"; do
+            matches=(supabase/migrations/${version}_*.sql)
+            if [[ ! -e "${matches[0]}" || "${#matches[@]}" -ne 1 ]]; then
+              echo "Missing or duplicate migration file for version ${version}" >&2
+              exit 1
+            fi
+          done
+          for file in supabase/migrations/0054_email_crm_activities.sql supabase/migrations/0055_social_media_publishing.sql supabase/migrations/0060_fix_social_media_tenant.sql; do
+            if grep -Eiq '\b(drop\s+table|drop\s+schema|truncate\s+table)\b' "$file"; then
+              echo "Forbidden destructive DDL detected in ${file}" >&2
+              exit 1
+            fi
           done
 
       - name: Install PostgreSQL client
@@ -45,24 +56,95 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           [[ "$db_url" == postgresql://* || "$db_url" == postgres://* ]] || { echo "Production PostgreSQL URI is not configured." >&2; exit 1; }
-          for file in supabase/migrations/00{27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53}_*.sql; do
+
+          prereq="$(psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
+            select case when
+              to_regclass('public.deployment_migrations') is not null
+              and to_regclass('public.organizations') is not null
+              and to_regclass('public.organization_members') is not null
+              and to_regclass('public.leads') is not null
+              and to_regclass('public.contacts') is not null
+              and to_regclass('public.quotes') is not null
+            then 'ok' else 'drift' end;
+          ")"
+          if [[ "$prereq" != "ok" ]]; then
+            echo "Schema drift detected: required core CRM tables or deployment_migrations table missing." >&2
+            exit 1
+          fi
+
+          unexpected="$(psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
+            select coalesce(string_agg(version, ',' order by version), '')
+            from public.deployment_migrations
+            where version not in (
+              '0018','0019','0020','0021','0022',
+              '0024','0025','0026','0027','0028','0029','0030','0031','0032','0033',
+              '0034','0035','0036','0037','0038','0039','0040','0041','0042','0043',
+              '0044','0045','0046','0047','0048','0049','0050','0051','0052','0053',
+              '0054','0055','0060'
+            );
+          ")"
+          if [[ -n "$unexpected" ]]; then
+            echo "Unexpected migration versions found in public.deployment_migrations: ${unexpected}" >&2
+            exit 1
+          fi
+
+          ordered_files=(
+            supabase/migrations/0027_*.sql
+            supabase/migrations/0028_*.sql
+            supabase/migrations/0029_*.sql
+            supabase/migrations/0030_*.sql
+            supabase/migrations/0031_*.sql
+            supabase/migrations/0032_*.sql
+            supabase/migrations/0033_*.sql
+            supabase/migrations/0034_*.sql
+            supabase/migrations/0035_*.sql
+            supabase/migrations/0036_*.sql
+            supabase/migrations/0037_*.sql
+            supabase/migrations/0038_*.sql
+            supabase/migrations/0039_*.sql
+            supabase/migrations/0040_*.sql
+            supabase/migrations/0041_*.sql
+            supabase/migrations/0042_*.sql
+            supabase/migrations/0043_*.sql
+            supabase/migrations/0044_*.sql
+            supabase/migrations/0045_*.sql
+            supabase/migrations/0046_*.sql
+            supabase/migrations/0047_*.sql
+            supabase/migrations/0048_*.sql
+            supabase/migrations/0049_*.sql
+            supabase/migrations/0050_*.sql
+            supabase/migrations/0051_*.sql
+            supabase/migrations/0052_*.sql
+            supabase/migrations/0053_email_workspace.sql
+            supabase/migrations/0054_email_crm_activities.sql
+            supabase/migrations/0055_social_media_publishing.sql
+            supabase/migrations/0060_fix_social_media_tenant.sql
+          )
+
+          for file in "${ordered_files[@]}"; do
             version="$(basename "$file" | cut -d_ -f1)"
-            applied="$(psql "$db_url" -X -Atqc "select exists(select 1 from public.deployment_migrations where version='${version}');")"
+            applied="$(psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "select exists(select 1 from public.deployment_migrations where version='${version}');")"
             if [[ "$applied" == "t" ]]; then
-              echo "Already applied ${version}"
+              echo "Already applied ${version} ($(basename "$file"))"
             else
-              echo "Applying ${version}"
+              echo "Applying ${version} ($(basename "$file"))"
               psql "$db_url" -v ON_ERROR_STOP=1 -X -1 -f "$file"
+              recorded="$(psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "select exists(select 1 from public.deployment_migrations where version='${version}');")"
+              if [[ "$recorded" != "t" ]]; then
+                echo "Migration ${version} did not record completion in public.deployment_migrations" >&2
+                exit 1
+              fi
             fi
           done
 
-      - name: Verify sales operations and growth schema
+      - name: Verify sales operations, growth, and social publishing schema
         shell: bash
         run: |
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           latest="$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")"
-          test "$latest" = "0053"
+          # Baseline gate test "$latest" = "0053" advanced to 0060
+          test "$latest" = "0060"
           psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
             select case when
               exists (select 1 from public.deployment_migrations where version='0047' and name='0047_voice_sales_v1.sql')
@@ -72,10 +154,30 @@ jobs:
               and exists (select 1 from public.deployment_migrations where version='0051' and name='0051_readiness_entitlements_fix.sql')
               and exists (select 1 from public.deployment_migrations where version='0052' and name='0052_contact_identity_guard_fix.sql')
               and exists (select 1 from public.deployment_migrations where version='0053' and name='email_workspace')
+              and exists (select 1 from public.deployment_migrations where version='0054' and name='email_crm_activities')
+              and exists (select 1 from public.deployment_migrations where version='0055' and name='social_media_publishing')
+              and exists (select 1 from public.deployment_migrations where version='0060' and name='fix_social_media_tenant')
               and to_regclass('public.email_connections') is not null
               and to_regclass('public.email_threads') is not null
               and to_regclass('public.email_messages') is not null
               and to_regclass('public.contacts') is not null
+              and to_regclass('public.social_posts') is not null
+              and to_regclass('public.social_publishing_queue') is not null
+              and exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname='public' and c.relname='social_posts' and c.relrowsecurity = true)
+              and exists (select 1 from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname='public' and c.relname='social_publishing_queue' and c.relrowsecurity = true)
+              and exists (select 1 from pg_constraint where conname='social_queue_post_org_fk' and conrelid='public.social_publishing_queue'::regclass)
+              and exists (select 1 from pg_trigger where tgname='trg_normalize_social_post_tenant' and tgrelid='public.social_posts'::regclass)
+              and exists (select 1 from pg_trigger where tgname='trg_sync_queue_organization' and tgrelid='public.social_publishing_queue'::regclass)
+              and exists (select 1 from pg_policies where schemaname='public' and tablename='social_posts' and policyname='social_posts_select_member')
+              and exists (select 1 from pg_policies where schemaname='public' and tablename='social_posts' and policyname='social_posts_insert_writer')
+              and exists (select 1 from pg_policies where schemaname='public' and tablename='social_posts' and policyname='social_posts_update_writer')
+              and exists (select 1 from pg_policies where schemaname='public' and tablename='social_publishing_queue' and policyname='social_queue_select_member')
+              and exists (select 1 from pg_policies where schemaname='public' and tablename='social_publishing_queue' and policyname='social_queue_insert_writer')
+              and exists (select 1 from pg_policies where schemaname='public' and tablename='social_publishing_queue' and policyname='social_queue_update_writer')
+              and to_regprocedure('public.claim_due_social_posts(integer)') is not null
+              and not has_function_privilege('anon', 'public.claim_due_social_posts(integer)', 'EXECUTE')
+              and not has_function_privilege('authenticated', 'public.claim_due_social_posts(integer)', 'EXECUTE')
+              and has_function_privilege('service_role', 'public.claim_due_social_posts(integer)', 'EXECUTE')
               and pg_get_functiondef('public.guard_duplicate_lead_identity()'::regprocedure) like '%public.contacts%'
               and to_regclass('public.voice_calls') is not null
               and to_regclass('public.sales_callback_queue') is not null
@@ -104,4 +206,4 @@ jobs:
               and to_regprocedure('public.create_user_notification(uuid,uuid,text,text,text,text)') is not null
             then 'ready' else 'not_ready' end;
           " | grep -qx ready
-          echo "Production Supabase migration verified at 0053."
+          echo "Production Supabase migration verified through 0053 and 0060."

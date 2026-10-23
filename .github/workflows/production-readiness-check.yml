@@ -48,7 +48,9 @@ jobs:
           if (payload?.status !== 'ok') throw new Error('Readiness status is not ok');
           if (payload?.checks?.environment?.ready !== true) throw new Error('Environment readiness is false');
           if (database?.ready !== true) throw new Error('Database readiness is false');
-          if (database?.latestMigration !== '0053') throw new Error('Latest migration is not 0053');
+          if (!database?.latestMigration || database.latestMigration < '0053') {
+            throw new Error(`Latest migration (${database?.latestMigration}) is below 0053`);
+          }
           if (database?.requiredMigration !== '0053') throw new Error('Required migration is not 0053');
           if (!Array.isArray(database?.missingFunctions) || database.missingFunctions.length !== 0) {
             throw new Error('Missing functions are present');
@@ -56,5 +58,5 @@ jobs:
           if (!Array.isArray(database?.missingTables) || database.missingTables.length !== 0) {
             throw new Error('Missing tables are present');
           }
-          console.log('Production readiness verified: HTTP 200, ready=true, migration=0053.');
+          console.log(`Production readiness verified: HTTP 200, ready=true, latestMigration=${database.latestMigration}.`);
           NODE

@@ -45,3 +45,4 @@ output.txt
 test-results/
 playwright-report/
 
+artifacts/

@@ -30,6 +30,8 @@ export type Organization = {
   default_tax_rate?: number | null;
   default_payment_terms?: string | null;
   default_delivery_terms?: string | null;
+  default_warranty_terms?: string | null;
+  ai_language?: string | null;
   default_quote_notes?: string | null;
   default_quote_validity_days?: number | null;
   quote_footer_text?: string | null;

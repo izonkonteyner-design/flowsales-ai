@@ -38,6 +38,50 @@ const common = {
     quoteAiGenerating: "Oluşturuluyor...", quoteAiGenerate: "Taslak oluştur", quoteAiClearPreview: "Ön izlemeyi temizle", quoteAiPreviewReady: "Ön izleme hazır",
     quoteAiPreserved: "Ürün satırları ve toplamlar korunur.", quoteAiApply: "Forma uygula", quoteAiPreviewFieldNotes: "Notlar / açıklama", quoteAiPreviewFieldPayment: "Ödeme koşulları", quoteAiPreviewFieldDelivery: "Teslim koşulları", quoteAiPreviewFieldRecommendation: "Dahili öneri",
     quoteAiReadonly: "Bu kayıt salt okunurdur.", quoteAiReadFormError: "Yapay zekâ taslağı için mevcut form verisi okunamadı.", quoteAiFillForm: "Önce teklif formunu doldurun.", quoteAiFailure: "Yapay zekâ taslağı oluşturulamadı.", quoteAiRetry: "Yapay zekâ taslağı şu anda oluşturulamadı. Lütfen tekrar deneyin.",
+    // Social Media Platform & Publishing Keys
+    socialMedia: "Sosyal Medya",
+    socialMarketing: "Pazarlama & Sosyal Medya",
+    socialDescription: "Instagram, Facebook, TikTok ve YouTube için içerik planlama, AI taslak üretimi ve zamanlanmış yayın yönetimi.",
+    instagram: "Instagram",
+    facebook: "Facebook",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    postType: "İçerik Formatı",
+    formatFeedPost: "Standart Gönderi",
+    formatReelShort: "Reels / Shorts",
+    formatStory: "Hikaye (Story)",
+    formatVideo: "Video",
+    formatText: "Metin Gönderisi",
+    channelsConnected: "Kanal Bağlı",
+    oauthRequired: "OAuth Bağlantısı Gerekli",
+    connectSocialChannels: "Sosyal Medya Kanallarınızı Bağlayın",
+    publishNow: "Hemen Yayınla",
+    schedulePost: "Zamanla",
+    saveDraft: "Taslak Kaydet",
+    caption: "Açıklama / Metin",
+    postTitle: "Başlık",
+    scheduledAt: "Planlanan Tarih",
+    platforms: "Platformlar",
+    // Company Profile & Quotation Keys
+    warrantyTerms: "Garanti Koşulları",
+    bankDetails: "Banka & Hesap Bilgileri",
+    bankName: "Banka Adı",
+    bankBranch: "Şube",
+    iban: "IBAN",
+    accountHolder: "Hesap Sahibi",
+    taxOffice: "Vergi Dairesi",
+    taxNumber: "Vergi Numarası",
+    paymentTerms: "Ödeme Koşulları",
+    deliveryTerms: "Teslim Koşulları",
+    pageNumber: "Sayfa",
+    ofPages: "/",
+    // AI Assistant Keys
+    aiLanguage: "YZ Çıktı Dili",
+    aiGenerateSocial: "YZ ile İçerik Üret",
+    aiTone: "Ton",
+    aiHooks: "Kanca Cümleleri",
+    aiCallToAction: "Harekete Geçirici Mesaj (CTA)",
+    aiHashtags: "Etiketler (Hashtags)",
   },
   en: {
     workspace: "Workspace", intelligence: "Intelligence", operations: "Operations", settings: "Settings",
@@ -57,11 +101,55 @@ const common = {
     quoteAiGenerating: "Generating...", quoteAiGenerate: "Create draft", quoteAiClearPreview: "Clear preview", quoteAiPreviewReady: "Preview ready",
     quoteAiPreserved: "Product lines and totals are preserved.", quoteAiApply: "Apply to form", quoteAiPreviewFieldNotes: "Notes / description", quoteAiPreviewFieldPayment: "Payment terms", quoteAiPreviewFieldDelivery: "Delivery terms", quoteAiPreviewFieldRecommendation: "Internal recommendation",
     quoteAiReadonly: "This record is read-only.", quoteAiReadFormError: "The current form data could not be read for the AI draft.", quoteAiFillForm: "Fill in the quote form first.", quoteAiFailure: "The AI draft could not be created.", quoteAiRetry: "The AI draft could not be created right now. Please try again.",
+    // Social Media Platform & Publishing Keys
+    socialMedia: "Social Media",
+    socialMarketing: "Marketing & Social Media",
+    socialDescription: "Content planning, AI draft generation, and scheduled publishing for Instagram, Facebook, TikTok, and YouTube.",
+    instagram: "Instagram",
+    facebook: "Facebook",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    postType: "Content Format",
+    formatFeedPost: "Feed Post",
+    formatReelShort: "Reels / Shorts",
+    formatStory: "Story",
+    formatVideo: "Video",
+    formatText: "Text Post",
+    channelsConnected: "Channels Connected",
+    oauthRequired: "OAuth Connection Required",
+    connectSocialChannels: "Connect Your Social Media Channels",
+    publishNow: "Publish Now",
+    schedulePost: "Schedule",
+    saveDraft: "Save Draft",
+    caption: "Caption / Content",
+    postTitle: "Title",
+    scheduledAt: "Scheduled Date",
+    platforms: "Platforms",
+    // Company Profile & Quotation Keys
+    warrantyTerms: "Warranty Terms",
+    bankDetails: "Bank & Account Details",
+    bankName: "Bank Name",
+    bankBranch: "Branch",
+    iban: "IBAN",
+    accountHolder: "Account Holder",
+    taxOffice: "Tax Office",
+    taxNumber: "Tax Number",
+    paymentTerms: "Payment Terms",
+    deliveryTerms: "Delivery Terms",
+    pageNumber: "Page",
+    ofPages: "of",
+    // AI Assistant Keys
+    aiLanguage: "AI Output Language",
+    aiGenerateSocial: "Generate with AI",
+    aiTone: "Tone",
+    aiHooks: "Hooks",
+    aiCallToAction: "Call to Action (CTA)",
+    aiHashtags: "Hashtags",
   },
 } as const;
 
 export type CommonTranslationKey = keyof (typeof common)["tr"];
-export function t(locale: Locale, key: CommonTranslationKey): string { return common[locale][key] ?? common.tr[key]; }
+export function t(locale: Locale, key: CommonTranslationKey): string { return (common[locale] as Record<string, string>)[key] ?? common.tr[key]; }
 
 const turkishNavigation: Record<string, string> = {
   Dashboard: "Kontrol Paneli", Inbox: "Gelen Kutusu", "Phone Inbox": "Telefon Gelen Kutusu", "E-posta": "E-posta", "Email Inbox": "E-posta Gelen Kutusu", Leads: "Potansiyel Müşteriler",
@@ -71,6 +159,7 @@ const turkishNavigation: Record<string, string> = {
   Approvals: "Onaylar", Reports: "Raporlar", Operations: "Operasyonlar", Notifications: "Bildirimler", Usage: "Kullanım",
   Security: "Güvenlik", "Audit Logs": "Denetim Kayıtları", "API Layer": "API Katmanı", API: "API", Integrations: "Entegrasyonlar",
   Account: "Hesap", Settings: "Ayarlar", Billing: "Faturalandırma", Team: "Ekip", Permissions: "Yetkiler", Upgrade: "Planı Yükselt",
+  TikTok: "TikTok", YouTube: "YouTube",
 };
 
 const englishNavigation: Record<string, string> = {
@@ -81,6 +170,7 @@ const englishNavigation: Record<string, string> = {
   Approvals: "Approvals", Reports: "Reports", Operations: "Operations", Notifications: "Notifications", Usage: "Usage",
   Security: "Security", "Audit Logs": "Audit Logs", "API Layer": "API Layer", API: "API", Integrations: "Integrations",
   Account: "Account", Settings: "Settings", Billing: "Billing", Team: "Team", Permissions: "Permissions", Upgrade: "Upgrade plan",
+  TikTok: "TikTok", YouTube: "YouTube",
 };
 
 export const navigationLabels: Record<Locale, Record<string, string>> = {

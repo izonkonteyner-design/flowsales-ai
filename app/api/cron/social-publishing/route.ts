@@ -4,7 +4,7 @@ import * as crypto from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import {
-  publishSocialPostToMeta,
+  publishSocialPost,
   calculateNextSocialRetryAt,
   type MetaPublishPostInput,
   type MetaPublishOptions,
@@ -78,7 +78,7 @@ export async function runSocialPublishingWorkerCycle(
   }
 
   const admin = deps.adminClient ?? createSupabaseAdminClient();
-  const publishFn = deps.publishFn ?? publishSocialPostToMeta;
+  const publishFn = deps.publishFn ?? publishSocialPost;
   const batchSize = deps.batchSize ?? 20;
   const now = new Date().toISOString();
 

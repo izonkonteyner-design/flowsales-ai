@@ -44,6 +44,7 @@ type QuoteDocumentCompany = Pick<
   | "default_tax_rate"
   | "default_payment_terms"
   | "default_delivery_terms"
+  | "default_warranty_terms"
   | "default_quote_notes"
   | "default_quote_validity_days"
   | "quote_footer_text"
@@ -98,6 +99,7 @@ export type QuoteDocumentModel = {
   notes: string;
   payment_terms: string;
   delivery_terms: string;
+  warranty_terms: string;
   created_at: string;
   updated_at: string;
   created_by: string;
@@ -208,6 +210,7 @@ function resolveCompany(organization: Organization): QuoteDocumentCompany {
     default_tax_rate: organization.default_tax_rate ?? null,
     default_payment_terms: organization.default_payment_terms ?? null,
     default_delivery_terms: organization.default_delivery_terms ?? null,
+    default_warranty_terms: organization.default_warranty_terms ?? null,
     default_quote_notes: organization.default_quote_notes ?? null,
     default_quote_validity_days: organization.default_quote_validity_days ?? null,
     quote_footer_text: organization.quote_footer_text ?? null,
@@ -282,6 +285,7 @@ export function buildQuoteDocumentModel(
     notes: safeString(quote.notes, ""),
     payment_terms: safeString(quote.payment_terms, ""),
     delivery_terms: safeString(quote.delivery_terms, ""),
+    warranty_terms: safeString((quote as { warranty_terms?: string | null }).warranty_terms ?? organization.default_warranty_terms, ""),
     created_at: safeString(quote.created_at, ""),
     updated_at: safeString(quote.updated_at, ""),
     created_by: safeString(quote.created_by, ""),

@@ -212,7 +212,7 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
         </section>
 
         <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
-          <SectionHeading title="Quote defaults" description="Default values applied to newly created quotes in this workspace." />
+          <SectionHeading title="Quote defaults & AI preferences" description="Default values and terms applied to newly created quotes and AI generation." />
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <Field label="Default currency">
               <Select name="default_currency" defaultValue={settings.default_currency} disabled={!canEdit}>
@@ -229,6 +229,13 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
             <Field label="Default validity days">
               <Input name="default_quote_validity_days" type="number" step="1" min="1" max="365" defaultValue={settings.default_quote_validity_days} disabled={!canEdit} />
             </Field>
+            <Field label="AI Output Language">
+              <Select name="ai_language" defaultValue={settings.ai_language ?? "auto"} disabled={!canEdit}>
+                <option value="auto">Auto / Browser Locale</option>
+                <option value="tr">Türkçe (TR)</option>
+                <option value="en">English (EN)</option>
+              </Select>
+            </Field>
             <Field label="Company slogan">
               <Input name="company_slogan" defaultValue={settings.company_slogan ?? ""} disabled={!canEdit} />
             </Field>
@@ -240,22 +247,27 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
             </Field>
             <div className="md:col-span-2">
               <Field label="Payment terms">
-                <Textarea name="default_payment_terms" defaultValue={settings.default_payment_terms ?? ""} disabled={!canEdit} rows={4} />
+                <Textarea name="default_payment_terms" defaultValue={settings.default_payment_terms ?? ""} disabled={!canEdit} rows={3} />
               </Field>
             </div>
             <div className="md:col-span-2">
               <Field label="Delivery terms">
-                <Textarea name="default_delivery_terms" defaultValue={settings.default_delivery_terms ?? ""} disabled={!canEdit} rows={4} />
+                <Textarea name="default_delivery_terms" defaultValue={settings.default_delivery_terms ?? ""} disabled={!canEdit} rows={3} />
+              </Field>
+            </div>
+            <div className="md:col-span-2">
+              <Field label="Warranty terms">
+                <Textarea name="default_warranty_terms" defaultValue={settings.default_warranty_terms ?? ""} disabled={!canEdit} rows={3} placeholder="E.g. All products and installation works carry a 2-year full warranty." />
               </Field>
             </div>
             <div className="md:col-span-2">
               <Field label="Default quote notes">
-                <Textarea name="default_quote_notes" defaultValue={settings.default_quote_notes ?? ""} disabled={!canEdit} rows={5} />
+                <Textarea name="default_quote_notes" defaultValue={settings.default_quote_notes ?? ""} disabled={!canEdit} rows={4} />
               </Field>
             </div>
             <div className="md:col-span-2">
               <Field label="Quote footer text">
-                <Textarea name="quote_footer_text" defaultValue={settings.quote_footer_text ?? ""} disabled={!canEdit} rows={4} />
+                <Textarea name="quote_footer_text" defaultValue={settings.quote_footer_text ?? ""} disabled={!canEdit} rows={3} />
               </Field>
             </div>
           </div>
@@ -292,6 +304,9 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
               <Row label="Currency" value={settings.default_currency} />
               <Row label="Tax rate" value={`${settings.default_tax_rate.toFixed(2)}%`} />
               <Row label="Validity" value={`${settings.default_quote_validity_days} days`} />
+              <Row label="Bank" value={settings.bank_name ? `${settings.bank_name}${settings.bank_branch ? ` (${settings.bank_branch})` : ""}` : "Not set"} />
+              <Row label="IBAN" value={settings.iban ?? "Not set"} />
+              <Row label="Warranty" value={settings.default_warranty_terms ?? "Standard 2-year warranty"} />
               <Row label="Payment terms" value={settings.default_payment_terms ?? "Not set"} />
               <Row label="Delivery terms" value={settings.default_delivery_terms ?? "Not set"} />
             </div>
@@ -314,8 +329,8 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-950 dark:text-white">{value}</span>
+      <span className="text-slate-500 shrink-0">{label}</span>
+      <span className="font-medium text-slate-950 dark:text-white text-right truncate">{value}</span>
     </div>
   );
 }

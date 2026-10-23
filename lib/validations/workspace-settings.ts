@@ -125,12 +125,14 @@ export const workspaceSettingsInputSchema = z
     default_tax_rate: z.coerce.number().min(0, "Tax rate cannot be negative.").max(100, "Tax rate cannot exceed 100%."),
     default_payment_terms: optionalMultiline("Payment terms", 1000),
     default_delivery_terms: optionalMultiline("Delivery terms", 1000),
+    default_warranty_terms: optionalMultiline("Warranty terms", 1500).optional(),
     default_quote_notes: optionalMultiline("Quote notes", 2000),
     default_quote_validity_days: z.coerce.number().int().min(1, "Validity must be at least 1 day.").max(365, "Validity cannot exceed 365 days."),
     quote_footer_text: optionalMultiline("Quote footer", 1000),
     signature_name: optionalSingleLine("Signature name", 160),
     signature_title: optionalSingleLine("Signature title", 160),
     company_slogan: optionalSingleLine("Company slogan", 180),
+    ai_language: optionalSingleLine("AI language", 20).optional(),
   })
   .transform((value) => ({
     ...value,
@@ -158,4 +160,3 @@ export function normalizeWorkspaceEmailValue(value: string) {
 export function normalizeWorkspaceIbanValue(value: string) {
   return normalizeIban(value);
 }
-

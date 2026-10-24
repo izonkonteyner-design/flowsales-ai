@@ -695,19 +695,23 @@ export class TikTokAdapter implements ProviderAdapter {
 export class YouTubeAdapter implements ProviderAdapter {
   readonly provider: ChannelProvider = "youtube";
 
-  private assertConfigured(): void {
+  private getCredentials(): { clientId: string; clientSecret: string } {
     const clientId = process.env.YOUTUBE_CLIENT_ID?.trim();
     const clientSecret = process.env.YOUTUBE_CLIENT_SECRET?.trim();
     if (!clientId || !clientSecret) {
       throw new OAuthConfigurationRequiredError(this.provider);
     }
+    return { clientId, clientSecret };
+  }
+
+  private assertConfigured(): void {
+    this.getCredentials();
   }
 
   buildAuthorizationUrl(params: BuildAuthUrlParams): BuildAuthUrlResult {
-    this.assertConfigured();
-
-    const clientId = process.env.YOUTUBE_CLIENT_ID!.trim();
-    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/youtube/callback`;
+    const { clientId } = this.getCredentials();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "";
+    const redirectUri = `${siteUrl}/api/integrations/youtube/callback`;
 
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", clientId);
@@ -715,7 +719,7 @@ export class YouTubeAdapter implements ProviderAdapter {
     url.searchParams.set("response_type", "code");
     url.searchParams.set(
       "scope",
-      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile"
+      "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/userinfo.profile",
     );
     url.searchParams.set("access_type", "offline");
     url.searchParams.set("prompt", "consent");
@@ -734,22 +738,149 @@ export class YouTubeAdapter implements ProviderAdapter {
   }
 
   async exchangeCode(params: ExchangeCodeParams): Promise<TokenSet> {
-    this.assertConfigured();
+    const { clientId, clientSecret } = this.getCredentials();
     assertEncryptionConfigured();
-    void params;
-    throw new OAuthConfigurationRequiredError(this.provider);
+
+    const body = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code: params.code,
+      redirect_uri: params.redirectUri,
+      grant_type: "authorization_code",
+    });
+
+    if (params.codeVerifier) {
+      body.set("code_verifier", params.codeVerifier);
+    }
+
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      throw new Error(`YouTube OAuth token exchange failed: ${response.status} ${errText}`);
+    }
+
+    const data = (await response.json()) as {
+      access_token: string;
+      refresh_token?: string;
+      token_type?: string;
+      expires_in?: number;
+      scope?: string;
+    };
+
+    if (!data.access_token) {
+      throw new Error("YouTube OAuth response did not contain access_token");
+    }
+
+    const scopes = typeof data.scope === "string"
+      ? data.scope.split(" ").map((s) => s.trim()).filter(Boolean)
+      : ["https://www.googleapis.com/auth/youtube.upload", "https://www.googleapis.com/auth/youtube.readonly"];
+    const expiresAt = typeof data.expires_in === "number"
+      ? new Date(Date.now() + data.expires_in * 1000)
+      : new Date(Date.now() + 3600 * 1000);
+
+    const tokenSet: TokenSet = {
+      accessTokenCipher: encryptToken(data.access_token),
+      refreshTokenCipher: data.refresh_token ? encryptToken(data.refresh_token) : null,
+      tokenType: data.token_type || "Bearer",
+      expiresAt,
+      refreshExpiresAt: null,
+      scopes,
+    };
+
+    try {
+      const connection = await upsertChannelConnection({
+        organizationId: params.organizationId,
+        provider: "youtube",
+        status: "connected",
+        displayName: "YouTube Channel",
+        externalAccountId: "primary",
+        scopes,
+        createdByUserId: params.organizationId,
+      });
+
+      if ("id" in connection) {
+        const admin = createSupabaseAdminClient();
+        await admin.from("integration_tokens").upsert(
+          {
+            organization_id: params.organizationId,
+            connection_id: connection.id,
+            provider: "youtube",
+            access_token_cipher: tokenSet.accessTokenCipher,
+            refresh_token_cipher: tokenSet.refreshTokenCipher,
+            token_type: tokenSet.tokenType,
+            expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "connection_id" },
+        );
+      }
+    } catch {
+      // Best-effort database update
+    }
+
+    return tokenSet;
   }
 
   async refreshAccessToken(params: RefreshTokenParams): Promise<TokenSet> {
-    this.assertConfigured();
+    const { clientId, clientSecret } = this.getCredentials();
     assertEncryptionConfigured();
-    void params;
-    throw new OAuthConfigurationRequiredError(this.provider);
+
+    const refreshToken = decryptToken(params.refreshTokenCipher);
+    const body = new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    });
+
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`YouTube token refresh failed: ${response.status}`);
+    }
+
+    const data = (await response.json()) as {
+      access_token: string;
+      refresh_token?: string;
+      token_type?: string;
+      expires_in?: number;
+      scope?: string;
+    };
+
+    const expiresAt = typeof data.expires_in === "number"
+      ? new Date(Date.now() + data.expires_in * 1000)
+      : new Date(Date.now() + 3600 * 1000);
+
+    return {
+      accessTokenCipher: encryptToken(data.access_token),
+      refreshTokenCipher: data.refresh_token ? encryptToken(data.refresh_token) : params.refreshTokenCipher,
+      tokenType: data.token_type || "Bearer",
+      expiresAt,
+      refreshExpiresAt: null,
+      scopes: typeof data.scope === "string" ? data.scope.split(" ") : [],
+    };
   }
 
   async revokeConnection(params: RevokeConnectionParams): Promise<void> {
     this.assertConfigured();
-    void params;
+    try {
+      const accessToken = decryptToken(params.accessTokenCipher);
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(accessToken)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      });
+    } catch {
+      // Best-effort provider revocation
+    }
   }
 
   normalizeAccount(raw: unknown): NormalizedAccount {

@@ -13,7 +13,7 @@ const riskClass = {
   critical: "border-red-300 bg-red-50 text-red-950",
   high: "border-orange-300 bg-orange-50 text-orange-950",
   medium: "border-amber-200 bg-amber-50 text-amber-950",
-  low: "border-slate-200 bg-slate-50 text-slate-900",
+  low: "border-slate-200 bg-slate-50 text-slate-900 dark:text-white",
 } as const;
 
 export default async function AiQualityPage({
@@ -53,12 +53,12 @@ export default async function AiQualityPage({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-700">Owner and admin only</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-950">AI quality dashboard</h1>
-          <p className="mt-2 max-w-3xl text-slate-600">
+          <h1 className="mt-2 text-3xl font-bold text-slate-950 dark:text-white">AI quality dashboard</h1>
+          <p className="mt-2 max-w-3xl text-slate-600 dark:text-slate-400">
             Compare prompt and model quality using production feedback, execution outcomes and persisted regression evidence.
           </p>
         </div>
-        <Link href="/operations" className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-800 shadow-sm">
+        <Link href="/operations" className="rounded-lg border bg-white px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-200 shadow-sm">
           Back to operations
         </Link>
       </header>
@@ -68,7 +68,7 @@ export default async function AiQualityPage({
           <Link
             key={window}
             href={`/operations/ai-quality?days=${window}`}
-            className={`rounded-full border px-4 py-2 text-sm font-semibold ${days === window ? "border-violet-700 bg-violet-700 text-white" : "bg-white text-slate-700"}`}
+            className={`rounded-full border px-4 py-2 text-sm font-semibold ${days === window ? "border-violet-700 bg-violet-700 text-white" : "bg-white text-slate-700 dark:text-slate-300"}`}
           >
             Last {window} days
           </Link>
@@ -84,17 +84,17 @@ export default async function AiQualityPage({
           ["Coverage", formatQualityRate(summary.feedbackCoverage)],
           ["Helpful rate", formatQualityRate(summary.helpfulRate)],
         ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-2xl border bg-white p-5 shadow-sm">
-            <p className="text-sm text-slate-500">{label}</p>
-            <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
+          <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
+            <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{value}</p>
           </div>
         ))}
       </section>
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-950">Release risks</h2>
-          <p className="text-sm text-slate-600">Quality gates that require attention before promoting a prompt or model version.</p>
+          <h2 className="text-xl font-bold text-slate-950 dark:text-white">Release risks</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Quality gates that require attention before promoting a prompt or model version.</p>
         </div>
         {dashboard.risks.length === 0 ? (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-emerald-900">No AI quality risks detected for this window.</div>
@@ -113,25 +113,25 @@ export default async function AiQualityPage({
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-950">Prompt and model segments</h2>
-          <p className="text-sm text-slate-600">Use feedback volume and helpful rate together; small samples are not release evidence.</p>
+          <h2 className="text-xl font-bold text-slate-950 dark:text-white">Prompt and model segments</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Use feedback volume and helpful rate together; small samples are not release evidence.</p>
         </div>
-        <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/80">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-slate-800/80 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr>
                 <th className="px-4 py-3">Capability</th><th className="px-4 py-3">Prompt</th><th className="px-4 py-3">Model</th>
                 <th className="px-4 py-3">Completed</th><th className="px-4 py-3">Failed</th><th className="px-4 py-3">Feedback</th><th className="px-4 py-3">Helpful</th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-slate-200 dark:divide-white/10 dark:text-slate-200">
               {dashboard.segments.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No AI execution data in this window.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">No AI execution data in this window.</td></tr>
               ) : dashboard.segments.map((segment) => (
                 <tr key={`${segment.capability}:${segment.prompt_version}:${segment.model}`}>
-                  <td className="px-4 py-3 font-semibold text-slate-900">{segment.capability.replaceAll("_", " ")}</td>
-                  <td className="px-4 py-3 font-mono text-xs text-slate-700">{segment.prompt_version}</td>
-                  <td className="px-4 py-3 text-slate-700">{segment.model}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">{segment.capability.replaceAll("_", " ")}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{segment.prompt_version}</td>
+                  <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{segment.model}</td>
                   <td className="px-4 py-3">{segment.completed_runs}</td><td className="px-4 py-3">{segment.failed_runs}</td>
                   <td className="px-4 py-3">{segment.feedback_count}</td><td className="px-4 py-3 font-semibold">{formatQualityRate(segment.helpful_rate)}</td>
                 </tr>
@@ -143,20 +143,20 @@ export default async function AiQualityPage({
 
       <section className="space-y-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-950">Regression evaluation history</h2>
-          <p className="text-sm text-slate-600">Persisted CI evidence for prompt releases. A failed latest run blocks promotion.</p>
+          <h2 className="text-xl font-bold text-slate-950 dark:text-white">Regression evaluation history</h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Persisted CI evidence for prompt releases. A failed latest run blocks promotion.</p>
         </div>
         <div className="overflow-x-auto rounded-2xl border bg-white shadow-sm">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="border-b bg-slate-50 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
               <tr><th className="px-4 py-3">Created</th><th className="px-4 py-3">Suite</th><th className="px-4 py-3">Prompt</th><th className="px-4 py-3">Model</th><th className="px-4 py-3">Cases</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Status</th></tr>
             </thead>
             <tbody className="divide-y">
               {dashboard.evaluations.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500">No persisted evaluation evidence.</td></tr>
+                <tr><td colSpan={7} className="px-4 py-8 text-center text-slate-500 dark:text-slate-400">No persisted evaluation evidence.</td></tr>
               ) : dashboard.evaluations.map((evaluation) => (
                 <tr key={evaluation.id}>
-                  <td className="px-4 py-3 text-slate-600">{new Date(evaluation.created_at).toLocaleString()}</td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{new Date(evaluation.created_at).toLocaleString()}</td>
                   <td className="px-4 py-3 font-semibold">{evaluation.suite_key}</td>
                   <td className="px-4 py-3 font-mono text-xs">{evaluation.prompt_version}</td><td className="px-4 py-3">{evaluation.model}</td>
                   <td className="px-4 py-3">{evaluation.passed_cases}/{evaluation.total_cases}</td><td className="px-4 py-3">{formatQualityRate(evaluation.score)}</td>
@@ -168,7 +168,7 @@ export default async function AiQualityPage({
         </div>
       </section>
 
-      <p className="text-xs text-slate-500">Generated {new Date(dashboard.generatedAt).toLocaleString()}.</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">Generated {new Date(dashboard.generatedAt).toLocaleString()}.</p>
     </main>
   );
 }

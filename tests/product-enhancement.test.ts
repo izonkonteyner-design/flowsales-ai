@@ -15,7 +15,7 @@ req.cache[serverOnlyPath] = {
 } as NodeModule;
 
 import { t, navLabel, normalizeLocale } from "@/lib/i18n";
-import { formatCurrency, formatDate, sanitizeTurkishForPdf } from "@/lib/utils";
+import { sanitizeTurkishForPdf } from "@/lib/utils";
 import {
   PLATFORM_CAPABILITY_MATRIX,
   validatePlatformCapabilities,

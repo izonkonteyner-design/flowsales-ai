@@ -33,13 +33,39 @@ export default async function PermissionsPage() {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {organizationPermissionSchema.options.map((permission) => {
             const allowed = roleHasPermission(role, permission);
-            return <div key={permission} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4"><div className="flex items-center justify-between gap-3"><span className="text-sm font-medium text-white">{permissionLabels[permission]}</span>{allowed ? <ShieldCheck className="h-4 w-4 text-emerald-400" /> : <Lock className="h-4 w-4 text-slate-600" />}</div><p className="mt-2 text-xs text-slate-500">{allowed ? "İzin verildi" : "Bu rol için kapalı"}</p></div>;
+            return (
+              <div key={permission} className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 transition dark:border-white/[0.08] dark:bg-white/[0.035]">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-slate-900 dark:text-white">{permissionLabels[permission]}</span>
+                  {allowed ? <ShieldCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" /> : <Lock className="h-4 w-4 text-slate-400 dark:text-slate-600" />}
+                </div>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{allowed ? "İzin verildi" : "Bu rol için kapalı"}</p>
+              </div>
+            );
           })}
         </div>
       </SectionCard>
 
       <SectionCard title="Ekip rol yönetimi" description="Üye daveti, rol güncelleme ve erişim kaldırma gerçek workspace member aksiyonlarıyla yapılır.">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"><div className="flex items-center gap-3"><UsersRound className="h-5 w-5 text-violet-300" /><div><p className="font-medium text-white">Çalışma alanı üyeleri</p><p className="text-sm text-slate-500">Rol değişiklikleri tenant kapsamlı server action’larla doğrulanır.</p></div></div>{canManageMembers ? <Link href="/settings/members" className="inline-flex h-10 items-center justify-center rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950">Üyeleri ve rolleri yönet</Link> : <span className="text-sm text-slate-500">Yönetim için Owner/Admin yetkisi gerekir.</span>}</div>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <UsersRound className="h-5 w-5 text-violet-600 dark:text-violet-300" />
+            <div>
+              <p className="font-medium text-slate-900 dark:text-white">Çalışma alanı üyeleri</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Rol değişiklikleri tenant kapsamlı server action’larla doğrulanır.</p>
+            </div>
+          </div>
+          {canManageMembers ? (
+            <Link
+              href="/settings/members"
+              className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+            >
+              Üyeleri ve rolleri yönet
+            </Link>
+          ) : (
+            <span className="text-sm text-slate-500 dark:text-slate-400">Yönetim için Owner/Admin yetkisi gerekir.</span>
+          )}
+        </div>
       </SectionCard>
     </div>
   );

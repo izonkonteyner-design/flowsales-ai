@@ -4,14 +4,14 @@ import { loadChannelConnections } from "@/server/services/integrations/channel-c
 import { isProviderConfigured, type ChannelProvider } from "@/server/services/integrations/provider-adapter";
 import { IntegrationCard, type IntegrationCardConnection } from "@/components/settings/integration-card";
 import Link from "next/link";
-import { Plug2, AlertCircle, CheckCircle2, ArrowRight, Mail } from "lucide-react";
+import { Plug2, AlertCircle, CheckCircle2, ArrowRight, Mail, PhoneCall, CreditCard, Radio } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Integrations — FlowSales AI",
-  description: "Connect WhatsApp Business, Instagram, Facebook, Google Business Profile, and TikTok to your FlowSales AI CRM.",
+  description: "Connect WhatsApp Business, Instagram, Facebook, Google Business Profile, YouTube, and TikTok to your FlowSales AI CRM.",
 };
 
-const PROVIDERS: ChannelProvider[] = ["whatsapp", "instagram", "facebook", "google", "tiktok"];
+const PROVIDERS: ChannelProvider[] = ["whatsapp", "instagram", "facebook", "google", "tiktok", "youtube"];
 
 function isMetaMessagingConfigured(): boolean {
   const appId = process.env.META_CLIENT_ID?.trim() || process.env.META_APP_ID?.trim();
@@ -73,7 +73,62 @@ export default async function IntegrationsPage() {
       const metaConfigId = process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
       return <IntegrationCard key={provider} provider={provider} connection={connection} canManage={canManage} isDemo={isDemo} isProviderConfigured={providerConfigured.get(provider) ?? false} metaAppId={metaAppId} metaConfigId={metaConfigId} />;
     })}</div>
-    <Link href="/settings/integrations/email" className="mt-6 flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50 p-5 transition hover:border-blue-400 dark:border-blue-900/60 dark:bg-blue-950/20"><div className="flex items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-white"><Mail className="h-5 w-5" /></span><div><h2 className="font-semibold text-slate-950 dark:text-white">Gmail ve Microsoft 365</h2><p className="text-sm text-slate-600 dark:text-slate-400">E-posta hesaplarını bağlayın, gelen kutusunu eşitleyin ve CRM’den mesaj gönderin.</p></div></div><ArrowRight className="h-5 w-5 text-blue-600" /></Link>
-    <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-600">WhatsApp, Instagram, and Facebook integrations are powered by the Meta Platform. Google integration uses the Google Business Profile API. TikTok integration uses TikTok for Business.</p>
+    <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <Link href="/settings/integrations/email" className="flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/70 p-5 transition hover:border-blue-400 dark:border-blue-900/60 dark:bg-blue-950/20">
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-white"><Mail className="h-5 w-5" /></span>
+          <div>
+            <h2 className="font-semibold text-slate-950 dark:text-white">Gmail & M365</h2>
+            <p className="text-xs text-slate-600 dark:text-slate-400">Gelen kutusu eşitleme ve e-posta gönderimi</p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 text-blue-600" />
+      </Link>
+
+      <Link href="/settings/integrations/voice" className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 transition hover:border-indigo-400 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-indigo-600 text-white"><PhoneCall className="h-5 w-5" /></span>
+          <div>
+            <h2 className="font-semibold text-slate-950 dark:text-white">AI Telefon Asistanı</h2>
+            <p className="text-xs text-slate-600 dark:text-slate-400">Turkcell 05xx korumalı yönlendirme profili</p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 text-indigo-600" />
+      </Link>
+
+      <Link href="/settings/billing" className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 transition hover:border-emerald-400 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+        <div className="flex items-center gap-3">
+          <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-600 text-white"><CreditCard className="h-5 w-5" /></span>
+          <div>
+            <h2 className="font-semibold text-slate-950 dark:text-white">Faturalandırma & Ödeme</h2>
+            <p className="text-xs text-slate-600 dark:text-slate-400">Lemon Squeezy abonelik ve plan yönetimi</p>
+          </div>
+        </div>
+        <ArrowRight className="h-5 w-5 text-emerald-600" />
+      </Link>
+    </div>
+
+    <section className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 dark:border-white/10 dark:bg-white/5">
+      <div className="flex items-center gap-2">
+        <Radio className="h-4 w-4 text-blue-600" />
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Doğrudan Webhook Uç Noktaları</h3>
+      </div>
+      <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 lg:grid-cols-3">
+        <div className="rounded-xl border border-slate-200/60 bg-white p-3 dark:border-white/5 dark:bg-slate-900">
+          <p className="font-semibold text-slate-800 dark:text-slate-200">Meta & WhatsApp Webhook</p>
+          <code className="mt-1 block font-mono text-[11px] text-slate-600 dark:text-slate-400">/api/webhooks/meta</code>
+        </div>
+        <div className="rounded-xl border border-slate-200/60 bg-white p-3 dark:border-white/5 dark:bg-slate-900">
+          <p className="font-semibold text-slate-800 dark:text-slate-200">Google Ads Potansiyel Formu</p>
+          <code className="mt-1 block font-mono text-[11px] text-slate-600 dark:text-slate-400">/api/webhooks/google-leads</code>
+        </div>
+        <div className="rounded-xl border border-slate-200/60 bg-white p-3 dark:border-white/5 dark:bg-slate-900">
+          <p className="font-semibold text-slate-800 dark:text-slate-200">Lemon Squeezy Faturalandırma</p>
+          <code className="mt-1 block font-mono text-[11px] text-slate-600 dark:text-slate-400">/api/billing/webhook</code>
+        </div>
+      </div>
+    </section>
+
+    <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-600">WhatsApp, Instagram, and Facebook integrations are powered by the Meta Platform. Google integration uses Google Calendar and Google Business Profile APIs. YouTube integration uses YouTube Data API v3. TikTok integration uses TikTok for Business.</p>
   </div>;
 }

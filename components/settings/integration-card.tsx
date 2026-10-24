@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import {
+  Activity,
   AlertCircle,
   CheckCircle2,
   Clock,
@@ -228,6 +230,37 @@ export function IntegrationCard({
 
   const showConfigRequired = !isProviderConfigured && !isDemo;
 
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  async function handleTestConnection() {
+    if (isTesting || !isManageable) return;
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/integrations/${provider}/test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.ok) {
+        setTestResult({ ok: true, message: data.message || "Bağlantı doğrulandı (Verified)" });
+      } else {
+        setTestResult({
+          ok: false,
+          message: data?.message || data?.error || `Test başarısız (${res.status})`,
+        });
+      }
+    } catch (err) {
+      setTestResult({
+        ok: false,
+        message: err instanceof Error ? err.message : "Bağlantı hatası",
+      });
+    } finally {
+      setIsTesting(false);
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -316,6 +349,39 @@ export function IntegrationCard({
           </div>
         )}
 
+        {/* Webhook endpoint indicator */}
+        {isConnected && (
+          <div className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-400">
+            <span className="font-medium text-slate-500">Webhook:</span>
+            <span className="font-mono text-[11px] text-slate-700 dark:text-slate-300">
+              {provider === "whatsapp" || provider === "instagram" || provider === "facebook"
+                ? "/api/webhooks/meta"
+                : provider === "google"
+                  ? "/api/webhooks/google-leads"
+                  : `/api/webhooks/${provider}`}
+            </span>
+          </div>
+        )}
+
+        {/* Diagnostic Test Result */}
+        {testResult && (
+          <div
+            className={cn(
+              "flex items-start gap-2 rounded-2xl border px-3 py-2 text-xs",
+              testResult.ok
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/20 dark:text-emerald-300"
+                : "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-800/40 dark:bg-rose-950/20 dark:text-rose-300",
+            )}
+          >
+            {testResult.ok ? (
+              <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+            )}
+            <span className="leading-snug">{testResult.message}</span>
+          </div>
+        )}
+
         {/* Demo / viewer notice */}
         {(isDemo || !canManage) && (
           <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 dark:bg-white/5">
@@ -392,6 +458,26 @@ export function IntegrationCard({
                 <RefreshCw className="h-4 w-4" />
                 {isExpired ? "Renew" : "Reconnect"}
               </a>
+            )}
+
+            {/* Test Connection Button */}
+            {isConnected && (
+              <button
+                type="button"
+                disabled={isTesting || !isManageable}
+                onClick={handleTestConnection}
+                id={`test-${provider}`}
+                aria-label={`Test ${meta.label} connection`}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-medium transition-all",
+                  isManageable
+                    ? "border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                    : "cursor-not-allowed border-slate-100 text-slate-400 dark:border-white/5 dark:text-slate-600",
+                )}
+              >
+                {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5 text-blue-600" />}
+                {isTesting ? "Test ediliyor…" : "Bağlantıyı Test Et"}
+              </button>
             )}
 
             {/* Disconnect button */}

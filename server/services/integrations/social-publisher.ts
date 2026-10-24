@@ -1335,6 +1335,7 @@ export async function publishSocialPostToTikTok(
   }
 
   const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
+  void clientKey;
   const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
   void clientSecret;
   const accessToken = token?.trim() || process.env.TIKTOK_ACCESS_TOKEN?.trim();
@@ -1391,6 +1392,7 @@ export async function publishSocialPostToYouTube(
   }
 
   const clientId = (process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)?.trim();
+  void clientId;
   const accessToken = token?.trim() || process.env.YOUTUBE_ACCESS_TOKEN?.trim() || process.env.GOOGLE_ACCESS_TOKEN?.trim();
 
   const mediaUrls = post.mediaUrls || post.media_urls || [];

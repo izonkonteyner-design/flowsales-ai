@@ -14,7 +14,7 @@ import {
   Video,
 } from "lucide-react";
 import { canWriteSalesRecords } from "@/lib/workspace-roles";
-import { createDemoWorkspaceContext, loadWorkspaceContext } from "@/server/services/workspace-context";
+import { getWorkspaceContext } from "@/server/services/workspace-context";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
@@ -31,8 +31,7 @@ export const metadata: Metadata = {
 const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
 
 export default async function SocialMediaPage() {
-  const liveCtx = await loadWorkspaceContext();
-  const ctx = liveCtx ?? (process.env.NODE_ENV !== "production" ? createDemoWorkspaceContext() : null);
+  const ctx = await getWorkspaceContext();
 
   if (!ctx?.organization?.id) {
     return (

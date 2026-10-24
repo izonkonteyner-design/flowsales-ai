@@ -37,7 +37,7 @@ export default async function TasksPage() {
           <button
             type="submit"
             disabled={!canWrite}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-semibold text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
           >
             <Plus className="h-4 w-4" /> Görev oluştur
           </button>
@@ -48,10 +48,10 @@ export default async function TasksPage() {
         {tasks.length === 0 ? <EmptyState title="Henüz görev yok" description="İlk görevinizi yukarıdaki formdan oluşturabilirsiniz." /> : (
           <div className="space-y-3">
             {tasks.map((task) => (
-              <article key={task.id} className="flex flex-col gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 md:flex-row md:items-center md:justify-between">
+              <article key={task.id} className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 transition dark:border-white/[0.08] dark:bg-white/[0.035] md:flex-row md:items-center md:justify-between">
                 <div className="flex min-w-0 items-start gap-3">
                   {task.status === "completed" ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400" /> : <Circle className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />}
-                  <div className="min-w-0"><p className={`font-medium ${task.status === "completed" ? "text-slate-500 line-through" : "text-white"}`}>{task.title}</p><p className="mt-1 text-sm text-slate-500">Son tarih: {formatDateTime(task.due_at)} · Öncelik: {priorityLabel(task.priority)}</p></div>
+                  <div className="min-w-0"><p className={`font-medium ${task.status === "completed" ? "text-slate-400 line-through dark:text-slate-500" : "text-slate-900 dark:text-white"}`}>{task.title}</p><p className="mt-1 text-sm text-slate-500">Son tarih: {formatDateTime(task.due_at)} · Öncelik: {priorityLabel(task.priority)}</p></div>
                 </div>
                 <form action={setTaskStatusAction}>
                   <input type="hidden" name="id" value={task.id} />

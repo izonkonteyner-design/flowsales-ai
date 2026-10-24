@@ -25,28 +25,28 @@ export default async function CallbackQueuePage() {
   return <div className="space-y-6">
     <div>
       <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Callback Kuyruğu</h1>
-      <p className="mt-2 text-slate-500">Geri aranacak lead kayıtlarını tarih, sorumlu ve sonuçla yönetin.</p>
+      <p className="mt-2 text-slate-500 dark:text-slate-400">Geri aranacak lead kayıtlarını tarih, sorumlu ve sonuçla yönetin.</p>
     </div>
 
-    {canWrite ? <form action={createCallbackAction} className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-5 md:grid-cols-4">
-      <select name="leadId" required defaultValue="" className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
+    {canWrite ? <form action={createCallbackAction} className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-slate-900/80 p-5 md:grid-cols-4">
+      <select name="leadId" required defaultValue="" className="rounded-lg border border-slate-200/80 bg-white dark:border-white/10 dark:bg-slate-900/80 px-3 py-2 text-sm">
         <option value="" disabled>Lead seçin</option>
         {leadOptions.map((lead) => <option key={lead.id} value={lead.id}>{lead.full_name}{lead.phone ? ` · ${lead.phone}` : ""} · {lead.status}</option>)}
       </select>
       <input name="scheduledFor" required type="datetime-local" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
       <input name="reason" placeholder="Geri arama nedeni" className="rounded-lg border border-slate-200 px-3 py-2 text-sm" />
-      <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Callback ekle</button>
+      <button className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-violet-600 dark:hover:bg-violet-500">Callback ekle</button>
       {!leadOptions.length ? <p className="text-xs text-amber-700 md:col-span-4">Callback oluşturmak için aktif bir lead kaydı bulunamadı.</p> : null}
-    </form> : <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500">Callback oluşturmak için yazma yetkisi olan canlı bir çalışma alanı gerekir.</div>}
+    </form> : <div className="rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-slate-900/80 p-5 text-sm text-slate-500 dark:text-slate-400">Callback oluşturmak için yazma yetkisi olan canlı bir çalışma alanı gerekir.</div>}
 
     <div className="space-y-3">{rows.map((row) => {
       const lead = Array.isArray(row.leads) ? row.leads[0] : row.leads;
-      return <div key={row.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      return <div key={row.id} className="rounded-2xl border border-slate-200/80 bg-white dark:border-white/10 dark:bg-slate-900/80 p-5 shadow-sm">
         <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
           <div>
-            <div className="font-semibold text-slate-900">{lead?.full_name || row.lead_id}</div>
-            <div className="text-sm text-slate-500">{lead?.phone || ""} · {new Date(row.scheduled_for).toLocaleString("tr-TR")}</div>
-            <div className="mt-1 text-sm text-slate-600">{row.reason || "Geri arama"}</div>
+            <div className="font-semibold text-slate-900 dark:text-white">{lead?.full_name || row.lead_id}</div>
+            <div className="text-sm text-slate-500 dark:text-slate-400">{lead?.phone || ""} · {new Date(row.scheduled_for).toLocaleString("tr-TR")}</div>
+            <div className="mt-1 text-sm text-slate-600 dark:text-slate-300">{row.reason || "Geri arama"}</div>
           </div>
           {canWrite ? <form action={completeCallbackAction} className="flex gap-2">
             <input type="hidden" name="callbackId" value={row.id} />
@@ -55,6 +55,6 @@ export default async function CallbackQueuePage() {
           </form> : null}
         </div>
       </div>;
-    })}{!rows.length && <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">Bekleyen callback yok.</div>}</div>
+    })}{!rows.length && <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:text-slate-400">Bekleyen callback yok.</div>}</div>
   </div>;
 }

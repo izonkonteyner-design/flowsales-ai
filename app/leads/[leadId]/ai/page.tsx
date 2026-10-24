@@ -69,13 +69,13 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-600">Lead intelligence</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{lead.full_name}</h1>
-          <p className="mt-2 text-sm text-slate-600">
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">{lead.full_name}</h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
             {lead.company || "No company"} · {label(lead.status)} · {lead.source || "Unknown source"}
           </p>
         </div>
         <div className="flex gap-4 text-sm font-semibold">
-          <Link href="/leads" className="text-slate-600 hover:text-slate-950">All leads</Link>
+          <Link href="/leads" className="text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:text-white">All leads</Link>
           <Link href="/ai-history" className="text-violet-700 hover:text-violet-900">AI history</Link>
         </div>
       </div>
@@ -94,23 +94,23 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {capabilities.map((capability) => (
-          <form key={capability.key} action={runLeadAiAction} className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <form key={capability.key} action={runLeadAiAction} className="flex min-h-56 flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
             <input type="hidden" name="leadId" value={leadId} />
             <input type="hidden" name="capability" value={capability.key} />
-            <h2 className="text-base font-semibold text-slate-950">{capability.title}</h2>
-            <p className="mt-2 flex-1 text-sm leading-6 text-slate-600">{capability.description}</p>
-            <button type="submit" className="mt-5 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">
+            <h2 className="text-base font-semibold text-slate-950 dark:text-white">{capability.title}</h2>
+            <p className="mt-2 flex-1 text-sm leading-6 text-slate-600 dark:text-slate-400">{capability.description}</p>
+            <button type="submit" className="mt-5 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-violet-600 dark:hover:bg-violet-500">
               Run analysis
             </button>
           </form>
         ))}
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-xl font-semibold text-slate-950">Recent AI results</h2>
-            <p className="mt-1 text-sm text-slate-600">Structured outputs remain advisory until policy and approval checks pass.</p>
+            <h2 className="text-xl font-semibold text-slate-950 dark:text-white">Recent AI results</h2>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Structured outputs remain advisory until policy and approval checks pass.</p>
           </div>
           {lead.estimated_value !== null ? (
             <p className="text-sm font-semibold text-slate-700">{lead.currency} {Number(lead.estimated_value).toLocaleString()}</p>
@@ -119,7 +119,7 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
 
         <div className="mt-5 space-y-4">
           {(runs ?? []).length === 0 ? (
-            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600">No AI analysis has been run for this lead.</div>
+            <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-600 dark:text-slate-400">No AI analysis has been run for this lead.</div>
           ) : (runs ?? []).map((run) => {
             const output = run.output && typeof run.output === "object" ? run.output as { summary?: string; confidence?: number; actions?: Array<{ title?: string; rationale?: string }>; warnings?: string[] } : null;
             return (
@@ -137,7 +137,7 @@ export default async function LeadAiPage({ params, searchParams }: PageProps) {
                     {output.actions.map((action, index) => (
                       <li key={`${run.id}-${index}`} className="rounded-lg bg-slate-50 p-3 text-sm">
                         <p className="font-semibold text-slate-900">{action.title}</p>
-                        <p className="mt-1 text-slate-600">{action.rationale}</p>
+                        <p className="mt-1 text-slate-600 dark:text-slate-400">{action.rationale}</p>
                       </li>
                     ))}
                   </ul>

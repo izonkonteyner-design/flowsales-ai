@@ -29,12 +29,60 @@ export default async function UsagePage() {
   }), { runs: 0, input: 0, output: 0, cost: 0 });
   const limit = Number(entitlement?.monthly_ai_run_limit ?? 0);
 
-  return <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
-    <div><p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-500">Commercial control</p><h1 className="mt-2 text-3xl font-bold">AI usage and estimated cost</h1><p className="mt-2 text-slate-600">Monthly workspace usage, token volume and provider-cost estimate.</p></div>
-    <section className="grid gap-4 md:grid-cols-4">
-      {[['Runs', totals.runs], ['Input tokens', totals.input.toLocaleString()], ['Output tokens', totals.output.toLocaleString()], ['Estimated cost', `$${totals.cost.toFixed(4)}`]].map(([label,value]) => <div key={String(label)} className="rounded-2xl border bg-white p-5"><p className="text-sm text-slate-500">{label}</p><p className="mt-2 text-2xl font-bold">{value}</p></div>)}
-    </section>
-    <section className="rounded-2xl border bg-white p-5"><div className="flex justify-between text-sm"><span>{entitlement?.plan_key ?? 'trial'} plan</span><span>{totals.runs}/{limit || '—'} runs</span></div><div className="mt-3 h-2 overflow-hidden rounded bg-slate-100"><div className="h-full bg-slate-900" style={{ width: `${usagePercent(totals.runs, limit)}%` }} /></div></section>
-    <section className="overflow-hidden rounded-2xl border bg-white"><table className="w-full text-sm"><thead className="bg-slate-50 text-left"><tr><th className="p-4">Capability</th><th className="p-4">Runs</th><th className="p-4">Tokens</th><th className="p-4">Cost</th></tr></thead><tbody>{usage.map(row => <tr key={row.capability} className="border-t"><td className="p-4 font-medium">{row.capability.replaceAll('_',' ')}</td><td className="p-4">{row.runCount}</td><td className="p-4">{(row.inputTokens + row.outputTokens).toLocaleString()}</td><td className="p-4">${row.estimatedCostUsd.toFixed(4)}</td></tr>)}</tbody></table></section>
-  </main>;
+  return (
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+      <div>
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-violet-600 dark:text-violet-400">Commercial control</p>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 dark:text-white">AI usage and estimated cost</h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Monthly workspace usage, token volume and provider-cost estimate.</p>
+      </div>
+
+      <section className="grid gap-4 md:grid-cols-4">
+        {[
+          ["Runs", totals.runs],
+          ["Input tokens", totals.input.toLocaleString()],
+          ["Output tokens", totals.output.toLocaleString()],
+          ["Estimated cost", `$${totals.cost.toFixed(4)}`],
+        ].map(([label, value]) => (
+          <div key={String(label)} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
+            <p className="text-sm text-slate-500 dark:text-slate-400">{label}</p>
+            <p className="mt-2 text-2xl font-bold text-slate-950 dark:text-white">{value}</p>
+          </div>
+        ))}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900/80">
+        <div className="flex justify-between text-sm font-medium text-slate-700 dark:text-slate-300">
+          <span>{entitlement?.plan_key ?? "trial"} plan</span>
+          <span>{totals.runs}/{limit || "—"} runs</span>
+        </div>
+        <div className="mt-3 h-2 overflow-hidden rounded bg-slate-100 dark:bg-slate-800">
+          <div className="h-full bg-violet-600 transition-all duration-300 dark:bg-violet-400" style={{ width: `${usagePercent(totals.runs, limit)}%` }} />
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/80">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-left text-xs uppercase tracking-wider text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">
+            <tr>
+              <th className="p-4 font-semibold">Capability</th>
+              <th className="p-4 font-semibold">Runs</th>
+              <th className="p-4 font-semibold">Tokens</th>
+              <th className="p-4 font-semibold">Cost</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200 text-slate-900 dark:divide-white/10 dark:text-slate-200">
+            {usage.map((row) => (
+              <tr key={row.capability} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                <td className="p-4 font-medium capitalize">{row.capability.replaceAll("_", " ")}</td>
+                <td className="p-4">{row.runCount}</td>
+                <td className="p-4">{(row.inputTokens + row.outputTokens).toLocaleString()}</td>
+                <td className="p-4">${row.estimatedCostUsd.toFixed(4)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </main>
+  );
 }

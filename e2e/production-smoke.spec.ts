@@ -107,9 +107,7 @@ test.describe('Production Smoke & Security Tests', () => {
     await expect(socialNavLink).toBeVisible();
     await socialNavLink.click();
     await waitAndAssertPath(page, '/social');
-    const socialHeading = page.getByRole('heading', { name: 'Sosyal Medya Yönetimi' });
-    const sessionRequiredHeading = page.getByRole('heading', { name: /oturum gerekli|sosyal medya/i });
-    await expect(socialHeading.or(sessionRequiredHeading)).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Sosyal Medya Yönetimi', exact: true })).toBeVisible();
     await expect(page.locator('a[href="/settings/integrations"]').first()).toBeVisible();
 
     await page.goto('/operations');

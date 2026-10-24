@@ -99,3 +99,11 @@ test("pdf buffer renders a PDF and supports Turkish text", async () => {
   assert.equal(signature, "%PDF");
   assert.equal(buffer.byteLength > 0, true);
 });
+
+test("pdf pagination does not spawn spurious empty pages from footer overflow", async () => {
+  const buffer = await renderQuotePdfBuffer(pdfDocument);
+  const pdfString = buffer.toString("binary");
+  const countMatch = pdfString.match(/\/Type\s*\/Pages[\s\S]*?\/Count\s+(\d+)/);
+  const pageCount = countMatch ? parseInt(countMatch[1], 10) : 1;
+  assert.equal(pageCount, 1);
+});

@@ -375,14 +375,15 @@ function drawFooter(
   pageNumber: number,
   totalPages: number,
 ) {
-  const footerY = PAGE_HEIGHT - PAGE_MARGIN + 2;
-  pdf.moveTo(PAGE_MARGIN, PAGE_HEIGHT - PAGE_MARGIN - 8).lineTo(PAGE_MARGIN + CONTENT_WIDTH, PAGE_HEIGHT - PAGE_MARGIN - 8).strokeColor("#e2e8f0").stroke();
+  const lineY = PAGE_HEIGHT - PAGE_MARGIN - 14;
+  const footerY = PAGE_HEIGHT - PAGE_MARGIN - 10;
+  pdf.moveTo(PAGE_MARGIN, lineY).lineTo(PAGE_MARGIN + CONTENT_WIDTH, lineY).strokeColor("#e2e8f0").stroke();
   setFont(pdf, fonts, "regular");
   const footerText = document.company.quote_footer_text
     ? `${document.company.name} - ${document.company.quote_footer_text}`
     : `${document.company.name} - ${document.quote_number}`;
-  pdf.fontSize(7.5).fillColor("#64748b").text(cleanText(footerText, fonts), PAGE_MARGIN, footerY, { width: CONTENT_WIDTH * 0.7 });
-  pdf.text(`Sayfa ${pageNumber} / ${totalPages}`, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH, align: "right" });
+  pdf.fontSize(7.5).fillColor("#64748b").text(cleanText(footerText, fonts), PAGE_MARGIN, footerY, { width: CONTENT_WIDTH * 0.7, lineBreak: false });
+  pdf.text(`Sayfa ${pageNumber} / ${totalPages}`, PAGE_MARGIN, footerY, { width: CONTENT_WIDTH, align: "right", lineBreak: false });
 }
 
 async function loadLogoBuffer(logoUrl: string | null | undefined): Promise<Buffer | null> {

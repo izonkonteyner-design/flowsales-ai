@@ -1,3 +1,4 @@
+import { getTikTokLoginScopes } from "./tiktok-oauth-contract";
 import "server-only";
 
 import crypto from "crypto";
@@ -106,7 +107,7 @@ export async function initiateTikTokQrSession(params: {
 
   const body = new URLSearchParams({
     client_key: clientKey,
-    scope: "user.info.basic,video.upload,video.publish",
+    scope: getTikTokLoginScopes().join(","),
     state: rawStateToken,
   });
 
@@ -187,7 +188,7 @@ export async function initiateTikTokQrSession(params: {
     qrSessionId,
     tiktokToken,
     clientTicket,
-    scopes: ["user.info.basic", "video.upload", "video.publish"],
+    scopes: getTikTokLoginScopes(),
   });
 
   const codeVerifierCiphertext = encryptToken(sessionPayload);

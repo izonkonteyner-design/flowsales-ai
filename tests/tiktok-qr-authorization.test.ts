@@ -308,6 +308,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
   });
 
   it("Preserves existing TikTok OAuth Login Kit contracts", () => {
+    delete process.env.TIKTOK_SCOPES;
     process.env.TIKTOK_CLIENT_KEY = "mock-tiktok-key";
     process.env.TIKTOK_CLIENT_SECRET = "mock-tiktok-secret";
     process.env.TOKEN_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -329,5 +330,35 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
     assert.equal(parsed.searchParams.get("response_type"), "code");
     assert.equal(parsed.searchParams.get("state"), "state-123");
     assert.ok(parsed.searchParams.get("scope")?.includes("user.info.basic"));
+    assert.equal(parsed.searchParams.get("scope"), "user.info.basic");
+  });
+
+  it("accepts the official flat v2 token response for exchange and refresh", async () => {
+    process.env.TIKTOK_CLIENT_KEY = "mock-key";
+    process.env.TIKTOK_CLIENT_SECRET = "mock-secret";
+    process.env.TOKEN_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      if (String(url).includes("/user/info/")) {
+        assert.ok(!String(url).includes("username"));
+        return Response.json({ data: { user: { open_id: "test-open-id", display_name: "Test" } } });
+      }
+      return Response.json({ access_token: "test-access", refresh_token: "test-refresh", expires_in: 86400, refresh_expires_in: 31536000, scope: "user.info.basic", token_type: "Bearer", open_id: "test-open-id" });
+    }) as typeof fetch;
+    try {
+      const adapter = getProviderAdapter("tiktok");
+      const exchanged = await adapter.exchangeCode({ organizationId: "org-1", userId: "user-1", code: "test-code", codeVerifier: null, redirectUri: "https://example.com/callback" });
+      assert.deepEqual(exchanged.scopes, ["user.info.basic"]);
+      assert.ok(exchanged.accessTokenCipher);
+      const refreshed = await adapter.refreshAccessToken({ organizationId: "org-1", connectionId: "connection-1", refreshTokenCipher: exchanged.refreshTokenCipher! });
+      assert.deepEqual(refreshed.scopes, ["user.info.basic"]);
+      assert.ok(refreshed.refreshTokenCipher);
+      globalThis.fetch = (async () => Response.json({ error: "invalid_grant", error_description: "Authorization code expired" }, { status: 400 })) as typeof fetch;
+      await assert.rejects(adapter.exchangeCode({ organizationId: "org-1", code: "expired", codeVerifier: null, redirectUri: "https://example.com/callback" }), /Authorization code expired/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

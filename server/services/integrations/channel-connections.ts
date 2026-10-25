@@ -2,6 +2,7 @@ import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { type ChannelProvider, type ConnectionStatus } from "@/server/services/integrations/provider-adapter";
+import { logger } from "@/lib/logger";
 
 // ============================================================================
 // Channel Connections Service
@@ -117,7 +118,7 @@ export async function upsertChannelConnection(params: {
   displayName: string | null;
   externalAccountId: string | null;
   scopes: string[];
-  createdByUserId: string;
+  createdByUserId?: string | null;
   errorMessage?: string | null;
 }): Promise<{ id: string } | { error: string }> {
   const admin = createSupabaseAdminClient();
@@ -132,8 +133,8 @@ export async function upsertChannelConnection(params: {
         display_name: params.displayName,
         external_account_id: params.externalAccountId,
         scopes: params.scopes,
-        created_by: params.createdByUserId,
-        updated_by: params.createdByUserId,
+        created_by: params.createdByUserId || null,
+        updated_by: params.createdByUserId || null,
         error_message: params.errorMessage ?? null,
         last_connected_at:
           params.status === "connected" ? new Date().toISOString() : undefined,
@@ -148,7 +149,12 @@ export async function upsertChannelConnection(params: {
     .maybeSingle();
 
   if (error || !data) {
-    return { error: "Failed to save connection." };
+    logger.error("channel_connection.upsert_failed", {
+      provider: params.provider,
+      organizationId: params.organizationId,
+      error: error?.message,
+    });
+    return { error: error?.message ?? "Failed to save connection." };
   }
 
   return { id: data.id };

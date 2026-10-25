@@ -298,4 +298,35 @@ describe("YouTube Provider & Integration Diagnostics Test Suite", () => {
       assert.ok(!src.match(/\sredirect\(/), `${routePath} must not call redirect()`);
     }
   });
+  it("OAuth callback routes forward userId into adapter.exchangeCode", () => {
+    const callbackRoutes = [
+      "app/api/integrations/google/callback/route.ts",
+      "app/api/integrations/tiktok/callback/route.ts",
+      "app/api/integrations/youtube/callback/route.ts",
+    ];
+
+    for (const routePath of callbackRoutes) {
+      const fullPath = path.join(WORKTREE, routePath);
+      const src = fs.readFileSync(fullPath, "utf8");
+      assert.ok(
+        src.includes("userId: ctx.userId"),
+        `${routePath} must forward ctx.userId to adapter.exchangeCode`
+      );
+    }
+  });
+
+  it("Google, TikTok and YouTube adapters associate connection with userId instead of organizationId", () => {
+    const adapterPath = path.join(WORKTREE, "server/services/integrations/provider-adapter.ts");
+    const src = fs.readFileSync(adapterPath, "utf8");
+
+    // Must not pass organizationId as createdByUserId
+    assert.ok(
+      !src.includes("createdByUserId: params.organizationId"),
+      "Adapters must not pass organizationId as createdByUserId to avoid auth.users FK violation"
+    );
+    assert.ok(
+      src.includes("createdByUserId: params.userId ?? null"),
+      "Adapters must pass params.userId ?? null as createdByUserId"
+    );
+  });
 });

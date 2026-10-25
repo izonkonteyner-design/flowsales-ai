@@ -78,6 +78,7 @@ export type ExchangeCodeParams = {
   codeVerifier: string | null;
   redirectUri: string;
   organizationId: string;
+  userId?: string | null;
 };
 
 export type RefreshTokenParams = {
@@ -524,28 +525,37 @@ export class GoogleAdapter implements ProviderAdapter {
         displayName,
         externalAccountId,
         scopes,
-        createdByUserId: params.organizationId,
+        createdByUserId: params.userId ?? null,
       });
 
-      if ("id" in connection) {
-        const admin = createSupabaseAdminClient();
-        await admin.from("integration_tokens").upsert(
-          {
-            organization_id: params.organizationId,
-            connection_id: connection.id,
-            provider: "google",
-            access_token_cipher: tokenSet.accessTokenCipher,
-            refresh_token_cipher: tokenSet.refreshTokenCipher,
-            token_type: tokenSet.tokenType,
-            expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
-            scopes: tokenSet.scopes,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "connection_id" },
-        );
+      if ("error" in connection) {
+        throw new Error(connection.error);
       }
-    } catch {
-      // Allow standalone adapter usage in unit tests without live Supabase env
+
+      const admin = createSupabaseAdminClient();
+      const { error: tokenError } = await admin.from("integration_tokens").upsert(
+        {
+          organization_id: params.organizationId,
+          connection_id: connection.id,
+          provider: "google",
+          access_token_cipher: tokenSet.accessTokenCipher,
+          refresh_token_cipher: tokenSet.refreshTokenCipher,
+          token_type: tokenSet.tokenType,
+          expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
+          scopes: tokenSet.scopes,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "connection_id" },
+      );
+
+      if (tokenError) {
+        throw new Error(tokenError.message);
+      }
+    } catch (err) {
+      const isMissingEnv = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!isMissingEnv) {
+        throw err;
+      }
     }
 
     return tokenSet;
@@ -780,27 +790,36 @@ export class TikTokAdapter implements ProviderAdapter {
         displayName,
         externalAccountId,
         scopes,
-        createdByUserId: params.organizationId,
+        createdByUserId: params.userId ?? null,
       });
 
-      if ("id" in connection) {
-        const admin = createSupabaseAdminClient();
-        await admin.from("integration_tokens").upsert(
-          {
-            organization_id: params.organizationId,
-            connection_id: connection.id,
-            provider: "tiktok",
-            access_token_cipher: tokenSet.accessTokenCipher,
-            refresh_token_cipher: tokenSet.refreshTokenCipher,
-            token_type: tokenSet.tokenType,
-            expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "connection_id" },
-        );
+      if ("error" in connection) {
+        throw new Error(connection.error);
       }
-    } catch {
-      // Best-effort database update
+
+      const admin = createSupabaseAdminClient();
+      const { error: tokenError } = await admin.from("integration_tokens").upsert(
+        {
+          organization_id: params.organizationId,
+          connection_id: connection.id,
+          provider: "tiktok",
+          access_token_cipher: tokenSet.accessTokenCipher,
+          refresh_token_cipher: tokenSet.refreshTokenCipher,
+          token_type: tokenSet.tokenType,
+          expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "connection_id" },
+      );
+
+      if (tokenError) {
+        throw new Error(tokenError.message);
+      }
+    } catch (err) {
+      const isMissingEnv = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!isMissingEnv) {
+        throw err;
+      }
     }
 
     return tokenSet;
@@ -1031,27 +1050,36 @@ export class YouTubeAdapter implements ProviderAdapter {
         displayName: channelTitle,
         externalAccountId: channelId,
         scopes,
-        createdByUserId: params.organizationId,
+        createdByUserId: params.userId ?? null,
       });
 
-      if ("id" in connection) {
-        const admin = createSupabaseAdminClient();
-        await admin.from("integration_tokens").upsert(
-          {
-            organization_id: params.organizationId,
-            connection_id: connection.id,
-            provider: "youtube",
-            access_token_cipher: tokenSet.accessTokenCipher,
-            refresh_token_cipher: tokenSet.refreshTokenCipher,
-            token_type: tokenSet.tokenType,
-            expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "connection_id" },
-        );
+      if ("error" in connection) {
+        throw new Error(connection.error);
       }
-    } catch {
-      // Best-effort database update
+
+      const admin = createSupabaseAdminClient();
+      const { error: tokenError } = await admin.from("integration_tokens").upsert(
+        {
+          organization_id: params.organizationId,
+          connection_id: connection.id,
+          provider: "youtube",
+          access_token_cipher: tokenSet.accessTokenCipher,
+          refresh_token_cipher: tokenSet.refreshTokenCipher,
+          token_type: tokenSet.tokenType,
+          expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "connection_id" },
+      );
+
+      if (tokenError) {
+        throw new Error(tokenError.message);
+      }
+    } catch (err) {
+      const isMissingEnv = !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!isMissingEnv) {
+        throw err;
+      }
     }
 
     return tokenSet;

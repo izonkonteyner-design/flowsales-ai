@@ -66,6 +66,7 @@ export async function GET(request: NextRequest) {
       codeVerifier: stateRecord.codeVerifier,
       redirectUri,
       organizationId: ctx.organizationId,
+      userId: ctx.userId,
     });
 
     logger.info("oauth.callback_success", { provider: "youtube", organizationId: ctx.organizationId });

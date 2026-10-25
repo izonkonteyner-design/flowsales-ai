@@ -5,7 +5,10 @@ import { getRequiredSupabaseEnv } from "@/lib/supabase/env";
 import { normalizeSafeRedirectPath } from "@/lib/validations/auth";
 
 function createRedirectResponse(request: NextRequest, targetPath: string) {
-  return NextResponse.redirect(new URL(targetPath, request.url));
+  const response = NextResponse.redirect(new URL(targetPath, request.url));
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
 }
 
 export async function GET(request: NextRequest) {
@@ -21,6 +24,15 @@ export async function GET(request: NextRequest) {
   }
 
   const fallbackPath = type === "recovery" ? `/reset-password?next=${encodeURIComponent(nextPath)}` : nextPath;
+  const completionPath = `/auth-complete?next=${encodeURIComponent(fallbackPath)}`;
+  // URL fragments are only visible in the browser. Never redirect a fragment
+  // session straight to a server-rendered page before its cookies are stored.
+  if (errorDescription || errorCode) {
+    return createRedirectResponse(request, `${completionPath}&invalid=1`);
+  }
+  if (!code) {
+    return createRedirectResponse(request, completionPath);
+  }
   const response = createRedirectResponse(request, fallbackPath);
   const supabase = createServerClient(env.url, env.anonKey, {
     cookies: {
@@ -38,14 +50,10 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
-      return createRedirectResponse(request, `/login?next=${encodeURIComponent(nextPath)}`);
+      return createRedirectResponse(request, `${completionPath}&invalid=1`);
     }
 
     return response;
-  }
-
-  if (errorDescription || errorCode) {
-    return createRedirectResponse(request, `/login?next=${encodeURIComponent(nextPath)}`);
   }
 
   return response;

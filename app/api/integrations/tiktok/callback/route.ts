@@ -1,7 +1,6 @@
 import "server-only";
 
-import type { NextRequest } from "next/server";
-import { redirect } from "next/navigation";
+import { NextResponse, type NextRequest } from "next/server";
 import {
   runOAuthGuard,
   handleOAuthRouteError,
@@ -39,7 +38,7 @@ export async function GET(request: NextRequest) {
 
   if (hasError) {
     logger.warn("oauth.provider_denied", { provider: "tiktok", organizationId: ctx.organizationId });
-    redirect("/settings/integrations?error=access_denied");
+    return NextResponse.redirect(new URL("/settings/integrations?error=access_denied&provider=tiktok", request.url));
   }
 
   if (!hasCode || !rawStateToken) {
@@ -74,11 +73,11 @@ export async function GET(request: NextRequest) {
     });
 
     logger.info("oauth.callback_success", { provider: "tiktok", organizationId: ctx.organizationId });
-    redirect(stateRecord.returnPath);
+    return NextResponse.redirect(new URL(stateRecord.returnPath, request.url));
   } catch (error) {
     const response = handleOAuthRouteError(error, { provider: "tiktok", route: "tiktok/callback" });
     if (response.status === 503) {
-      redirect(`/settings/integrations?error=configuration_required&provider=tiktok`);
+      return NextResponse.redirect(new URL("/settings/integrations?error=configuration_required&provider=tiktok", request.url));
     }
     return response;
   }

@@ -260,7 +260,7 @@ export function WhatsAppConnectButton({
       )}
 
       <div className="flex flex-wrap items-center gap-2 w-full">
-        {!isConnected && !isRevoked && (
+        {!isConnected && !isRevoked && !isExpired && (
           <button
             type="button"
             id="connect-whatsapp"

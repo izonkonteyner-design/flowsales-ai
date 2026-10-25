@@ -45,7 +45,30 @@ export async function loadChannelConnections(
     return [];
   }
 
-  return (data ?? []) as ChannelConnectionRow[];
+  const rows = (data ?? []) as ChannelConnectionRow[];
+  if (rows.length === 0) return rows;
+
+  const connectionIds = rows.map((r) => r.id);
+  const { data: tokens } = await admin
+    .from("integration_tokens")
+    .select("connection_id, expires_at")
+    .in("connection_id", connectionIds);
+
+  if (!tokens || tokens.length === 0) return rows;
+
+  const now = Date.now();
+  const tokenMap = new Map(tokens.map((t) => [t.connection_id, t.expires_at]));
+
+  return rows.map((row) => {
+    const expiresAt = tokenMap.get(row.id);
+    if (row.status === "connected" && expiresAt && new Date(expiresAt).getTime() <= now) {
+      return {
+        ...row,
+        status: "expired" as ConnectionStatus,
+      };
+    }
+    return row;
+  });
 }
 
 /** Soft-disconnect a channel connection (set status = 'revoked'). */

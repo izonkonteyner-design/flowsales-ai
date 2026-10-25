@@ -75,6 +75,48 @@ describe("YouTube Provider & Integration Diagnostics Test Suite", () => {
     assert.equal(isProviderConfigured("youtube"), true);
   });
 
+  it("TikTokAdapter generates valid Content Posting API authorization URL with PKCE", () => {
+    process.env.TIKTOK_CLIENT_KEY = "mock-tiktok-client-key";
+    process.env.TIKTOK_CLIENT_SECRET = "mock-tiktok-client-secret";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://app.flowsales.ai";
+
+    assert.equal(isProviderConfigured("tiktok"), true);
+    const adapter = getProviderAdapter("tiktok");
+    const result = adapter.buildAuthorizationUrl({
+      organizationId: "org-123",
+      userId: "user-456",
+      returnPath: "/settings/integrations",
+      codeVerifier: "mock-code-verifier-string-12345",
+      stateToken: "state-token-tiktok",
+    });
+
+    assert.ok(result.url.startsWith("https://www.tiktok.com/v2/auth/authorize/"));
+    const parsed = new URL(result.url);
+    assert.equal(parsed.searchParams.get("client_key"), "mock-tiktok-client-key");
+    assert.equal(parsed.searchParams.get("redirect_uri"), "https://app.flowsales.ai/api/integrations/tiktok/callback");
+    assert.equal(parsed.searchParams.get("response_type"), "code");
+    assert.ok(parsed.searchParams.get("scope")?.includes("video.upload"));
+    assert.equal(parsed.searchParams.get("code_challenge_method"), "S256");
+    assert.ok(parsed.searchParams.get("code_challenge"));
+  });
+
+  it("normalizeAccount properly handles TikTok user and channel data", () => {
+    const adapter = getProviderAdapter("tiktok");
+    const account = adapter.normalizeAccount({
+      user: {
+        open_id: "tt-user-123",
+        display_name: "İzon Konteyner TikTok",
+        username: "izonkonteyner",
+        avatar_url: "https://p16.tiktokcdn.com/avatar.jpg",
+      },
+    });
+
+    assert.equal(account.externalId, "tt-user-123");
+    assert.equal(account.displayName, "İzon Konteyner TikTok");
+    assert.equal(account.username, "izonkonteyner");
+    assert.equal(account.profilePictureUrl, "https://p16.tiktokcdn.com/avatar.jpg");
+  });
+
   it("normalizeAccount properly handles YouTube channel snippet data", () => {
     const adapter = getProviderAdapter("youtube");
     const account = adapter.normalizeAccount({

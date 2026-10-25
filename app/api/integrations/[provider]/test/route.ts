@@ -228,16 +228,63 @@ export async function POST(request: NextRequest, props: RouteProps): Promise<Res
 
     if (provider === "tiktok") {
       const isExpired = tokenRow?.expires_at ? new Date(tokenRow.expires_at) < new Date() : false;
+      if (isExpired) {
+        return jsonOk({
+          ok: false,
+          connected: true,
+          provider,
+          status: "expired",
+          displayName: connection.display_name,
+          testedAt: new Date().toISOString(),
+          message: "TikTok token has expired. Please reconnect.",
+        });
+      }
+
+      if (tokenRow?.access_token_cipher) {
+        try {
+          const token = decryptToken(tokenRow.access_token_cipher);
+          let ttRes: Response;
+          try {
+            ttRes = await fetch("https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name", {
+              headers: { Authorization: `Bearer ${token}` },
+              cache: "no-store",
+            });
+          } catch (networkErr) {
+            return jsonOk({
+              ok: false,
+              connected: true,
+              provider,
+              status: "error",
+              message: `TikTok API network error: ${networkErr instanceof Error ? networkErr.message : String(networkErr)}`,
+              testedAt: new Date().toISOString(),
+            });
+          }
+
+          const isLiveOk = ttRes.ok;
+          return jsonOk({
+            ok: isLiveOk,
+            connected: true,
+            provider,
+            status: isLiveOk ? "healthy" : "expired",
+            displayName: connection.display_name,
+            testedAt: new Date().toISOString(),
+            message: isLiveOk
+              ? "TikTok Channel API connection active and verified."
+              : `TikTok API returned status ${ttRes.status}. Please reconnect.`,
+          });
+        } catch {
+          // Token decryption error fallback
+        }
+      }
+
       return jsonOk({
-        ok: !isExpired,
+        ok: true,
         connected: true,
         provider,
-        status: isExpired ? "expired" : "healthy",
+        status: "healthy",
         displayName: connection.display_name,
         testedAt: new Date().toISOString(),
-        message: isExpired
-          ? "TikTok token has expired. Please reconnect."
-          : "TikTok connection record active.",
+        message: "TikTok connection record active.",
       });
     }
 

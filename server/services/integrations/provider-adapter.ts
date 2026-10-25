@@ -615,7 +615,7 @@ export class GoogleAdapter implements ProviderAdapter {
 }
 
 // ============================================================================
-// Stub: TikTokAdapter
+// TikTokAdapter (TikTok Login Kit & Content Posting API v2)
 // ============================================================================
 
 export class TikTokAdapter implements ProviderAdapter {
@@ -632,17 +632,25 @@ export class TikTokAdapter implements ProviderAdapter {
   buildAuthorizationUrl(params: BuildAuthUrlParams): BuildAuthUrlResult {
     this.assertConfigured();
 
-    const clientKey = process.env.TIKTOK_CLIENT_KEY!;
-    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/tiktok/callback`;
+    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "";
+    const redirectUri = `${siteUrl}/api/integrations/tiktok/callback`;
 
-    // TikTok for Business OAuth 2.0
-    const url = new URL("https://business-api.tiktok.com/portal/auth");
-    url.searchParams.set("app_id", clientKey);
+    // TikTok Login Kit & Content Posting API v2
+    const url = new URL("https://www.tiktok.com/v2/auth/authorize/");
+    url.searchParams.set("client_key", clientKey);
+    url.searchParams.set("scope", "user.info.basic,video.upload,video.publish");
+    url.searchParams.set("response_type", "code");
     url.searchParams.set("redirect_uri", redirectUri);
     url.searchParams.set("state", params.stateToken);
 
     // PKCE: TikTok supports S256
     if (params.codeVerifier) {
+      const codeChallenge = crypto
+        .createHash("sha256")
+        .update(params.codeVerifier, "utf8")
+        .digest("base64url");
+      url.searchParams.set("code_challenge", codeChallenge);
       url.searchParams.set("code_challenge_method", "S256");
     }
 
@@ -652,30 +660,218 @@ export class TikTokAdapter implements ProviderAdapter {
   async exchangeCode(params: ExchangeCodeParams): Promise<TokenSet> {
     this.assertConfigured();
     assertEncryptionConfigured();
-    void params;
-    throw new OAuthConfigurationRequiredError(this.provider);
+
+    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET!.trim();
+
+    const body = new URLSearchParams({
+      client_key: clientKey,
+      client_secret: clientSecret,
+      code: params.code,
+      grant_type: "authorization_code",
+      redirect_uri: params.redirectUri,
+    });
+
+    if (params.codeVerifier) {
+      body.set("code_verifier", params.codeVerifier);
+    }
+
+    const response = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      cache: "no-store",
+    });
+
+    const data = (await response.json().catch(() => ({}))) as {
+      data?: {
+        access_token?: string;
+        refresh_token?: string;
+        token_type?: string;
+        expires_in?: number;
+        refresh_expires_in?: number;
+        scope?: string;
+        open_id?: string;
+      };
+      error?: {
+        code?: string | number;
+        message?: string;
+      };
+    };
+
+    if (!response.ok || !data.data?.access_token) {
+      throw new Error(
+        data.error?.message || `TikTok OAuth token exchange failed (${response.status}).`,
+      );
+    }
+
+    const scopes = typeof data.data.scope === "string"
+      ? data.data.scope.split(",").map((s) => s.trim()).filter(Boolean)
+      : ["user.info.basic", "video.upload", "video.publish"];
+
+    const expiresAt = typeof data.data.expires_in === "number"
+      ? new Date(Date.now() + data.data.expires_in * 1000)
+      : new Date(Date.now() + 86400 * 1000);
+
+    const refreshExpiresAt = typeof data.data.refresh_expires_in === "number"
+      ? new Date(Date.now() + data.data.refresh_expires_in * 1000)
+      : null;
+
+    let displayName = "TikTok Channel";
+    let externalAccountId = data.data.open_id || "primary";
+
+    try {
+      const userRes = await fetch(
+        "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username",
+        {
+          headers: { Authorization: `Bearer ${data.data.access_token}` },
+          cache: "no-store",
+        },
+      );
+      if (userRes.ok) {
+        const userData = (await userRes.json()) as {
+          data?: { user?: { display_name?: string; username?: string; open_id?: string } };
+        };
+        if (userData.data?.user) {
+          displayName = userData.data.user.display_name || userData.data.user.username || displayName;
+          externalAccountId = userData.data.user.open_id || externalAccountId;
+        }
+      }
+    } catch {
+      // Best-effort profile fetch
+    }
+
+    const tokenSet: TokenSet = {
+      accessTokenCipher: encryptToken(data.data.access_token),
+      refreshTokenCipher: data.data.refresh_token ? encryptToken(data.data.refresh_token) : null,
+      tokenType: data.data.token_type || "Bearer",
+      expiresAt,
+      refreshExpiresAt,
+      scopes,
+    };
+
+    try {
+      const connection = await upsertChannelConnection({
+        organizationId: params.organizationId,
+        provider: "tiktok",
+        status: "connected",
+        displayName,
+        externalAccountId,
+        scopes,
+        createdByUserId: params.organizationId,
+      });
+
+      if ("id" in connection) {
+        const admin = createSupabaseAdminClient();
+        await admin.from("integration_tokens").upsert(
+          {
+            organization_id: params.organizationId,
+            connection_id: connection.id,
+            provider: "tiktok",
+            access_token_cipher: tokenSet.accessTokenCipher,
+            refresh_token_cipher: tokenSet.refreshTokenCipher,
+            token_type: tokenSet.tokenType,
+            expires_at: tokenSet.expiresAt ? tokenSet.expiresAt.toISOString() : null,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "connection_id" },
+        );
+      }
+    } catch {
+      // Best-effort database update
+    }
+
+    return tokenSet;
   }
 
   async refreshAccessToken(params: RefreshTokenParams): Promise<TokenSet> {
     this.assertConfigured();
     assertEncryptionConfigured();
-    void params;
-    throw new OAuthConfigurationRequiredError(this.provider);
+
+    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET!.trim();
+    const refreshToken = decryptToken(params.refreshTokenCipher);
+
+    const body = new URLSearchParams({
+      client_key: clientKey,
+      client_secret: clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    });
+
+    const response = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      cache: "no-store",
+    });
+
+    const data = (await response.json().catch(() => ({}))) as {
+      data?: {
+        access_token?: string;
+        refresh_token?: string;
+        token_type?: string;
+        expires_in?: number;
+        refresh_expires_in?: number;
+        scope?: string;
+      };
+      error?: { code?: string | number; message?: string };
+    };
+
+    if (!response.ok || !data.data?.access_token) {
+      throw new Error(
+        data.error?.message || `TikTok OAuth token refresh failed (${response.status}).`,
+      );
+    }
+
+    const scopes = typeof data.data.scope === "string"
+      ? data.data.scope.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    const expiresAt = typeof data.data.expires_in === "number"
+      ? new Date(Date.now() + data.data.expires_in * 1000)
+      : new Date(Date.now() + 86400 * 1000);
+    const refreshExpiresAt = typeof data.data.refresh_expires_in === "number"
+      ? new Date(Date.now() + data.data.refresh_expires_in * 1000)
+      : null;
+
+    return {
+      accessTokenCipher: encryptToken(data.data.access_token),
+      refreshTokenCipher: data.data.refresh_token ? encryptToken(data.data.refresh_token) : params.refreshTokenCipher,
+      tokenType: data.data.token_type || "Bearer",
+      expiresAt,
+      refreshExpiresAt,
+      scopes,
+    };
   }
 
   async revokeConnection(params: RevokeConnectionParams): Promise<void> {
     this.assertConfigured();
-    void params;
-    // Stub
+    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET!.trim();
+    const token = decryptToken(params.accessTokenCipher);
+
+    const body = new URLSearchParams({
+      client_key: clientKey,
+      client_secret: clientSecret,
+      token,
+    });
+
+    await fetch("https://open.tiktokapis.com/v2/oauth/revoke/", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: body.toString(),
+      cache: "no-store",
+    }).catch(() => {});
   }
 
   normalizeAccount(raw: unknown): NormalizedAccount {
     const data = raw as Record<string, unknown>;
+    const user = (data.user as Record<string, unknown>) || data;
     return {
-      externalId: String(data.advertiser_id ?? ""),
-      displayName: String(data.advertiser_name ?? ""),
-      username: null,
-      profilePictureUrl: null,
+      externalId: String(user.open_id ?? user.id ?? user.advertiser_id ?? ""),
+      displayName: (user.display_name ?? user.advertiser_name ?? user.username ?? null) as string | null,
+      username: (user.username ?? null) as string | null,
+      profilePictureUrl: (user.avatar_url ?? null) as string | null,
       scopes: [],
       metadata: {},
     };
@@ -683,7 +879,7 @@ export class TikTokAdapter implements ProviderAdapter {
 
   validateWebhookSignature(params: ValidateWebhookSignatureParams): boolean {
     void params;
-    return false; // Stub
+    return false;
   }
 }
 
@@ -792,13 +988,31 @@ export class YouTubeAdapter implements ProviderAdapter {
       scopes,
     };
 
+    let channelTitle = "YouTube Channel";
+    let channelId = "primary";
+    try {
+      const channelRes = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
+        headers: { Authorization: `Bearer ${data.access_token}` },
+        cache: "no-store",
+      });
+      if (channelRes.ok) {
+        const channelData = (await channelRes.json()) as { items?: Array<{ id: string; snippet?: { title?: string } }> };
+        if (channelData.items && channelData.items.length > 0) {
+          channelId = channelData.items[0].id;
+          channelTitle = channelData.items[0].snippet?.title || channelTitle;
+        }
+      }
+    } catch {
+      // Best-effort channel metadata retrieval
+    }
+
     try {
       const connection = await upsertChannelConnection({
         organizationId: params.organizationId,
         provider: "youtube",
         status: "connected",
-        displayName: "YouTube Channel",
-        externalAccountId: "primary",
+        displayName: channelTitle,
+        externalAccountId: channelId,
         scopes,
         createdByUserId: params.organizationId,
       });
@@ -885,11 +1099,12 @@ export class YouTubeAdapter implements ProviderAdapter {
 
   normalizeAccount(raw: unknown): NormalizedAccount {
     const data = raw as Record<string, unknown>;
+    const snippet = (data.snippet as Record<string, unknown>) || {};
     return {
       externalId: String(data.id ?? ""),
-      displayName: String(data.title ?? data.name ?? ""),
-      username: null,
-      profilePictureUrl: null,
+      displayName: String(snippet.title ?? data.title ?? data.name ?? ""),
+      username: (snippet.customUrl as string) ?? null,
+      profilePictureUrl: ((snippet.thumbnails as Record<string, unknown>)?.default as Record<string, unknown>)?.url as string ?? null,
       scopes: [],
       metadata: {},
     };

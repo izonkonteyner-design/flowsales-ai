@@ -104,11 +104,8 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
     const mockFetch = async () => {
       return new Response(
         JSON.stringify({
-          data: {},
-          error: {
-            code: "scope_not_authorized",
-            message: "Login Kit with QR Code is not authorized for this app.",
-          },
+          error: "scope_not_authorized",
+          error_description: "Login Kit with QR Code is not authorized for this app.",
         }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
@@ -137,15 +134,9 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
     const mockFetch = async () => {
       return new Response(
         JSON.stringify({
-          data: {
             scan_qrcode_url:
               "aweme://authorize?authType=100&client_key=test-client-key&client_ticket=tobefilled&scope=user.info.basic&response_type=code",
             token: "MOCK_TIKTOK_QR_TOKEN_12345",
-          },
-          error: {
-            code: "ok",
-            message: "",
-          },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
@@ -206,7 +197,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
 
     // 1. Status: new (waiting for scan)
     const waitingFetch = async () =>
-      new Response(JSON.stringify({ data: { status: "new" } }), { status: 200 });
+      new Response(JSON.stringify({ status: "new" }), { status: 200 });
 
     const waitResult = await checkTikTokQrStatus({
       qrSessionId: "qr-session-mock-1",
@@ -219,7 +210,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
 
     // 2. Status: scanned (waiting for confirmation on device)
     const scannedFetch = async () =>
-      new Response(JSON.stringify({ data: { status: "scanned", client_ticket: "mock-ticket" } }), { status: 200 });
+      new Response(JSON.stringify({ status: "scanned", client_ticket: "mock-ticket" }), { status: 200 });
 
     const scanResult = await checkTikTokQrStatus({
       qrSessionId: "qr-session-mock-1",
@@ -232,7 +223,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
 
     // 3. Status: expired
     const expiredFetch = async () =>
-      new Response(JSON.stringify({ data: { status: "expired" } }), { status: 200 });
+      new Response(JSON.stringify({ status: "expired" }), { status: 200 });
 
     const expResult = await checkTikTokQrStatus({
       qrSessionId: "qr-session-mock-1",
@@ -242,6 +233,19 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
       dbClient: mockDb,
     });
     assert.equal(expResult.status, "expired");
+
+    for (const response of [
+      { status: "confirmed", client_ticket: "wrong", code: "test-code" },
+      { status: "confirmed", client_ticket: "mock-ticket", redirect_uri: "https://attacker.example/callback?code=test-code" },
+      { status: "confirmed", client_ticket: "mock-ticket" },
+      { error: "invalid_request", error_description: "App not authorized" },
+    ]) {
+      const rejected = await checkTikTokQrStatus({
+        qrSessionId: "qr-session-mock-1", organizationId: mockRow.organization_id, userId: mockRow.user_id,
+        fetchImpl: (async () => Response.json(response)) as typeof fetch, dbClient: mockDb,
+      });
+      assert.equal(rejected.status, "error");
+    }
   });
 
   it("cancelTikTokQrSession marks session consumed", async () => {

@@ -81,6 +81,7 @@ describe("YouTube Provider & Integration Diagnostics Test Suite", () => {
   });
 
   it("TikTokAdapter generates valid Content Posting API authorization URL with PKCE", () => {
+    process.env.TIKTOK_SCOPES = "user.info.basic,video.upload,video.publish";
     process.env.TIKTOK_CLIENT_KEY = "mock-tiktok-client-key";
     process.env.TIKTOK_CLIENT_SECRET = "mock-tiktok-client-secret";
     process.env.NEXT_PUBLIC_SITE_URL = "https://app.flowsales.ai";

@@ -409,7 +409,7 @@ export function IntegrationCard({
         ) : (
           <>
             {/* Connect button */}
-            {!isConnected && !isRevoked && (
+            {!isConnected && !isRevoked && !isExpired && (
               <a
                 href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
                 id={`connect-${provider}`}

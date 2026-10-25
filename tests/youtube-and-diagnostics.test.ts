@@ -14,6 +14,7 @@ req.cache[serverOnlyPath] = {
 } as NodeModule;
 
 const { getProviderAdapter, isProviderConfigured } = req("../server/services/integrations/provider-adapter") as typeof import("@/server/services/integrations/provider-adapter");
+const { handleOAuthRouteError, isNextRedirectError } = req("../server/services/integrations/oauth-route-guard") as typeof import("@/server/services/integrations/oauth-route-guard");
 
 const WORKTREE = process.cwd();
 
@@ -266,5 +267,35 @@ describe("YouTube Provider & Integration Diagnostics Test Suite", () => {
     assert.ok(googleSrc.includes("getSiteUrl()"));
     assert.ok(youtubeSrc.includes("getSiteUrl()"));
     assert.ok(tiktokSrc.includes("getSiteUrl()"));
+  });
+
+  it("handleOAuthRouteError preserves and rethrows NEXT_REDIRECT exceptions without swallowing into 500", () => {
+    const redirectErr = new Error("NEXT_REDIRECT");
+    (redirectErr as unknown as { digest: string }).digest = "NEXT_REDIRECT;replace;https://accounts.google.com/o/oauth2/v2/auth;307;";
+
+    assert.equal(isNextRedirectError(redirectErr), true);
+    assert.throws(
+      () => handleOAuthRouteError(redirectErr, { provider: "google", route: "google/connect" }),
+      (err: unknown) => err === redirectErr,
+    );
+  });
+
+  it("OAuth connect and callback routes return NextResponse.redirect and do not swallow NEXT_REDIRECT", () => {
+    const routes = [
+      "app/api/integrations/google/connect/route.ts",
+      "app/api/integrations/google/callback/route.ts",
+      "app/api/integrations/tiktok/connect/route.ts",
+      "app/api/integrations/tiktok/callback/route.ts",
+      "app/api/integrations/youtube/connect/route.ts",
+      "app/api/integrations/youtube/callback/route.ts",
+    ];
+
+    for (const routePath of routes) {
+      const fullPath = path.join(WORKTREE, routePath);
+      const src = fs.readFileSync(fullPath, "utf8");
+      assert.ok(src.includes("NextResponse.redirect"), `${routePath} must use NextResponse.redirect`);
+      assert.ok(!src.includes('import { redirect } from "next/navigation";'), `${routePath} must not import redirect from next/navigation`);
+      assert.ok(!src.match(/\sredirect\(/), `${routePath} must not call redirect()`);
+    }
   });
 });

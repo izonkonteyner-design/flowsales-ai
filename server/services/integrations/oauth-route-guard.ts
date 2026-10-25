@@ -10,6 +10,7 @@ import {
   type ChannelProvider,
 } from "@/server/services/integrations/provider-adapter";
 import { isOAuthStateError } from "@/server/services/integrations/oauth-state";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { logger } from "@/lib/logger";
 
 // ============================================================================
@@ -110,6 +111,21 @@ export function jsonOk(data: Record<string, unknown>, status = 200): Response {
   return Response.json(data, { status });
 }
 
+export function isNextRedirectError(error: unknown): boolean {
+  try {
+    if (isRedirectError(error)) return true;
+  } catch {
+    // fallback
+  }
+  if (typeof error === "object" && error !== null) {
+    const digest = (error as { digest?: unknown }).digest;
+    if (typeof digest === "string" && digest.startsWith("NEXT_REDIRECT")) return true;
+    const message = (error as { message?: unknown }).message;
+    if (message === "NEXT_REDIRECT") return true;
+  }
+  return false;
+}
+
 /**
  * Translate known OAuth errors to safe JSON responses.
  * Raw provider errors are swallowed — only typed errors are passed through.
@@ -118,6 +134,10 @@ export function handleOAuthRouteError(
   error: unknown,
   context: { provider: ChannelProvider; route: string },
 ): Response {
+  if (isNextRedirectError(error)) {
+    throw error;
+  }
+
   logger.error("oauth.route_error", error, { provider: context.provider, route: context.route });
 
   if (error instanceof OAuthConfigurationRequiredError) {

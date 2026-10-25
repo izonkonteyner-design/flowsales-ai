@@ -1,7 +1,6 @@
 import "server-only";
 
-import type { NextRequest } from "next/server";
-import { redirect } from "next/navigation";
+import { NextResponse, type NextRequest } from "next/server";
 import {
   runOAuthGuard,
   handleOAuthRouteError,
@@ -69,7 +68,7 @@ export async function GET(request: NextRequest) {
       pkce: usePkce && codeVerifier !== null,
     });
 
-    redirect(url);
+    return NextResponse.redirect(url);
   } catch (error) {
     return handleOAuthRouteError(error, { provider: "google", route: "google/connect" });
   }

@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   try {
     const returnPath = validateReturnPath(rawReturnPath);
 
-    const configCheck = process.env.GOOGLE_CLIENT_ID?.trim();
+    const configCheck = process.env.GOOGLE_CLIENT_ID?.trim() || process.env.GOOGLE_ADS_CLIENT_ID?.trim();
     if (!configCheck) {
       throw new OAuthConfigurationRequiredError("google");
     }

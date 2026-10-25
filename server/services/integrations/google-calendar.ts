@@ -162,8 +162,8 @@ export async function refreshGoogleCalendarAccessToken(params: {
   ok: false;
   errorMessage: string;
 }> {
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || process.env.GOOGLE_ADS_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || process.env.GOOGLE_ADS_CLIENT_SECRET?.trim();
 
   if (!clientId || !clientSecret) {
     return {
@@ -346,8 +346,8 @@ export async function resolveWorkspaceGoogleCalendarAuth(
     };
   }
 
-  const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || process.env.GOOGLE_ADS_CLIENT_ID?.trim();
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || process.env.GOOGLE_ADS_CLIENT_SECRET?.trim();
   if (!clientId || !clientSecret) {
     logger.info("google_calendar.sync_skipped_config_required", { organizationId: orgId });
     return {

@@ -4,6 +4,7 @@ import * as crypto from "node:crypto";
 import { decryptToken, encryptToken } from "@/server/services/integrations/encryption";
 import { createSupabaseAdminClient } from "@/lib/supabase/server-admin";
 import { upsertChannelConnection } from "@/server/services/integrations/channel-connections";
+import { getSiteUrl } from "@/server/env";
 
 /**
  * Omnichannel Provider Adapter Interface
@@ -399,19 +400,22 @@ export class MetaAdapter implements ProviderAdapter {
 export class GoogleAdapter implements ProviderAdapter {
   readonly provider: ChannelProvider = "google";
 
-  private assertConfigured(): void {
-    const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim();
+  private getCredentials(): { clientId: string; clientSecret: string } {
+    const clientId = process.env.GOOGLE_CLIENT_ID?.trim() || process.env.GOOGLE_ADS_CLIENT_ID?.trim();
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET?.trim() || process.env.GOOGLE_ADS_CLIENT_SECRET?.trim();
     if (!clientId || !clientSecret) {
       throw new OAuthConfigurationRequiredError(this.provider);
     }
+    return { clientId, clientSecret };
+  }
+
+  private assertConfigured(): void {
+    this.getCredentials();
   }
 
   buildAuthorizationUrl(params: BuildAuthUrlParams): BuildAuthUrlResult {
-    this.assertConfigured();
-
-    const clientId = process.env.GOOGLE_CLIENT_ID!;
-    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/google/callback`;
+    const { clientId } = this.getCredentials();
+    const redirectUri = `${getSiteUrl()}/api/integrations/google/callback`;
 
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", clientId);
@@ -419,7 +423,7 @@ export class GoogleAdapter implements ProviderAdapter {
     url.searchParams.set("response_type", "code");
     url.searchParams.set(
       "scope",
-      "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/business.manage",
+      "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/business.manage openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
     );
     url.searchParams.set("state", params.stateToken);
     url.searchParams.set("access_type", "offline");
@@ -439,11 +443,8 @@ export class GoogleAdapter implements ProviderAdapter {
   }
 
   async exchangeCode(params: ExchangeCodeParams): Promise<TokenSet> {
-    this.assertConfigured();
+    const { clientId, clientSecret } = this.getCredentials();
     assertEncryptionConfigured();
-
-    const clientId = process.env.GOOGLE_CLIENT_ID!.trim();
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET!.trim();
 
     const body = new URLSearchParams({
       client_id: clientId,
@@ -496,13 +497,32 @@ export class GoogleAdapter implements ProviderAdapter {
       scopes,
     };
 
+    let displayName = "Google Account";
+    let externalAccountId = "primary";
+
+    try {
+      const userRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${data.access_token}` },
+        cache: "no-store",
+      });
+      if (userRes.ok) {
+        const userInfo = (await userRes.json()) as { id?: string; email?: string; name?: string };
+        if (userInfo.email) {
+          displayName = userInfo.name ? `${userInfo.name} (${userInfo.email})` : userInfo.email;
+          externalAccountId = userInfo.id || userInfo.email;
+        }
+      }
+    } catch {
+      // Best-effort profile retrieval
+    }
+
     try {
       const connection = await upsertChannelConnection({
         organizationId: params.organizationId,
         provider: "google",
         status: "connected",
-        displayName: "Google Calendar & Business",
-        externalAccountId: "primary",
+        displayName,
+        externalAccountId,
         scopes,
         createdByUserId: params.organizationId,
       });
@@ -532,11 +552,9 @@ export class GoogleAdapter implements ProviderAdapter {
   }
 
   async refreshAccessToken(params: RefreshTokenParams): Promise<TokenSet> {
-    this.assertConfigured();
+    const { clientId, clientSecret } = this.getCredentials();
     assertEncryptionConfigured();
 
-    const clientId = process.env.GOOGLE_CLIENT_ID!.trim();
-    const clientSecret = process.env.GOOGLE_CLIENT_SECRET!.trim();
     const refreshToken = decryptToken(params.refreshTokenCipher);
 
     const body = new URLSearchParams({
@@ -621,20 +639,27 @@ export class GoogleAdapter implements ProviderAdapter {
 export class TikTokAdapter implements ProviderAdapter {
   readonly provider: ChannelProvider = "tiktok";
 
-  private assertConfigured(): void {
-    const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
-    const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
+  private getCredentials(): { clientKey: string; clientSecret: string } {
+    const clientKey =
+      process.env.TIKTOK_CLIENT_KEY?.trim() ||
+      process.env.TIKTOK_CLIENT_ID?.trim() ||
+      process.env.TIKTOK_APP_ID?.trim();
+    const clientSecret =
+      process.env.TIKTOK_CLIENT_SECRET?.trim() ||
+      process.env.TIKTOK_APP_SECRET?.trim();
     if (!clientKey || !clientSecret) {
       throw new OAuthConfigurationRequiredError(this.provider);
     }
+    return { clientKey, clientSecret };
+  }
+
+  private assertConfigured(): void {
+    this.getCredentials();
   }
 
   buildAuthorizationUrl(params: BuildAuthUrlParams): BuildAuthUrlResult {
-    this.assertConfigured();
-
-    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "";
-    const redirectUri = `${siteUrl}/api/integrations/tiktok/callback`;
+    const { clientKey } = this.getCredentials();
+    const redirectUri = `${getSiteUrl()}/api/integrations/tiktok/callback`;
 
     // TikTok Login Kit & Content Posting API v2
     const url = new URL("https://www.tiktok.com/v2/auth/authorize/");
@@ -658,11 +683,8 @@ export class TikTokAdapter implements ProviderAdapter {
   }
 
   async exchangeCode(params: ExchangeCodeParams): Promise<TokenSet> {
-    this.assertConfigured();
+    const { clientKey, clientSecret } = this.getCredentials();
     assertEncryptionConfigured();
-
-    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
-    const clientSecret = process.env.TIKTOK_CLIENT_SECRET!.trim();
 
     const body = new URLSearchParams({
       client_key: clientKey,
@@ -785,11 +807,9 @@ export class TikTokAdapter implements ProviderAdapter {
   }
 
   async refreshAccessToken(params: RefreshTokenParams): Promise<TokenSet> {
-    this.assertConfigured();
+    const { clientKey, clientSecret } = this.getCredentials();
     assertEncryptionConfigured();
 
-    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
-    const clientSecret = process.env.TIKTOK_CLIENT_SECRET!.trim();
     const refreshToken = decryptToken(params.refreshTokenCipher);
 
     const body = new URLSearchParams({
@@ -845,9 +865,7 @@ export class TikTokAdapter implements ProviderAdapter {
   }
 
   async revokeConnection(params: RevokeConnectionParams): Promise<void> {
-    this.assertConfigured();
-    const clientKey = process.env.TIKTOK_CLIENT_KEY!.trim();
-    const clientSecret = process.env.TIKTOK_CLIENT_SECRET!.trim();
+    const { clientKey, clientSecret } = this.getCredentials();
     const token = decryptToken(params.accessTokenCipher);
 
     const body = new URLSearchParams({
@@ -906,8 +924,7 @@ export class YouTubeAdapter implements ProviderAdapter {
 
   buildAuthorizationUrl(params: BuildAuthUrlParams): BuildAuthUrlResult {
     const { clientId } = this.getCredentials();
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim() || "";
-    const redirectUri = `${siteUrl}/api/integrations/youtube/callback`;
+    const redirectUri = `${getSiteUrl()}/api/integrations/youtube/callback`;
 
     const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
     url.searchParams.set("client_id", clientId);

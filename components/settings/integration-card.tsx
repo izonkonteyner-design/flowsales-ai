@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clock,
   Loader2,
+  QrCode,
   RefreshCw,
   Unplug,
   Wifi,
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChannelProvider, ConnectionStatus } from "@/server/services/integrations/provider-adapter";
+import { TikTokQrModal } from "@/components/settings/tiktok-qr-modal";
+import { resolveTikTokCapabilities } from "@/lib/validations/tiktok-capabilities";
 
 // ============================================================================
 // Integration Card Component
@@ -232,6 +235,9 @@ export function IntegrationCard({
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+
+  const tikTokCaps = provider === "tiktok" && isConnected ? resolveTikTokCapabilities(connection?.scopes ?? []) : null;
 
   async function handleTestConnection() {
     if (isTesting || !isManageable) return;
@@ -349,6 +355,14 @@ export function IntegrationCard({
           </div>
         )}
 
+        {/* TikTok Capability & App Review Notice */}
+        {tikTokCaps && tikTokCaps.appReviewStatus === "partially_authorized" && (
+          <div className="flex items-start gap-2 rounded-2xl border border-blue-200/70 bg-blue-50/70 p-3 text-xs text-blue-800 dark:border-blue-800/40 dark:bg-blue-950/20 dark:text-blue-300">
+            <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+            <p className="leading-relaxed">{tikTokCaps.explanation}</p>
+          </div>
+        )}
+
         {/* Webhook endpoint indicator */}
         {isConnected && (
           <div className="flex items-center justify-between rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600 dark:bg-white/5 dark:text-slate-400">
@@ -410,28 +424,68 @@ export function IntegrationCard({
           <>
             {/* Connect button */}
             {!isConnected && !isRevoked && !isExpired && (
-              <a
-                href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
-                id={`connect-${provider}`}
-                aria-label={`Connect ${meta.label}`}
-                aria-disabled={!isManageable || !isProviderConfigured}
-                tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
-                title={disabledReason ?? `Connect ${meta.label}`}
-                className={cn(
-                  "inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
-                  isManageable && isProviderConfigured
-                    ? "bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
-                    : "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-600",
-                )}
-                onClick={
-                  !isManageable || !isProviderConfigured
-                    ? (e) => e.preventDefault()
-                    : undefined
-                }
-              >
-                <Zap className="h-4 w-4" />
-                {showConfigRequired ? "Configuration required" : "Connect"}
-              </a>
+              provider === "tiktok" ? (
+                <div className="flex w-full flex-col gap-2 sm:flex-row">
+                  <a
+                    href={isManageable && isProviderConfigured ? "/api/integrations/tiktok/connect" : undefined}
+                    id="connect-tiktok-oauth"
+                    aria-label="TikTok ile Bağlan (OAuth)"
+                    aria-disabled={!isManageable || !isProviderConfigured}
+                    tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
+                    title={disabledReason ?? "TikTok ile Bağlan (OAuth)"}
+                    className={cn(
+                      "inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
+                      isManageable && isProviderConfigured
+                        ? "bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                        : "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-600",
+                    )}
+                    onClick={!isManageable || !isProviderConfigured ? (e) => e.preventDefault() : undefined}
+                  >
+                    <Zap className="h-4 w-4" />
+                    {showConfigRequired ? "Configuration required" : "TikTok ile Bağlan"}
+                  </a>
+                  <button
+                    type="button"
+                    id="connect-tiktok-qr"
+                    disabled={!isManageable || !isProviderConfigured}
+                    onClick={() => setIsQrModalOpen(true)}
+                    aria-label="QR Kod ile Bağlan"
+                    title={disabledReason ?? "QR Kod ile Bağlan"}
+                    className={cn(
+                      "inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-2.5 text-sm font-medium transition-all",
+                      isManageable && isProviderConfigured
+                        ? "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-white/15 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-white/5"
+                        : "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 dark:border-white/5 dark:bg-white/5 dark:text-slate-600",
+                    )}
+                  >
+                    <QrCode className="h-4 w-4" />
+                    QR Kod ile Bağlan
+                  </button>
+                </div>
+              ) : (
+                <a
+                  href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
+                  id={`connect-${provider}`}
+                  aria-label={`Connect ${meta.label}`}
+                  aria-disabled={!isManageable || !isProviderConfigured}
+                  tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
+                  title={disabledReason ?? `Connect ${meta.label}`}
+                  className={cn(
+                    "inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
+                    isManageable && isProviderConfigured
+                      ? "bg-slate-950 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                      : "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-slate-600",
+                  )}
+                  onClick={
+                    !isManageable || !isProviderConfigured
+                      ? (e) => e.preventDefault()
+                      : undefined
+                  }
+                >
+                  <Zap className="h-4 w-4" />
+                  {showConfigRequired ? "Configuration required" : "Connect"}
+                </a>
+              )
             )}
 
             {/* Reconnect button */}
@@ -458,6 +512,27 @@ export function IntegrationCard({
                 <RefreshCw className="h-4 w-4" />
                 {isExpired ? "Renew" : "Reconnect"}
               </a>
+            )}
+
+            {/* TikTok QR Reconnect */}
+            {provider === "tiktok" && (isConnected || isExpired || isRevoked) && (
+              <button
+                type="button"
+                id="reconnect-tiktok-qr"
+                disabled={!isManageable || !isProviderConfigured}
+                onClick={() => setIsQrModalOpen(true)}
+                aria-label="QR Kod ile Yenile"
+                title={disabledReason ?? "QR Kod ile Yenile"}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-medium transition-all",
+                  isManageable && isProviderConfigured
+                    ? "border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
+                    : "cursor-not-allowed border-slate-100 text-slate-400 dark:border-white/5 dark:text-slate-600",
+                )}
+              >
+                <QrCode className="h-3.5 w-3.5" />
+                QR ile Yenile
+              </button>
             )}
 
             {/* Test Connection Button */}
@@ -510,6 +585,17 @@ export function IntegrationCard({
           </>
         )}
       </div>
+
+      {provider === "tiktok" && (
+        <TikTokQrModal
+          isOpen={isQrModalOpen}
+          onClose={() => setIsQrModalOpen(false)}
+          onSuccess={() => {
+            setIsQrModalOpen(false);
+            window.location.reload();
+          }}
+        />
+      )}
     </div>
   );
 }

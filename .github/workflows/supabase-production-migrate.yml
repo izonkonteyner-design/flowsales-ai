@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ordered_versions=(0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040 0041 0042 0043 0044 0045 0046 0047 0048 0049 0050 0051 0052 0053 0054 0055 0060)
+          ordered_versions=(0027 0028 0029 0030 0031 0032 0033 0034 0035 0036 0037 0038 0039 0040 0041 0042 0043 0044 0045 0046 0047 0048 0049 0050 0051 0052 0053 0054 0055 0060 0061 0062)
           for version in "${ordered_versions[@]}"; do
             matches=(supabase/migrations/${version}_*.sql)
             if [[ ! -e "${matches[0]}" || "${#matches[@]}" -ne 1 ]]; then
@@ -80,7 +80,7 @@ jobs:
               '0024','0025','0026','0027','0028','0029','0030','0031','0032','0033',
               '0034','0035','0036','0037','0038','0039','0040','0041','0042','0043',
               '0044','0045','0046','0047','0048','0049','0050','0051','0052','0053',
-              '0054','0055','0060'
+              '0054','0055','0060','0061','0062'
             );
           ")"
           if [[ -n "$unexpected" ]]; then
@@ -119,6 +119,8 @@ jobs:
             supabase/migrations/0054_email_crm_activities.sql
             supabase/migrations/0055_social_media_publishing.sql
             supabase/migrations/0060_fix_social_media_tenant.sql
+            supabase/migrations/0061_social_multiplatform_and_company_profile.sql
+            supabase/migrations/0062_channel_connections_youtube.sql
           )
 
           for file in "${ordered_files[@]}"; do
@@ -143,8 +145,8 @@ jobs:
           set -euo pipefail
           db_url="${SUPABASE_DB_URL:-${SUPABASE_DATABASE_URL:-${DATABASE_URL:-}}}"
           latest="$(psql "$db_url" -X -Atqc "select max(version) from public.deployment_migrations;")"
-          # Baseline gate test "$latest" = "0053" advanced to 0060
-          test "$latest" = "0060"
+          # Baseline gate test "$latest" = "0053" advanced to 0060 and 0062
+          test "$latest" = "0062"
           psql "$db_url" -X -v ON_ERROR_STOP=1 -Atqc "
             select case when
               exists (select 1 from public.deployment_migrations where version='0047' and name='0047_voice_sales_v1.sql')
@@ -157,6 +159,8 @@ jobs:
               and exists (select 1 from public.deployment_migrations where version='0054' and name='email_crm_activities')
               and exists (select 1 from public.deployment_migrations where version='0055' and name='social_media_publishing')
               and exists (select 1 from public.deployment_migrations where version='0060' and name='fix_social_media_tenant')
+              and exists (select 1 from public.deployment_migrations where version='0061' and name='social_multiplatform_and_company_profile')
+              and exists (select 1 from public.deployment_migrations where version='0062' and name='channel_connections_youtube')
               and to_regclass('public.email_connections') is not null
               and to_regclass('public.email_threads') is not null
               and to_regclass('public.email_messages') is not null

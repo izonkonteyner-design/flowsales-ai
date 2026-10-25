@@ -65,6 +65,10 @@ describe("YouTube Provider & Integration Diagnostics Test Suite", () => {
   it("returns isProviderConfigured('youtube') === false when YOUTUBE credentials are unset", () => {
     delete process.env.YOUTUBE_CLIENT_ID;
     delete process.env.YOUTUBE_CLIENT_SECRET;
+    delete process.env.GOOGLE_CLIENT_ID;
+    delete process.env.GOOGLE_CLIENT_SECRET;
+    delete process.env.GOOGLE_ADS_CLIENT_ID;
+    delete process.env.GOOGLE_ADS_CLIENT_SECRET;
 
     assert.equal(isProviderConfigured("youtube"), false);
 
@@ -168,5 +172,99 @@ describe("YouTube Provider & Integration Diagnostics Test Suite", () => {
     assert.ok(src.includes('"facebook"'));
     assert.ok(src.includes('"google"'));
     assert.ok(src.includes('"tiktok"'));
+  });
+
+  it("GoogleAdapter supports GOOGLE_ADS_CLIENT_ID fallback and PKCE", () => {
+    delete process.env.GOOGLE_CLIENT_ID;
+    delete process.env.GOOGLE_CLIENT_SECRET;
+    process.env.GOOGLE_ADS_CLIENT_ID = "mock-google-ads-client-id.apps.googleusercontent.com";
+    process.env.GOOGLE_ADS_CLIENT_SECRET = "GOCSPX-mock-google-ads-secret";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://flowsales-ai-six.vercel.app";
+
+    assert.equal(isProviderConfigured("google"), true);
+    const adapter = getProviderAdapter("google");
+    const result = adapter.buildAuthorizationUrl({
+      organizationId: "org-1",
+      userId: "user-1",
+      returnPath: "/settings/integrations",
+      codeVerifier: "mock-google-pkce-verifier-12345678",
+      stateToken: "state-google-1",
+    });
+
+    assert.ok(result.url.startsWith("https://accounts.google.com/o/oauth2/v2/auth"));
+    const parsed = new URL(result.url);
+    assert.equal(parsed.searchParams.get("client_id"), "mock-google-ads-client-id.apps.googleusercontent.com");
+    assert.equal(parsed.searchParams.get("redirect_uri"), "https://flowsales-ai-six.vercel.app/api/integrations/google/callback");
+    assert.ok(parsed.searchParams.get("scope")?.includes("calendar.events"));
+    assert.ok(parsed.searchParams.get("scope")?.includes("userinfo.email"));
+    assert.equal(parsed.searchParams.get("code_challenge_method"), "S256");
+    assert.ok(parsed.searchParams.get("code_challenge"));
+  });
+
+  it("YouTubeAdapter enforces dedicated YOUTUBE_CLIENT_ID and isolation from Google credentials", () => {
+    delete process.env.YOUTUBE_CLIENT_ID;
+    delete process.env.YOUTUBE_CLIENT_SECRET;
+    process.env.GOOGLE_ADS_CLIENT_ID = "mock-google-ads-id.apps.googleusercontent.com";
+    process.env.GOOGLE_ADS_CLIENT_SECRET = "GOCSPX-mock-google-ads-secret";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://flowsales-ai-six.vercel.app";
+
+    assert.equal(isProviderConfigured("youtube"), false);
+
+    process.env.YOUTUBE_CLIENT_ID = "mock-youtube-client-id";
+    process.env.YOUTUBE_CLIENT_SECRET = "mock-youtube-client-secret";
+
+    assert.equal(isProviderConfigured("youtube"), true);
+    const adapter = getProviderAdapter("youtube");
+    const result = adapter.buildAuthorizationUrl({
+      organizationId: "org-1",
+      userId: "user-1",
+      returnPath: "/settings/integrations",
+      codeVerifier: "mock-pkce-verifier",
+      stateToken: "state-1",
+    });
+
+    const parsed = new URL(result.url);
+    assert.equal(parsed.searchParams.get("client_id"), "mock-youtube-client-id");
+    assert.equal(parsed.searchParams.get("redirect_uri"), "https://flowsales-ai-six.vercel.app/api/integrations/youtube/callback");
+  });
+
+  it("TikTokAdapter supports TIKTOK_CLIENT_ID and TIKTOK_APP_ID fallbacks", () => {
+    delete process.env.TIKTOK_CLIENT_KEY;
+    delete process.env.TIKTOK_CLIENT_SECRET;
+    process.env.TIKTOK_CLIENT_ID = "mock-tiktok-client-id";
+    process.env.TIKTOK_APP_SECRET = "mock-tiktok-app-secret";
+    process.env.NEXT_PUBLIC_SITE_URL = "https://flowsales-ai-six.vercel.app";
+
+    assert.equal(isProviderConfigured("tiktok"), true);
+    const adapter = getProviderAdapter("tiktok");
+    const result = adapter.buildAuthorizationUrl({
+      organizationId: "org-1",
+      userId: "user-1",
+      returnPath: "/settings/integrations",
+      codeVerifier: "mock-pkce-verifier",
+      stateToken: "state-tt-1",
+    });
+
+    const parsed = new URL(result.url);
+    assert.equal(parsed.searchParams.get("client_key"), "mock-tiktok-client-id");
+    assert.equal(parsed.searchParams.get("redirect_uri"), "https://flowsales-ai-six.vercel.app/api/integrations/tiktok/callback");
+  });
+
+  it("OAuth callback routes verify access_denied redirection and route files existence", () => {
+    const googleCb = path.join(WORKTREE, "app/api/integrations/google/callback/route.ts");
+    const youtubeCb = path.join(WORKTREE, "app/api/integrations/youtube/callback/route.ts");
+    const tiktokCb = path.join(WORKTREE, "app/api/integrations/tiktok/callback/route.ts");
+
+    const googleSrc = fs.readFileSync(googleCb, "utf8");
+    const youtubeSrc = fs.readFileSync(youtubeCb, "utf8");
+    const tiktokSrc = fs.readFileSync(tiktokCb, "utf8");
+
+    assert.ok(googleSrc.includes("access_denied"));
+    assert.ok(youtubeSrc.includes("access_denied"));
+    assert.ok(tiktokSrc.includes("access_denied"));
+
+    assert.ok(googleSrc.includes("getSiteUrl()"));
+    assert.ok(youtubeSrc.includes("getSiteUrl()"));
+    assert.ok(tiktokSrc.includes("getSiteUrl()"));
   });
 });

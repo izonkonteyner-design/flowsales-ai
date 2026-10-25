@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
   try {
     const returnPath = validateReturnPath(rawReturnPath);
 
-    const configCheck = process.env.TIKTOK_CLIENT_KEY?.trim();
+    const configCheck =
+      process.env.TIKTOK_CLIENT_KEY?.trim() ||
+      process.env.TIKTOK_CLIENT_ID?.trim() ||
+      process.env.TIKTOK_APP_ID?.trim();
     if (!configCheck) {
       throw new OAuthConfigurationRequiredError("tiktok");
     }

@@ -13,6 +13,7 @@ import {
   OAuthTokenEncryptionNotConfiguredError,
 } from "@/server/services/integrations/provider-adapter";
 import { consumeOAuthState } from "@/server/services/integrations/oauth-state";
+import { getSiteUrl } from "@/server/env";
 import { logger } from "@/lib/logger";
 
 // ============================================================================
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     const adapter = getProviderAdapter("youtube");
-    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/youtube/callback`;
+    const redirectUri = `${getSiteUrl()}/api/integrations/youtube/callback`;
     const code = searchParams.get("code")!;
 
     await adapter.exchangeCode({

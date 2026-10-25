@@ -1334,9 +1334,9 @@ export async function publishSocialPostToTikTok(
     };
   }
 
-  const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim();
+  const clientKey = (process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || process.env.TIKTOK_APP_ID)?.trim();
   void clientKey;
-  const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim();
+  const clientSecret = (process.env.TIKTOK_CLIENT_SECRET || process.env.TIKTOK_APP_SECRET)?.trim();
   void clientSecret;
   const accessToken = token?.trim() || process.env.TIKTOK_ACCESS_TOKEN?.trim();
 
@@ -1391,7 +1391,7 @@ export async function publishSocialPostToYouTube(
     };
   }
 
-  const clientId = (process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID)?.trim();
+  const clientId = (process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_ADS_CLIENT_ID)?.trim();
   void clientId;
   const accessToken = token?.trim() || process.env.YOUTUBE_ACCESS_TOKEN?.trim() || process.env.GOOGLE_ACCESS_TOKEN?.trim();
 

@@ -13,6 +13,7 @@ import {
   OAuthTokenEncryptionNotConfiguredError,
 } from "@/server/services/integrations/provider-adapter";
 import { consumeOAuthState } from "@/server/services/integrations/oauth-state";
+import { getSiteUrl } from "@/server/env";
 import { logger } from "@/lib/logger";
 
 // ============================================================================
@@ -48,7 +49,10 @@ export async function GET(request: NextRequest) {
   try {
     const stateRecord = await consumeOAuthState(rawStateToken, "tiktok", ctx.organizationId, ctx.userId);
 
-    const configCheck = process.env.TIKTOK_CLIENT_KEY?.trim();
+    const configCheck =
+      process.env.TIKTOK_CLIENT_KEY?.trim() ||
+      process.env.TIKTOK_CLIENT_ID?.trim() ||
+      process.env.TIKTOK_APP_ID?.trim();
     if (!configCheck) {
       throw new OAuthConfigurationRequiredError("tiktok");
     }
@@ -59,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     const adapter = getProviderAdapter("tiktok");
-    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/tiktok/callback`;
+    const redirectUri = `${getSiteUrl()}/api/integrations/tiktok/callback`;
     const code = searchParams.get("code")!;
 
     await adapter.exchangeCode({

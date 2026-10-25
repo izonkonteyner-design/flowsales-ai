@@ -13,6 +13,7 @@ import {
   OAuthTokenEncryptionNotConfiguredError,
 } from "@/server/services/integrations/provider-adapter";
 import { consumeOAuthState } from "@/server/services/integrations/oauth-state";
+import { getSiteUrl } from "@/server/env";
 import { logger } from "@/lib/logger";
 
 // ============================================================================
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
   try {
     const stateRecord = await consumeOAuthState(rawStateToken, "google", ctx.organizationId, ctx.userId);
 
-    const configCheck = process.env.GOOGLE_CLIENT_ID?.trim();
+    const configCheck = process.env.GOOGLE_CLIENT_ID?.trim() || process.env.GOOGLE_ADS_CLIENT_ID?.trim();
     if (!configCheck) {
       throw new OAuthConfigurationRequiredError("google");
     }
@@ -63,7 +64,7 @@ export async function GET(request: NextRequest) {
     }
 
     const adapter = getProviderAdapter("google");
-    const redirectUri = `${process.env.NEXT_PUBLIC_SITE_URL}/api/integrations/google/callback`;
+    const redirectUri = `${getSiteUrl()}/api/integrations/google/callback`;
     const code = searchParams.get("code")!;
 
     await adapter.exchangeCode({

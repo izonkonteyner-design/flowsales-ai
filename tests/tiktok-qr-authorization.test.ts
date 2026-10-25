@@ -104,11 +104,8 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
     const mockFetch = async () => {
       return new Response(
         JSON.stringify({
-          data: {},
-          error: {
-            code: "scope_not_authorized",
-            message: "Login Kit with QR Code is not authorized for this app.",
-          },
+          error: "scope_not_authorized",
+          error_description: "Login Kit with QR Code is not authorized for this app.",
         }),
         { status: 400, headers: { "Content-Type": "application/json" } },
       );
@@ -137,15 +134,9 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
     const mockFetch = async () => {
       return new Response(
         JSON.stringify({
-          data: {
             scan_qrcode_url:
               "aweme://authorize?authType=100&client_key=test-client-key&client_ticket=tobefilled&scope=user.info.basic&response_type=code",
             token: "MOCK_TIKTOK_QR_TOKEN_12345",
-          },
-          error: {
-            code: "ok",
-            message: "",
-          },
         }),
         { status: 200, headers: { "Content-Type": "application/json" } },
       );
@@ -206,7 +197,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
 
     // 1. Status: new (waiting for scan)
     const waitingFetch = async () =>
-      new Response(JSON.stringify({ data: { status: "new" } }), { status: 200 });
+      new Response(JSON.stringify({ status: "new" }), { status: 200 });
 
     const waitResult = await checkTikTokQrStatus({
       qrSessionId: "qr-session-mock-1",
@@ -219,7 +210,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
 
     // 2. Status: scanned (waiting for confirmation on device)
     const scannedFetch = async () =>
-      new Response(JSON.stringify({ data: { status: "scanned", client_ticket: "mock-ticket" } }), { status: 200 });
+      new Response(JSON.stringify({ status: "scanned", client_ticket: "mock-ticket" }), { status: 200 });
 
     const scanResult = await checkTikTokQrStatus({
       qrSessionId: "qr-session-mock-1",
@@ -232,7 +223,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
 
     // 3. Status: expired
     const expiredFetch = async () =>
-      new Response(JSON.stringify({ data: { status: "expired" } }), { status: 200 });
+      new Response(JSON.stringify({ status: "expired" }), { status: 200 });
 
     const expResult = await checkTikTokQrStatus({
       qrSessionId: "qr-session-mock-1",
@@ -242,6 +233,19 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
       dbClient: mockDb,
     });
     assert.equal(expResult.status, "expired");
+
+    for (const response of [
+      { status: "confirmed", client_ticket: "wrong", code: "test-code" },
+      { status: "confirmed", client_ticket: "mock-ticket", redirect_uri: "https://attacker.example/callback?code=test-code" },
+      { status: "confirmed", client_ticket: "mock-ticket" },
+      { error: "invalid_request", error_description: "App not authorized" },
+    ]) {
+      const rejected = await checkTikTokQrStatus({
+        qrSessionId: "qr-session-mock-1", organizationId: mockRow.organization_id, userId: mockRow.user_id,
+        fetchImpl: (async () => Response.json(response)) as typeof fetch, dbClient: mockDb,
+      });
+      assert.equal(rejected.status, "error");
+    }
   });
 
   it("cancelTikTokQrSession marks session consumed", async () => {
@@ -308,6 +312,7 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
   });
 
   it("Preserves existing TikTok OAuth Login Kit contracts", () => {
+    delete process.env.TIKTOK_SCOPES;
     process.env.TIKTOK_CLIENT_KEY = "mock-tiktok-key";
     process.env.TIKTOK_CLIENT_SECRET = "mock-tiktok-secret";
     process.env.TOKEN_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -329,5 +334,35 @@ describe("TikTok QR Code Authorization & Capability Suite", () => {
     assert.equal(parsed.searchParams.get("response_type"), "code");
     assert.equal(parsed.searchParams.get("state"), "state-123");
     assert.ok(parsed.searchParams.get("scope")?.includes("user.info.basic"));
+    assert.equal(parsed.searchParams.get("scope"), "user.info.basic");
+  });
+
+  it("accepts the official flat v2 token response for exchange and refresh", async () => {
+    process.env.TIKTOK_CLIENT_KEY = "mock-key";
+    process.env.TIKTOK_CLIENT_SECRET = "mock-secret";
+    process.env.TOKEN_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    delete process.env.NEXT_PUBLIC_SUPABASE_URL;
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      if (String(url).includes("/user/info/")) {
+        assert.ok(!String(url).includes("username"));
+        return Response.json({ data: { user: { open_id: "test-open-id", display_name: "Test" } } });
+      }
+      return Response.json({ access_token: "test-access", refresh_token: "test-refresh", expires_in: 86400, refresh_expires_in: 31536000, scope: "user.info.basic", token_type: "Bearer", open_id: "test-open-id" });
+    }) as typeof fetch;
+    try {
+      const adapter = getProviderAdapter("tiktok");
+      const exchanged = await adapter.exchangeCode({ organizationId: "org-1", userId: "user-1", code: "test-code", codeVerifier: null, redirectUri: "https://example.com/callback" });
+      assert.deepEqual(exchanged.scopes, ["user.info.basic"]);
+      assert.ok(exchanged.accessTokenCipher);
+      const refreshed = await adapter.refreshAccessToken({ organizationId: "org-1", connectionId: "connection-1", refreshTokenCipher: exchanged.refreshTokenCipher! });
+      assert.deepEqual(refreshed.scopes, ["user.info.basic"]);
+      assert.ok(refreshed.refreshTokenCipher);
+      globalThis.fetch = (async () => Response.json({ error: "invalid_grant", error_description: "Authorization code expired" }, { status: 400 })) as typeof fetch;
+      await assert.rejects(adapter.exchangeCode({ organizationId: "org-1", code: "expired", codeVerifier: null, redirectUri: "https://example.com/callback" }), /Authorization code expired/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

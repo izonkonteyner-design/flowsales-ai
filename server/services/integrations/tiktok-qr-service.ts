@@ -1,3 +1,4 @@
+import { getTikTokLoginScopes } from "./tiktok-oauth-contract";
 import "server-only";
 
 import crypto from "crypto";
@@ -106,7 +107,7 @@ export async function initiateTikTokQrSession(params: {
 
   const body = new URLSearchParams({
     client_key: clientKey,
-    scope: "user.info.basic,video.upload,video.publish",
+    scope: getTikTokLoginScopes().join(","),
     state: rawStateToken,
   });
 
@@ -133,21 +134,17 @@ export async function initiateTikTokQrSession(params: {
   }
 
   const data = (await response.json().catch(() => ({}))) as {
-    data?: {
-      scan_qrcode_url?: string;
-      token?: string;
-    };
-    error?: {
-      code?: string | number;
-      message?: string;
-    };
+    scan_qrcode_url?: string;
+    token?: string;
+    error?: string;
+    error_description?: string;
   };
 
-  const rawScanUrl = data.data?.scan_qrcode_url;
-  const tiktokToken = data.data?.token;
+  const rawScanUrl = data.scan_qrcode_url;
+  const tiktokToken = data.token;
 
-  if (!response.ok || !rawScanUrl || !tiktokToken || data.error?.code !== "ok" && data.error?.code !== undefined && data.error?.code !== 0) {
-    const errorMsg = data.error?.message || `HTTP ${response.status}`;
+  if (!response.ok || !rawScanUrl || !tiktokToken || data.error) {
+    const errorMsg = data.error_description || data.error || `HTTP ${response.status}`;
     logger.warn("tiktok_qr.initiate_rejected", {
       organizationId: params.organizationId,
       error: errorMsg,
@@ -187,7 +184,7 @@ export async function initiateTikTokQrSession(params: {
     qrSessionId,
     tiktokToken,
     clientTicket,
-    scopes: ["user.info.basic", "video.upload", "video.publish"],
+    scopes: getTikTokLoginScopes(),
   });
 
   const codeVerifierCiphertext = encryptToken(sessionPayload);
@@ -329,21 +326,34 @@ export async function checkTikTokQrStatus(params: {
   }
 
   const checkData = (await checkRes.json().catch(() => ({}))) as {
-    data?: {
-      status?: string;
-      code?: string;
-      client_ticket?: string;
-    };
     status?: string;
     code?: string;
-    error?: {
-      code?: string | number;
-      message?: string;
-    };
+    redirect_uri?: string;
+    client_ticket?: string;
+    error?: string;
+    error_description?: string;
   };
 
-  const rawStatus = (checkData.data?.status || checkData.status || "").toLowerCase();
-  const authCode = checkData.data?.code || checkData.code;
+  if (!checkRes.ok || checkData.error) {
+    return { status: "error", message: `TikTok yetkilendirme hatası: ${checkData.error_description || checkData.error || checkRes.status}` };
+  }
+  const rawStatus = (checkData.status || "").toLowerCase();
+  if ((rawStatus === "scanned" || rawStatus === "confirmed") && checkData.client_ticket !== sessionData.clientTicket) {
+    return { status: "error", message: "QR yanıtının güvenlik bileti doğrulanamadı." };
+  }
+  let authCode = checkData.code;
+  if (checkData.redirect_uri) {
+    try {
+      const callback = new URL(checkData.redirect_uri);
+      const expected = new URL(`${getSiteUrl()}/api/integrations/tiktok/callback`);
+      if (callback.origin !== expected.origin || callback.pathname !== expected.pathname) {
+        return { status: "error", message: "QR yanıtının yönlendirme adresi doğrulanamadı." };
+      }
+      authCode = callback.searchParams.get("code") || undefined;
+    } catch {
+      return { status: "error", message: "QR yanıtının yönlendirme adresi geçersiz." };
+    }
+  }
 
   if (rawStatus === "new") {
     return {
@@ -368,17 +378,20 @@ export async function checkTikTokQrStatus(params: {
 
   if (rawStatus === "confirmed" && authCode) {
     // Atomically consume state to prevent replay
-    const { error: consumeErr } = await admin
+    const { data: consumed, error: consumeErr } = await admin
       .from("oauth_states")
       .update({ consumed_at: new Date().toISOString() })
       .eq("id", row.id)
-      .is("consumed_at", null);
+      .is("consumed_at", null)
+      .select("id")
+      .maybeSingle();
 
-    if (consumeErr) {
+    if (consumeErr || !consumed) {
       logger.error("tiktok_qr.state_consume_error", {
         organizationId: params.organizationId,
-        error: consumeErr.message,
+        error: consumeErr?.message || "State already consumed",
       });
+      return { status: "error", message: "QR oturumu daha önce kullanıldı veya tüketilemedi." };
     }
 
     // Exchange the code for tokens and save to channel_connections
@@ -411,10 +424,10 @@ export async function checkTikTokQrStatus(params: {
     };
   }
 
-  if (checkData.error?.message) {
+  if (rawStatus === "confirmed") {
     return {
       status: "error",
-      message: `TikTok yetkilendirme hatası: ${checkData.error.message}`,
+      message: "TikTok onay yanıtında yetkilendirme kodu bulunamadı.",
     };
   }
 

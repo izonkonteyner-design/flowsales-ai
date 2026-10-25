@@ -1,3 +1,4 @@
+import { getTikTokLoginScopes, type TikTokTokenResponse } from "./tiktok-oauth-contract";
 import "server-only";
 
 import * as crypto from "node:crypto";
@@ -674,7 +675,7 @@ export class TikTokAdapter implements ProviderAdapter {
     // TikTok Login Kit & Content Posting API v2
     const url = new URL("https://www.tiktok.com/v2/auth/authorize/");
     url.searchParams.set("client_key", clientKey);
-    url.searchParams.set("scope", "user.info.basic,video.upload,video.publish");
+    url.searchParams.set("scope", getTikTokLoginScopes().join(","));
     url.searchParams.set("response_type", "code");
     url.searchParams.set("redirect_uri", redirectUri);
     url.searchParams.set("state", params.stateToken);
@@ -715,48 +716,34 @@ export class TikTokAdapter implements ProviderAdapter {
       cache: "no-store",
     });
 
-    const data = (await response.json().catch(() => ({}))) as {
-      data?: {
-        access_token?: string;
-        refresh_token?: string;
-        token_type?: string;
-        expires_in?: number;
-        refresh_expires_in?: number;
-        scope?: string;
-        open_id?: string;
-      };
-      error?: {
-        code?: string | number;
-        message?: string;
-      };
-    };
+    const data = (await response.json().catch(() => ({}))) as TikTokTokenResponse;
 
-    if (!response.ok || !data.data?.access_token) {
+    if (!response.ok || !data.access_token) {
       throw new Error(
-        data.error?.message || `TikTok OAuth token exchange failed (${response.status}).`,
+        data.error_description || `TikTok OAuth token exchange failed (${response.status}).`,
       );
     }
 
-    const scopes = typeof data.data.scope === "string"
-      ? data.data.scope.split(",").map((s) => s.trim()).filter(Boolean)
-      : ["user.info.basic", "video.upload", "video.publish"];
+    const scopes = typeof data.scope === "string"
+      ? data.scope.split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
 
-    const expiresAt = typeof data.data.expires_in === "number"
-      ? new Date(Date.now() + data.data.expires_in * 1000)
+    const expiresAt = typeof data.expires_in === "number"
+      ? new Date(Date.now() + data.expires_in * 1000)
       : new Date(Date.now() + 86400 * 1000);
 
-    const refreshExpiresAt = typeof data.data.refresh_expires_in === "number"
-      ? new Date(Date.now() + data.data.refresh_expires_in * 1000)
+    const refreshExpiresAt = typeof data.refresh_expires_in === "number"
+      ? new Date(Date.now() + data.refresh_expires_in * 1000)
       : null;
 
     let displayName = "TikTok Channel";
-    let externalAccountId = data.data.open_id || "primary";
+    let externalAccountId = data.open_id || "primary";
 
     try {
       const userRes = await fetch(
-        "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username",
+        "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name",
         {
-          headers: { Authorization: `Bearer ${data.data.access_token}` },
+          headers: { Authorization: `Bearer ${data.access_token}` },
           cache: "no-store",
         },
       );
@@ -774,9 +761,9 @@ export class TikTokAdapter implements ProviderAdapter {
     }
 
     const tokenSet: TokenSet = {
-      accessTokenCipher: encryptToken(data.data.access_token),
-      refreshTokenCipher: data.data.refresh_token ? encryptToken(data.data.refresh_token) : null,
-      tokenType: data.data.token_type || "Bearer",
+      accessTokenCipher: encryptToken(data.access_token),
+      refreshTokenCipher: data.refresh_token ? encryptToken(data.refresh_token) : null,
+      tokenType: data.token_type || "Bearer",
       expiresAt,
       refreshExpiresAt,
       scopes,
@@ -845,38 +832,28 @@ export class TikTokAdapter implements ProviderAdapter {
       cache: "no-store",
     });
 
-    const data = (await response.json().catch(() => ({}))) as {
-      data?: {
-        access_token?: string;
-        refresh_token?: string;
-        token_type?: string;
-        expires_in?: number;
-        refresh_expires_in?: number;
-        scope?: string;
-      };
-      error?: { code?: string | number; message?: string };
-    };
+    const data = (await response.json().catch(() => ({}))) as TikTokTokenResponse;
 
-    if (!response.ok || !data.data?.access_token) {
+    if (!response.ok || !data.access_token) {
       throw new Error(
-        data.error?.message || `TikTok OAuth token refresh failed (${response.status}).`,
+        data.error_description || `TikTok OAuth token refresh failed (${response.status}).`,
       );
     }
 
-    const scopes = typeof data.data.scope === "string"
-      ? data.data.scope.split(",").map((s) => s.trim()).filter(Boolean)
+    const scopes = typeof data.scope === "string"
+      ? data.scope.split(",").map((s) => s.trim()).filter(Boolean)
       : [];
-    const expiresAt = typeof data.data.expires_in === "number"
-      ? new Date(Date.now() + data.data.expires_in * 1000)
+    const expiresAt = typeof data.expires_in === "number"
+      ? new Date(Date.now() + data.expires_in * 1000)
       : new Date(Date.now() + 86400 * 1000);
-    const refreshExpiresAt = typeof data.data.refresh_expires_in === "number"
-      ? new Date(Date.now() + data.data.refresh_expires_in * 1000)
+    const refreshExpiresAt = typeof data.refresh_expires_in === "number"
+      ? new Date(Date.now() + data.refresh_expires_in * 1000)
       : null;
 
     return {
-      accessTokenCipher: encryptToken(data.data.access_token),
-      refreshTokenCipher: data.data.refresh_token ? encryptToken(data.data.refresh_token) : params.refreshTokenCipher,
-      tokenType: data.data.token_type || "Bearer",
+      accessTokenCipher: encryptToken(data.access_token),
+      refreshTokenCipher: data.refresh_token ? encryptToken(data.refresh_token) : params.refreshTokenCipher,
+      tokenType: data.token_type || "Bearer",
       expiresAt,
       refreshExpiresAt,
       scopes,

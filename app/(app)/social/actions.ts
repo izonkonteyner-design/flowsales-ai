@@ -11,6 +11,18 @@ import {
   type SocialContentType,
   type PlatformCustomizations,
 } from "@/server/services/integrations/social-publisher";
+import {
+  checkAdsPlatformDiagnostics,
+  saveCampaignDraft,
+  submitCampaignForApproval,
+} from "@/server/services/ads/service";
+import type { AdPlatform, AdCampaignInput } from "@/server/services/ads/domain";
+import {
+  generateCreativeProductionBrief,
+  saveCreativeBrief,
+  type CreativeFormat,
+  type ShotListItem,
+} from "@/server/services/creative/pipeline";
 
 const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
 
@@ -49,7 +61,7 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
     }
   }
 
-  const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube"];
+  const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube", "google"];
   const platforms = rawPlatforms.filter((p): p is SocialPlatform => validPlatforms.includes(p as SocialPlatform));
 
   if (platforms.length === 0) return;
@@ -152,3 +164,90 @@ export async function deleteSocialPostAction(postId: string): Promise<void> {
 
   revalidatePath("/social");
 }
+
+export async function checkAdsDiagnosticsAction(platform: AdPlatform) {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    throw new Error("Çalışma alanı oturumu bulunamadı.");
+  }
+  return checkAdsPlatformDiagnostics(ctx.organization.id, platform);
+}
+
+export async function saveCampaignDraftAction(input: Omit<AdCampaignInput, "organizationId">) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
+  }
+
+  const result = await saveCampaignDraft(
+    {
+      ...input,
+      organizationId: ctx.organization.id,
+    },
+    ctx.userId ?? "system",
+  );
+
+  if (result.success) {
+    revalidatePath("/social");
+  }
+  return result;
+}
+
+export async function submitCampaignForApprovalAction(campaignId: string) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
+  }
+
+  const result = await submitCampaignForApproval({
+    campaignId,
+    organizationId: ctx.organization.id,
+    userId: ctx.userId ?? "system",
+  });
+
+  if (result.success) {
+    revalidatePath("/social");
+  }
+  return result;
+}
+
+export async function generateCreativeBriefAction(params: {
+  topic: string;
+  productOrService?: string;
+  targetAudience?: string;
+  format?: CreativeFormat;
+  language?: "tr" | "en";
+}) {
+  return generateCreativeProductionBrief(params);
+}
+
+export async function saveCreativeBriefAction(params: {
+  title: string;
+  concept: string;
+  format: CreativeFormat;
+  dimensions: string;
+  visualPrompt: string;
+  shotList: ShotListItem[];
+  voiceoverScript?: string | null;
+  overlayTexts?: string[];
+  thumbnailConcept?: string | null;
+  mappedCampaignId?: string | null;
+  mappedSocialPostId?: string | null;
+}) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
+  }
+
+  const result = await saveCreativeBrief({
+    organizationId: ctx.organization.id,
+    userId: ctx.userId ?? "system",
+    brief: params,
+  });
+
+  if (result.success) {
+    revalidatePath("/social");
+  }
+  return result;
+}
+

@@ -38,6 +38,16 @@ export const multiplatformSocialCampaignDraftSchema = z.object({
 });
 export type MultiplatformSocialCampaignDraft = z.infer<typeof multiplatformSocialCampaignDraftSchema>;
 
+function normalizePlatform(p: unknown): "instagram" | "facebook" | "youtube" | "google" | "tiktok" {
+  const str = String(p || "").toLowerCase();
+  if (str.includes("insta")) return "instagram";
+  if (str.includes("face") || str.includes("meta")) return "facebook";
+  if (str.includes("you") || str.includes("yt")) return "youtube";
+  if (str.includes("tik")) return "tiktok";
+  if (str.includes("goog") || str.includes("gbp") || str.includes("gmb") || str.includes("business")) return "google";
+  return "instagram";
+}
+
 function normalizePlacement(p: unknown): PlatformDraftPlacement {
   const str = String(p || "").toLowerCase();
   if (str.includes("story") || str.includes("stories")) return "story";
@@ -276,7 +286,7 @@ SADECE geçerli JSON çıktısı üret:
     if (Array.isArray(parsed.drafts) && parsed.drafts.length > 0) {
       const generatedDrafts: SocialPlatformDraft[] = parsed.drafts.map((d: Record<string, unknown>) => ({
         id: crypto.randomUUID(),
-        platform: (d.platform as SocialPlatformDraft["platform"]) || "instagram",
+        platform: normalizePlatform(d.platform),
         placement: normalizePlacement(d.placement),
         headline: String(d.headline || `${companyName} — ${analysis.primarySubject}`),
         hook: String(d.hook || "Hayalinizdeki modüler yaşam alanına bugün kavuşun!"),

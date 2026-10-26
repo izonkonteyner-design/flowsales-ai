@@ -1,6 +1,25 @@
 -- Migration: 0064_marketing_media_and_campaign_ops.sql
 -- Description: Media assets library, multimodal analysis results, and campaign ops tracking
 
+create or replace function public.is_org_writer(target_org uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.organization_members om
+    where om.organization_id = target_org
+      and om.user_id = auth.uid()
+      and om.role in ('owner', 'admin', 'member')
+  );
+$$;
+
+revoke all on function public.is_org_writer(uuid) from public;
+grant execute on function public.is_org_writer(uuid) to authenticated;
+
 create table if not exists public.marketing_media_assets (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,

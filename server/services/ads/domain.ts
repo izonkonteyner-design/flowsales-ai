@@ -49,8 +49,15 @@ export const adCampaignInputSchema = z.object({
   }),
   adGroupName: z.string().trim().min(2).max(120).optional().default("Genel Reklam Grubu"),
   keywords: z.array(z.string().trim()).default([]),
+  negativeKeywords: z.array(z.string().trim()).default([]),
   headlines: z.array(z.string().trim().min(2)).max(15).default([]),
   descriptions: z.array(z.string().trim().min(5)).max(5).default([]),
+  primaryText: z.string().trim().optional().default(""),
+  callToAction: z.string().trim().default("LEARN_MORE"),
+  mediaUrl: z.string().url("Geçerli bir medya URL girilmelidir").optional().or(z.literal("")),
+  mediaAssetId: z.string().uuid().optional().nullable(),
+  adAccountId: z.string().trim().optional().nullable(),
+  pageId: z.string().trim().optional().nullable(),
   finalUrl: z.string().url("Geçerli bir hedef URL girilmelidir").optional().or(z.literal("")),
 });
 export type AdCampaignInput = z.input<typeof adCampaignInputSchema>;
@@ -68,8 +75,12 @@ export type AdCampaignRecord = {
   targeting: AdTargeting;
   adGroupName: string | null;
   keywords: string[];
+  negativeKeywords?: string[];
   headlines: string[];
   descriptions: string[];
+  primaryText?: string | null;
+  callToAction?: string | null;
+  mediaUrl?: string | null;
   finalUrl: string | null;
   approvalRequestId: string | null;
   approvedBy: string | null;

@@ -15,14 +15,27 @@ import {
   checkAdsPlatformDiagnostics,
   saveCampaignDraft,
   submitCampaignForApproval,
+  generateAdCampaignSuggestions,
+  executeCampaignDeployment,
 } from "@/server/services/ads/service";
-import type { AdPlatform, AdCampaignInput } from "@/server/services/ads/domain";
+import type { AdPlatform, AdCampaignInput, CampaignObjective } from "@/server/services/ads/domain";
 import {
   generateCreativeProductionBrief,
   saveCreativeBrief,
   type CreativeFormat,
   type ShotListItem,
 } from "@/server/services/creative/pipeline";
+import {
+  uploadMarketingMediaAsset,
+} from "@/server/services/media/service";
+import type { MediaAnalysisResult } from "@/server/services/media/domain";
+import {
+  generateMultiplatformSocialDrafts,
+} from "@/server/services/social/engine";
+import {
+  getMarketingPerformanceData,
+  generateMarketingOptimizationAdvice,
+} from "@/server/services/analytics/service";
 
 const DEMO_ORGANIZATION_ID = "d3e00000-0000-0000-0000-000000000000";
 
@@ -249,5 +262,243 @@ export async function saveCreativeBriefAction(params: {
     revalidatePath("/social");
   }
   return result;
+}
+
+/**
+ * Uploads media, runs honest AI analysis, and saves to marketing assets.
+ */
+export async function uploadMarketingMediaAction(formData: FormData) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Yetkisiz işlem veya demo ortamında medya yüklenemez." };
+  }
+
+  const file = formData.get("file") as File | null;
+  if (!file || !(file instanceof File)) {
+    return { success: false, error: "Geçerli bir medya dosyası seçilmedi." };
+  }
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const asset = await uploadMarketingMediaAsset({
+      organizationId: ctx.organization.id,
+      userId: ctx.userId,
+      fileBuffer: buffer,
+      fileName: file.name,
+      fileType: file.type,
+      fileSizeBytes: file.size,
+    });
+
+    revalidatePath("/social");
+    return { success: true, asset };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Medya yükleme işlemi başarısız oldu.",
+    };
+  }
+}
+
+/**
+ * Generates tailored drafts for all platforms based on media analysis.
+ */
+export async function generateMultiplatformSocialDraftsAction(params: {
+  analysis: MediaAnalysisResult;
+  mediaUrl?: string;
+  companyName?: string;
+  websiteUrl?: string;
+  language?: "tr" | "en";
+}) {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    return { success: false, error: "Oturum gerekli." };
+  }
+
+  try {
+    const campaignDraft = await generateMultiplatformSocialDrafts({
+      analysis: params.analysis,
+      mediaUrl: params.mediaUrl,
+      companyName: params.companyName || ctx.organization.name,
+      websiteUrl: params.websiteUrl,
+      language: params.language,
+    });
+    return { success: true, campaignDraft };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Sosyal medya taslakları üretilemedi.",
+    };
+  }
+}
+
+/**
+ * Generates Google Ads or Meta Ads campaign proposals using AI.
+ */
+export async function generateAdCampaignAiAction(params: {
+  platform: AdPlatform;
+  topic: string;
+  productOrService?: string;
+  objective?: CampaignObjective;
+  dailyBudget?: number;
+  targetAudience?: string;
+  language?: "tr" | "en";
+  websiteUrl?: string;
+}) {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    return { success: false, error: "Oturum gerekli." };
+  }
+
+  try {
+    const suggestions = await generateAdCampaignSuggestions(params);
+    return { success: true, suggestions };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Reklam önerisi üretilemedi.",
+    };
+  }
+}
+
+/**
+ * Executes campaign deployment in PAUSED state after human approval confirmation.
+ */
+export async function executeCampaignDeploymentAction(params: {
+  campaignId: string;
+  livePublishConfirmed: boolean;
+}) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
+  }
+
+  const result = await executeCampaignDeployment({
+    campaignId: params.campaignId,
+    organizationId: ctx.organization.id,
+    userId: ctx.userId ?? "system",
+    livePublishConfirmed: params.livePublishConfirmed,
+  });
+
+  if (result.success) {
+    revalidatePath("/social");
+  }
+  return result;
+}
+
+/**
+ * Cancels a scheduled social post and clears queue items.
+ */
+export async function cancelScheduledSocialPostAction(postId: string) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
+  }
+
+  const admin = createSupabaseAdminClient();
+  await admin
+    .from("social_posts")
+    .update({ status: "draft", scheduled_at: null, updated_at: new Date().toISOString() })
+    .eq("id", postId)
+    .eq("organization_id", ctx.organization.id);
+
+  await admin
+    .from("social_publishing_queue")
+    .delete()
+    .eq("post_id", postId)
+    .eq("organization_id", ctx.organization.id);
+
+  revalidatePath("/social");
+  return { success: true };
+}
+
+/**
+ * Submits a social media post for enterprise approval.
+ */
+export async function submitSocialPostForApprovalAction(postId: string) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: post, error } = await admin
+    .from("social_posts")
+    .select("*")
+    .eq("id", postId)
+    .eq("organization_id", ctx.organization.id)
+    .single();
+
+  if (error || !post) {
+    return { success: false, error: "Gönderi bulunamadı." };
+  }
+
+  const approvalId = crypto.randomUUID();
+  const { error: approvalErr } = await admin.from("ai_approval_requests").insert({
+    id: approvalId,
+    organization_id: ctx.organization.id,
+    run_id: `social-${post.id}`,
+    requested_by: ctx.userId,
+    lead_id: post.id,
+    capability: "commercial",
+    status: "pending",
+    summary: `Sosyal Medya Yayın Onayı: "${post.title || post.caption.slice(0, 40)}" (${Array.isArray(post.platforms) ? post.platforms.join(", ") : "Multi"})`,
+    actions: [
+      {
+        type: "draft_quote",
+        targetId: post.id,
+        description: "Sosyal medya kanallarında yayınlama izni.",
+        parameters: { postId: post.id, platforms: post.platforms },
+      },
+    ],
+    evidence: [
+      { source: "user_input", fact: `Kullanıcı ${post.title || "gönderi"} için yayın onayı istedi.` },
+    ],
+    money: [],
+    reasons: ["Sosyal medya yayını kurumsal onay akışına tabidir."],
+    provider: "flowsales-social",
+    model: "social-review-v1",
+    expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+    version: 1,
+  });
+
+  if (approvalErr) {
+    return { success: false, error: approvalErr.message };
+  }
+
+  await admin
+    .from("social_posts")
+    .update({ status: "review_pending", updated_at: new Date().toISOString() })
+    .eq("id", post.id);
+
+  revalidatePath("/social");
+  return { success: true, approvalId };
+}
+
+/**
+ * Retrieves marketing performance analytics and AI optimization advice.
+ */
+export async function getMarketingOptimizationAdviceAction() {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    return { success: false, error: "Oturum gerekli." };
+  }
+
+  try {
+    const metrics = await getMarketingPerformanceData(ctx.organization.id);
+    const advice = await generateMarketingOptimizationAdvice({
+      social: metrics.social,
+      ads: metrics.ads,
+      companyName: ctx.organization.name,
+    });
+
+    return { success: true, metrics, advice };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Optimizasyon analizi oluşturulamadı.",
+    };
+  }
 }
 

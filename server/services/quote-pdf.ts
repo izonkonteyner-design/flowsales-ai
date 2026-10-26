@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 import PDFDocument from "pdfkit";
 
@@ -22,7 +23,12 @@ function firstExistingPath(paths: string[]) {
 }
 
 function resolveFonts(): PdfFonts {
+  const cwd = process.cwd();
   const regular = firstExistingPath([
+    path.join(cwd, "server/assets/fonts/Roboto-Regular.ttf"),
+    path.join(cwd, "assets/fonts/Roboto-Regular.ttf"),
+    path.join(__dirname, "../assets/fonts/Roboto-Regular.ttf"),
+    path.join(__dirname, "../../server/assets/fonts/Roboto-Regular.ttf"),
     "C:\\Windows\\Fonts\\segoeui.ttf",
     "C:\\Windows\\Fonts\\arial.ttf",
     "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
@@ -31,6 +37,10 @@ function resolveFonts(): PdfFonts {
 
   const bold =
     firstExistingPath([
+      path.join(cwd, "server/assets/fonts/Roboto-Bold.ttf"),
+      path.join(cwd, "assets/fonts/Roboto-Bold.ttf"),
+      path.join(__dirname, "../assets/fonts/Roboto-Bold.ttf"),
+      path.join(__dirname, "../../server/assets/fonts/Roboto-Bold.ttf"),
       "C:\\Windows\\Fonts\\segoeuib.ttf",
       "C:\\Windows\\Fonts\\arialbd.ttf",
       "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",

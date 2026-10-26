@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import type { ChannelProvider, ConnectionStatus } from "@/server/services/integrations/provider-adapter";
 import { TikTokQrModal } from "@/components/settings/tiktok-qr-modal";
 import { resolveTikTokCapabilities } from "@/lib/validations/tiktok-capabilities";
+import { getClientLocale, type Locale } from "@/lib/i18n";
 
 // ============================================================================
 // Integration Card Component
@@ -122,37 +123,56 @@ const PROVIDER_META: Record<ChannelProvider, ProviderMeta> = {
   },
 };
 
-function StatusBadge({ status }: { status: ConnectionStatus }) {
+const PROVIDER_DESCRIPTIONS: Record<"tr" | "en", Record<ChannelProvider, string>> = {
+  tr: {
+    whatsapp: "WhatsApp mesajları gönderin ve alın, kişileri yönetin ve CRM'inizden görüşmeleri takip edin.",
+    instagram: "Instagram Direct mesajlarını, yorumları ve Instagram reklamlarından gelen potansiyel müşterileri yönetin.",
+    facebook: "Facebook Sayfalarını, Messenger'ı ve Facebook Potansiyel Müşteri Reklamlarını CRM hattınıza bağlayın.",
+    google: "Google İşletme profilinizi bağlayarak konumları, yorumları ve müşteri sorularını yönetin.",
+    youtube: "YouTube kanalınızı bağlayarak video yayınlayın, video analizlerini izleyin ve topluluk yorumlarını yönetin.",
+    tiktok: "TikTok hesabınızı bağlayarak yorumları, mesajları ve video içeriklerini yönetin.",
+  },
+  en: {
+    whatsapp: "Send and receive WhatsApp messages, manage contacts, and track conversations from your CRM.",
+    instagram: "Manage Instagram Direct Messages, comments, and lead generation from Instagram ads.",
+    facebook: "Connect Facebook Pages, Messenger, and Facebook Leads Ads to your CRM pipeline.",
+    google: "Sync Google Business reviews, messages, and local customer interactions with your CRM.",
+    youtube: "Connect YouTube Channel, publish Shorts and videos, and track audience engagements.",
+    tiktok: "Connect TikTok for Business, manage TikTok Lead Generation ads, and DMs from your CRM.",
+  },
+};
+
+function StatusBadge({ status, isTr }: { status: ConnectionStatus; isTr: boolean }) {
   const styles: Record<ConnectionStatus, { cls: string; icon: React.ReactNode; label: string }> = {
     connected: {
       cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
       icon: <CheckCircle2 className="h-3.5 w-3.5" />,
-      label: "Connected",
+      label: isTr ? "Bağlı" : "Connected",
     },
     connecting: {
       cls: "bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-400",
       icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
-      label: "Connecting…",
+      label: isTr ? "Bağlanıyor…" : "Connecting…",
     },
     not_connected: {
       cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
       icon: <WifiOff className="h-3.5 w-3.5" />,
-      label: "Not connected",
+      label: isTr ? "Bağlı değil" : "Not connected",
     },
     expired: {
       cls: "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
       icon: <Clock className="h-3.5 w-3.5" />,
-      label: "Expired",
+      label: isTr ? "Süresi Doldu" : "Expired",
     },
     error: {
       cls: "bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-400",
       icon: <XCircle className="h-3.5 w-3.5" />,
-      label: "Error",
+      label: isTr ? "Hata" : "Error",
     },
     revoked: {
       cls: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-500",
       icon: <AlertCircle className="h-3.5 w-3.5" />,
-      label: "Disconnected",
+      label: isTr ? "Bağlantı Kesildi" : "Disconnected",
     },
   };
 
@@ -166,19 +186,19 @@ function StatusBadge({ status }: { status: ConnectionStatus }) {
   );
 }
 
-function formatRelativeTime(isoString: string | null): string | null {
+function formatRelativeTime(isoString: string | null, isTr = false): string | null {
   if (!isoString) return null;
   try {
     const date = new Date(isoString);
     const now = Date.now();
     const diffMs = now - date.getTime();
     const diffMins = Math.floor(diffMs / 60_000);
-    if (diffMins < 1) return "just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) return isTr ? "az önce" : "just now";
+    if (diffMins < 60) return isTr ? `${diffMins} dk önce` : `${diffMins}m ago`;
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) return isTr ? `${diffHours} sa önce` : `${diffHours}h ago`;
     const diffDays = Math.floor(diffHours / 24);
-    return `${diffDays}d ago`;
+    return isTr ? `${diffDays} gün önce` : `${diffDays}d ago`;
   } catch {
     return null;
   }
@@ -204,6 +224,8 @@ export type IntegrationCardProps = {
   metaAppId?: string;
   /** Meta Embedded Signup Config ID */
   metaConfigId?: string;
+  /** Active UI locale */
+  locale?: Locale;
 };
 
 export function IntegrationCard({
@@ -214,8 +236,12 @@ export function IntegrationCard({
   isProviderConfigured,
   metaAppId = "",
   metaConfigId = "",
+  locale,
 }: IntegrationCardProps) {
+  const activeLocale = locale ?? getClientLocale();
+  const isTr = activeLocale === "tr";
   const meta = PROVIDER_META[provider];
+  const description = PROVIDER_DESCRIPTIONS[isTr ? "tr" : "en"][provider];
   const status = connection?.status ?? "not_connected";
   const isConnected = status === "connected";
   const isExpired = status === "expired";
@@ -224,11 +250,11 @@ export function IntegrationCard({
   const isManageable = canManage && !isDemo;
 
   const disabledReason = isDemo
-    ? "Demo mode — Connect to a live workspace to manage integrations"
+    ? (isTr ? "Demo modu — Entegrasyonları yönetmek için canlı bir çalışma alanına geçin" : "Demo mode — Connect to a live workspace to manage integrations")
     : !canManage
-      ? "Owner or Admin role required to manage integrations"
+      ? (isTr ? "Entegrasyonları yönetmek için Owner veya Admin rolü gereklidir" : "Owner or Admin role required to manage integrations")
       : !isProviderConfigured
-        ? "Provider credentials not configured"
+        ? (isTr ? "Sağlayıcı kimlik bilgileri ayarlanmamış" : "Provider credentials not configured")
         : null;
 
   const showConfigRequired = !isProviderConfigured && !isDemo;
@@ -294,21 +320,23 @@ export function IntegrationCard({
             </div>
             <div>
               <h3 className="font-semibold text-slate-950 dark:text-white">{meta.label}</h3>
-              <StatusBadge status={status} />
+              <StatusBadge status={status} isTr={isTr} />
             </div>
           </div>
         </div>
 
         {/* Description */}
-        <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">{meta.description}</p>
+        <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">{description}</p>
 
         {/* Configuration required notice */}
         {showConfigRequired && (
           <div className="flex items-start gap-2 rounded-2xl border border-amber-200/70 bg-amber-50 px-3 py-2.5 dark:border-amber-800/40 dark:bg-amber-950/20">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              <span className="font-medium">Configuration required.</span> Provider credentials for{" "}
-              {meta.label} are not set up. Contact your administrator.
+              <span className="font-medium">{isTr ? "Yapılandırma gerekli." : "Configuration required."}</span>{" "}
+              {isTr
+                ? `${meta.label} için sağlayıcı kimlik bilgileri ayarlanmamış. Sistem yöneticinizle iletişime geçin.`
+                : `Provider credentials for ${meta.label} are not set up. Contact your administrator.`}
             </p>
           </div>
         )}
@@ -331,7 +359,7 @@ export function IntegrationCard({
               </p>
               {connection.lastSyncedAt && (
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Last synced {formatRelativeTime(connection.lastSyncedAt)}
+                  {isTr ? "Son eşitleme:" : "Last synced"} {formatRelativeTime(connection.lastSyncedAt, isTr)}
                 </p>
               )}
             </div>
@@ -341,7 +369,9 @@ export function IntegrationCard({
         {/* Scopes */}
         {isConnected && connection && connection.scopes.length > 0 && (
           <div>
-            <p className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">Permissions</p>
+            <p className="mb-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
+              {isTr ? "İzinler" : "Permissions"}
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {connection.scopes.map((scope) => (
                 <span
@@ -401,7 +431,9 @@ export function IntegrationCard({
           <div className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2 dark:bg-white/5">
             <AlertCircle className="h-4 w-4 shrink-0 text-slate-400" />
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              {isDemo ? "Demo mode — read-only" : "Read-only — owner or admin required"}
+              {isDemo
+                ? (isTr ? "Demo modu — salt okunur" : "Demo mode — read-only")
+                : (isTr ? "Salt okunur — sahip veya yönetici yetkisi gerekli" : "Read-only — owner or admin required")}
             </p>
           </div>
         )}
@@ -442,7 +474,7 @@ export function IntegrationCard({
                     onClick={!isManageable || !isProviderConfigured ? (e) => e.preventDefault() : undefined}
                   >
                     <Zap className="h-4 w-4" />
-                    {showConfigRequired ? "Configuration required" : "TikTok ile Bağlan"}
+                    {showConfigRequired ? (isTr ? "Yapılandırma gerekli" : "Configuration required") : "TikTok ile Bağlan"}
                   </a>
                   <button
                     type="button"
@@ -466,10 +498,10 @@ export function IntegrationCard({
                 <a
                   href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
                   id={`connect-${provider}`}
-                  aria-label={`Connect ${meta.label}`}
+                  aria-label={isTr ? `${meta.label} Bağlan` : `Connect ${meta.label}`}
                   aria-disabled={!isManageable || !isProviderConfigured}
                   tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
-                  title={disabledReason ?? `Connect ${meta.label}`}
+                  title={disabledReason ?? (isTr ? `${meta.label} Bağlan` : `Connect ${meta.label}`)}
                   className={cn(
                     "inline-flex flex-1 items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
                     isManageable && isProviderConfigured
@@ -483,7 +515,9 @@ export function IntegrationCard({
                   }
                 >
                   <Zap className="h-4 w-4" />
-                  {showConfigRequired ? "Configuration required" : "Connect"}
+                  {showConfigRequired
+                    ? (isTr ? "Yapılandırma gerekli" : "Configuration required")
+                    : (isTr ? "Bağlan" : "Connect")}
                 </a>
               )
             )}
@@ -493,10 +527,10 @@ export function IntegrationCard({
               <a
                 href={isManageable && isProviderConfigured ? `/api/integrations/${provider}/connect` : undefined}
                 id={`reconnect-${provider}`}
-                aria-label={`Reconnect ${meta.label}`}
+                aria-label={isTr ? `${meta.label} Yeniden Bağlan` : `Reconnect ${meta.label}`}
                 aria-disabled={!isManageable || !isProviderConfigured}
                 tabIndex={!isManageable || !isProviderConfigured ? -1 : undefined}
-                title={disabledReason ?? `Reconnect ${meta.label}`}
+                title={disabledReason ?? (isTr ? `${meta.label} Yeniden Bağlan` : `Reconnect ${meta.label}`)}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-all",
                   isManageable && isProviderConfigured
@@ -510,7 +544,9 @@ export function IntegrationCard({
                 }
               >
                 <RefreshCw className="h-4 w-4" />
-                {isExpired ? "Renew" : "Reconnect"}
+                {isExpired
+                  ? (isTr ? "Yenile" : "Renew")
+                  : (isTr ? "Yeniden Bağlan" : "Reconnect")}
               </a>
             )}
 
@@ -542,7 +578,7 @@ export function IntegrationCard({
                 disabled={isTesting || !isManageable}
                 onClick={handleTestConnection}
                 id={`test-${provider}`}
-                aria-label={`Test ${meta.label} connection`}
+                aria-label={isTr ? `${meta.label} bağlantısını test et` : `Test ${meta.label} connection`}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-2xl border px-3 py-2.5 text-xs font-medium transition-all",
                   isManageable
@@ -551,7 +587,9 @@ export function IntegrationCard({
                 )}
               >
                 {isTesting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Activity className="h-3.5 w-3.5 text-blue-600" />}
-                {isTesting ? "Test ediliyor…" : "Bağlantıyı Test Et"}
+                {isTesting
+                  ? (isTr ? "Test ediliyor…" : "Testing…")
+                  : (isTr ? "Bağlantıyı Test Et" : "Test Connection")}
               </button>
             )}
 
@@ -568,8 +606,8 @@ export function IntegrationCard({
                   id={`disconnect-${provider}`}
                   type="submit"
                   disabled={!isManageable}
-                  aria-label={`Disconnect ${meta.label}`}
-                  title={disabledReason ?? `Disconnect ${meta.label}`}
+                  aria-label={isTr ? `${meta.label} bağlantısını kes` : `Disconnect ${meta.label}`}
+                  title={disabledReason ?? (isTr ? `${meta.label} bağlantısını kes` : `Disconnect ${meta.label}`)}
                   className={cn(
                     "inline-flex items-center gap-2 rounded-2xl px-3 py-2.5 text-sm font-medium transition-all",
                     isManageable
@@ -578,7 +616,7 @@ export function IntegrationCard({
                   )}
                 >
                   <Unplug className="h-4 w-4" />
-                  Disconnect
+                  {isTr ? "Bağlantıyı Kes" : "Disconnect"}
                 </button>
               </form>
             )}

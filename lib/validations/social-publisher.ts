@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const socialPlatformSchema = z.enum(["instagram", "facebook", "tiktok", "youtube", "both", "all"]);
+export const socialPlatformSchema = z.enum(["instagram", "facebook", "tiktok", "youtube", "google", "both", "all"]);
 export type SocialPlatform = z.infer<typeof socialPlatformSchema>;
 
 export const socialContentTypeSchema = z.enum(["post", "reel_short", "story", "video", "text"]);
@@ -19,6 +19,7 @@ export type SocialPostStatus = z.infer<typeof socialPostStatusSchema>;
 export const platformCustomizationSchema = z.object({
   title: z.string().trim().optional(),
   caption: z.string().trim().optional(),
+  cta: z.string().trim().optional(),
   hashtags: z.array(z.string().trim()).optional(),
   mediaUrl: z.string().url().optional(),
 });

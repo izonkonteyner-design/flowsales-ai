@@ -66,7 +66,11 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
     }
   };
 
-  const handleCustomizationChange = (platform: SocialPlatform, field: "title" | "caption", value: string) => {
+  const handleCustomizationChange = (
+    platform: SocialPlatform,
+    field: "title" | "caption" | "cta" | "mediaUrl",
+    value: string,
+  ) => {
     setCustomizations((prev) => ({
       ...prev,
       [platform]: {
@@ -178,15 +182,23 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
         <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">
           Hedef Platformlar (Çoklu Seçim)
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          {(["instagram", "facebook", "tiktok", "youtube"] as SocialPlatform[]).map((p) => {
-            const isSelected = selectedPlatforms.includes(p);
-            const isConnected = connectedProviders.includes(p);
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+          {(
+            [
+              { id: "instagram", name: "Instagram", desc: "Feed & Reels" },
+              { id: "facebook", name: "Facebook", desc: "Sayfa & Video" },
+              { id: "tiktok", name: "TikTok", desc: "Dikey Video" },
+              { id: "youtube", name: "YouTube", desc: "Shorts & Video" },
+              { id: "google", name: "Google İşletme", desc: "GBP Gönderi" },
+            ] as const
+          ).map((p) => {
+            const isSelected = selectedPlatforms.includes(p.id as SocialPlatform);
+            const isConnected = connectedProviders.includes(p.id);
             return (
               <button
-                key={p}
+                key={p.id}
                 type="button"
-                onClick={() => togglePlatform(p)}
+                onClick={() => togglePlatform(p.id as SocialPlatform)}
                 disabled={!canMutate}
                 className={cn(
                   "flex items-center justify-between p-3 rounded-xl border text-xs font-medium transition cursor-pointer text-left",
@@ -195,17 +207,17 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
                     : "border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/10",
                 )}
               >
-                <div>
-                  <p className="font-semibold capitalize">{p}</p>
-                  <p className="text-[10px] text-slate-400">
-                    {isConnected ? "✓ Bağlı" : "Hesap Gerekli"}
+                <div className="min-w-0 pr-1">
+                  <p className="font-semibold truncate">{p.name}</p>
+                  <p className="text-[10px] text-slate-400 truncate">
+                    {isConnected ? "✓ Bağlı" : p.desc}
                   </p>
                 </div>
                 <input
                   type="checkbox"
                   checked={isSelected}
                   readOnly
-                  className="rounded border-slate-300 text-violet-600"
+                  className="rounded border-slate-300 text-violet-600 shrink-0"
                 />
               </button>
             );
@@ -321,7 +333,7 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
             ))}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <input
               type="text"
               value={customizations[activeTab]?.title || ""}
@@ -336,6 +348,22 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
               placeholder={`${activeTab.toUpperCase()} için özel açıklama metni...`}
               className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-white"
             />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input
+                type="text"
+                value={customizations[activeTab]?.cta || ""}
+                onChange={(e) => handleCustomizationChange(activeTab, "cta", e.target.value)}
+                placeholder={`${activeTab.toUpperCase()} özel Eylem Çağrısı (CTA)...`}
+                className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-white"
+              />
+              <input
+                type="url"
+                value={customizations[activeTab]?.mediaUrl || ""}
+                onChange={(e) => handleCustomizationChange(activeTab, "mediaUrl", e.target.value)}
+                placeholder={`${activeTab.toUpperCase()} özel medya URL...`}
+                className="w-full rounded-lg border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-white"
+              />
+            </div>
           </div>
         </div>
       ) : null}
@@ -478,46 +506,89 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
             </div>
 
             {aiResult ? (
-              <div className="space-y-3 border-t border-slate-100 dark:border-white/5 pt-3 max-h-60 overflow-y-auto">
+              <div className="space-y-3 border-t border-slate-100 dark:border-white/5 pt-3 max-h-80 overflow-y-auto">
                 <div className="rounded-xl border border-slate-200 dark:border-white/10 p-3 bg-slate-50 dark:bg-white/5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Önerilen Başlık</span>
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Önerilen Başlık (Headline)</span>
                     <button
                       type="button"
                       onClick={() => applyAiSuggestion("headline", aiResult.headlines[0])}
                       className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
                     >
-                      Forma Ekle
+                      Başlığa Ekle
                     </button>
                   </div>
                   <p className="text-xs text-slate-900 dark:text-white font-medium">{aiResult.headlines[0]}</p>
                 </div>
 
+                {aiResult.hooks && aiResult.hooks.length > 0 ? (
+                  <div className="rounded-xl border border-slate-200 dark:border-white/10 p-3 bg-slate-50 dark:bg-white/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Merak Kancası (Hook)</span>
+                      <button
+                        type="button"
+                        onClick={() => applyAiSuggestion("hook", aiResult.hooks[0])}
+                        className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
+                      >
+                        Açıklama Başına Ekle
+                      </button>
+                    </div>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 font-medium">{aiResult.hooks[0]}</p>
+                  </div>
+                ) : null}
+
                 <div className="rounded-xl border border-slate-200 dark:border-white/10 p-3 bg-slate-50 dark:bg-white/5 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Önerilen Açıklama</span>
+                    <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Önerilen Açıklama (Caption)</span>
                     <button
                       type="button"
                       onClick={() => applyAiSuggestion("caption", aiResult.caption)}
                       className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
                     >
-                      Forma Ekle
+                      Açıklamaya Yaz
                     </button>
                   </div>
                   <p className="text-xs text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{aiResult.caption}</p>
                 </div>
+
+                {aiResult.hashtags && aiResult.hashtags.length > 0 ? (
+                  <div className="rounded-xl border border-slate-200 dark:border-white/10 p-3 bg-slate-50 dark:bg-white/5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">Hashtagler</span>
+                      <button
+                        type="button"
+                        onClick={() => applyAiSuggestion("hashtags", aiResult.hashtags.join(" "))}
+                        className="text-[11px] text-violet-600 dark:text-violet-400 hover:underline"
+                      >
+                        Metnin Sonuna Ekle
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-violet-700 dark:text-violet-300">{aiResult.hashtags.join(" ")}</p>
+                  </div>
+                ) : null}
 
                 <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => {
                       if (aiResult.headlines[0]) setTitle(aiResult.headlines[0]);
-                      setCaption(aiResult.caption);
+                      let fullCaption = "";
+                      if (aiResult.hooks && aiResult.hooks[0]) {
+                        fullCaption += `${aiResult.hooks[0]}\n\n`;
+                      }
+                      fullCaption += aiResult.caption;
+                      if (aiResult.callToAction) {
+                        fullCaption += `\n\n👉 ${aiResult.callToAction}`;
+                      }
+                      if (aiResult.hashtags && aiResult.hashtags.length > 0) {
+                        fullCaption += `\n\n${aiResult.hashtags.join(" ")}`;
+                      }
+                      setCaption(fullCaption.trim());
                       setShowAiModal(false);
                     }}
                     className="rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-4 py-2 text-xs font-semibold"
                   >
-                    Tümünü Uygula ve Kapat
+                    Tümünü Birleştir, Uygula ve Kapat
                   </button>
                 </div>
               </div>

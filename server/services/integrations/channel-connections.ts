@@ -52,17 +52,27 @@ export async function loadChannelConnections(
   const connectionIds = rows.map((r) => r.id);
   const { data: tokens } = await admin
     .from("integration_tokens")
-    .select("connection_id, expires_at")
+    .select("connection_id, expires_at, refresh_token_cipher")
     .in("connection_id", connectionIds);
 
   if (!tokens || tokens.length === 0) return rows;
 
   const now = Date.now();
-  const tokenMap = new Map(tokens.map((t) => [t.connection_id, t.expires_at]));
+  const tokenMap = new Map(
+    tokens.map((t) => [
+      t.connection_id,
+      { expiresAt: t.expires_at, hasRefreshToken: Boolean(t.refresh_token_cipher) },
+    ]),
+  );
 
   return rows.map((row) => {
-    const expiresAt = tokenMap.get(row.id);
-    if (row.status === "connected" && expiresAt && new Date(expiresAt).getTime() <= now) {
+    const tokenInfo = tokenMap.get(row.id);
+    const isAccessTokenExpired = Boolean(
+      tokenInfo?.expiresAt && new Date(tokenInfo.expiresAt).getTime() <= now,
+    );
+    // If the integration has a refresh token (e.g. Google, YouTube, TikTok),
+    // it can be refreshed on demand; do not mark the connection expired.
+    if (row.status === "connected" && isAccessTokenExpired && !tokenInfo?.hasRefreshToken) {
       return {
         ...row,
         status: "expired" as ConnectionStatus,

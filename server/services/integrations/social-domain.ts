@@ -1,4 +1,4 @@
-export type SocialPlatform = "instagram" | "facebook" | "tiktok" | "youtube";
+export type SocialPlatform = "instagram" | "facebook" | "tiktok" | "youtube" | "google";
 
 export type SocialContentType = "post" | "reel_short" | "story" | "video" | "text";
 
@@ -7,6 +7,7 @@ export type SocialPostStatus = "draft" | "scheduled" | "publishing" | "published
 export type PlatformCustomization = {
   title?: string;
   caption?: string;
+  cta?: string;
   hashtags?: string[];
   mediaUrl?: string;
 };
@@ -103,6 +104,16 @@ export const PLATFORM_CAPABILITY_MATRIX: Record<SocialPlatform, PlatformCapabili
     requiresMedia: true,
     supportedMediaTypes: ["video"],
     aspectRatios: ["16:9", "9:16"],
+  },
+  google: {
+    name: "Google Business Profile",
+    allowedContentTypes: ["post", "text"],
+    maxCaptionLength: 1500,
+    maxTitleLength: 100,
+    maxHashtags: 10,
+    requiresMedia: false,
+    supportedMediaTypes: ["image"],
+    aspectRatios: ["1:1", "4:3"],
   },
 };
 

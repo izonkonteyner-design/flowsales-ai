@@ -26,10 +26,10 @@ export async function analyzeMarketingMedia(params: {
 
   // If Gemini is not configured or image data is missing
   if (!hasGeminiConfig() || !base64Data || mediaType === "video") {
-    const reason = !hasGeminiConfig()
-      ? "Gemini API anahtarı yapılandırılmamış."
-      : mediaType === "video"
+    const reason = mediaType === "video"
       ? "Video formatı doğrudan görsel API çözümlemesi için uygun değil; meta veri ve dosya adı temel alındı."
+      : !hasGeminiConfig()
+      ? "Gemini API anahtarı yapılandırılmamış."
       : "Medya ikili verisi mevcut değil.";
 
     return {

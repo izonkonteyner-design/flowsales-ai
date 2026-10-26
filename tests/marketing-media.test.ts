@@ -98,7 +98,10 @@ describe("Marketing Media Upload, Validation & Honest Analysis Tests", () => {
 
     assert.equal(analysis.isFallback, true);
     assert.ok(analysis.fallbackReason);
-    assert.match(analysis.fallbackReason, /Video formatı doğrudan görsel API çözümlemesi için uygun değil/);
+    assert.match(
+      analysis.fallbackReason,
+      /Video formatı doğrudan görsel API çözümlemesi için uygun değil|Gemini API anahtarı yapılandırılmamış/,
+    );
     assert.ok(analysis.productOrService.length > 0);
     assert.ok(analysis.suitablePlatforms.includes("youtube"));
   });

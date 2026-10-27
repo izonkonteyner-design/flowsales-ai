@@ -574,7 +574,10 @@ export type SocialStudioCategory = "post" | "reel" | "story" | "video";
 export type CategoryDraftGenerationParams = {
   category: SocialStudioCategory;
   analysis?: MediaAnalysisResult | z.input<typeof mediaAnalysisResultSchema>;
+  mediaAnalysis?: MediaAnalysisResult | z.input<typeof mediaAnalysisResultSchema>;
   manualTopic?: string;
+  topic?: string;
+  catalogContext?: string;
   transcriptOrDescription?: string;
   mediaUrls?: string[];
   companyName?: string;
@@ -605,6 +608,7 @@ export async function generateCategorySpecificDrafts(
   const {
     category,
     manualTopic,
+    topic,
     transcriptOrDescription,
     mediaUrls = [],
     companyName = "İzon Konteyner",
@@ -613,11 +617,13 @@ export async function generateCategorySpecificDrafts(
     verifiedCatalog = [],
   } = params;
 
-  const rawAnalysis = params.analysis
-    ? mediaAnalysisResultSchema.parse(params.analysis)
+  const analysisInput = params.analysis || params.mediaAnalysis;
+  const rawAnalysis = analysisInput
+    ? mediaAnalysisResultSchema.parse(analysisInput)
     : null;
 
   const subject =
+    topic?.trim() ||
     manualTopic?.trim() ||
     rawAnalysis?.productOrService ||
     rawAnalysis?.primarySubject ||

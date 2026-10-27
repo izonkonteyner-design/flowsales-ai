@@ -100,3 +100,60 @@ export type AdsDiagnosticResult = {
   canPublishLive: boolean;
   missingRequirements: string[];
 };
+
+
+// ==========================================
+// LOOP 5: AI Ads Manager Domain Definitions
+// ==========================================
+
+export const adPolicyRiskSchema = z.object({
+  severity: z.enum(["low", "medium", "high", "none"]),
+  rule: z.string(),
+  reason: z.string(),
+  suggestedFix: z.string(),
+});
+export type AdPolicyRisk = z.infer<typeof adPolicyRiskSchema>;
+
+export const adCopyVariationSchema = z.object({
+  id: z.string(),
+  angle: z.string(),
+  headlines: z.array(z.string().max(30)).default([]),
+  descriptions: z.array(z.string().max(90)).default([]),
+  primaryText: z.string().default(""),
+  callToAction: z.string().default("GET_QUOTE"),
+});
+export type AdCopyVariation = z.infer<typeof adCopyVariationSchema>;
+
+export const aiAdsManagerResultSchema = z.object({
+  platform: adPlatformSchema,
+  recommendedCampaignType: z.enum(["search", "performance_max", "display", "meta_feed", "meta_story_reels"]),
+  recommendedObjective: campaignObjectiveSchema,
+  campaignName: z.string(),
+  recommendedDailyBudget: z.number().positive(),
+  currency: z.string().default("TRY"),
+  targetAudience: z.object({
+    locations: z.array(z.string()),
+    languages: z.array(z.string()),
+    ageRange: z.tuple([z.number(), z.number()]),
+    interests: z.array(z.string()),
+    rationale: z.string(),
+  }),
+  searchAssets: z.object({
+    headlines: z.array(z.string().max(30)),
+    descriptions: z.array(z.string().max(90)),
+    keywords: z.array(z.string()),
+    negativeKeywords: z.array(z.string()),
+  }).optional(),
+  metaCreative: z.object({
+    primaryText: z.string(),
+    headlines: z.array(z.string()),
+    descriptions: z.array(z.string()),
+    callToAction: z.string(),
+  }).optional(),
+  variations: z.array(adCopyVariationSchema).default([]),
+  policyRisks: z.array(adPolicyRiskSchema).default([]),
+  missingInfo: z.array(z.string()).default([]),
+  optimizationAdvice: z.array(z.string()).default([]),
+  visualAnalysisSummary: z.string().optional(),
+});
+export type AiAdsManagerResult = z.infer<typeof aiAdsManagerResultSchema>;

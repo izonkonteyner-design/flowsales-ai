@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Share2, TrendingUp, Sparkles, Upload, BarChart3 } from "lucide-react";
+import { Share2, TrendingUp, Sparkles, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type SocialHubContainerProps = {
@@ -13,32 +13,17 @@ type SocialHubContainerProps = {
 };
 
 export function SocialHubContainer({
-  mediaContent,
   socialContent,
   adsContent,
   creativeContent,
   analyticsContent,
 }: SocialHubContainerProps) {
-  const [activeTab, setActiveTab] = useState<"media" | "social" | "ads" | "creative" | "analytics">("media");
+  const [activeTab, setActiveTab] = useState<"social" | "ads" | "creative" | "analytics">("social");
 
   return (
     <div className="space-y-6">
       {/* Top Tab Switcher */}
       <div className="flex border-b border-slate-200 dark:border-white/10 gap-2 overflow-x-auto">
-        <button
-          type="button"
-          onClick={() => setActiveTab("media")}
-          className={cn(
-            "flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
-            activeTab === "media"
-              ? "border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400"
-              : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
-          )}
-        >
-          <Upload className="h-4 w-4" />
-          <span>Medya & Yapay Zeka Taslak Üretici</span>
-        </button>
-
         <button
           type="button"
           onClick={() => setActiveTab("social")}
@@ -50,7 +35,7 @@ export function SocialHubContainer({
           )}
         >
           <Share2 className="h-4 w-4" />
-          <span>İçerik Yayını & Planlama</span>
+          <span>İçerik Yayını & Kategori Stüdyosu</span>
         </button>
 
         <button
@@ -97,7 +82,6 @@ export function SocialHubContainer({
       </div>
 
       {/* Active Tab Views */}
-      {activeTab === "media" && mediaContent}
       {activeTab === "social" && socialContent}
       {activeTab === "ads" && adsContent}
       {activeTab === "creative" && creativeContent}

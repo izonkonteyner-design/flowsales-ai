@@ -25,7 +25,6 @@ import { UnifiedSocialComposer } from "@/components/social/unified-social-compos
 import { SocialHubContainer } from "@/components/social/social-hub-container";
 import { AdsManagementTab } from "@/components/social/ads-management-tab";
 import { CreativePipelineTab } from "@/components/social/creative-pipeline-tab";
-import { MediaUploadStudioTab } from "@/components/social/media-upload-studio-tab";
 import { MarketingAnalyticsTab } from "@/components/social/marketing-analytics-tab";
 import { getAdCampaigns } from "@/server/services/ads/service";
 import type { AdCampaignRecord } from "@/server/services/ads/domain";
@@ -221,7 +220,6 @@ export default async function SocialMediaPage() {
       ) : null}
 
       <SocialHubContainer
-        mediaContent={<MediaUploadStudioTab />}
         socialContent={
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">

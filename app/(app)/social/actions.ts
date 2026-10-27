@@ -17,6 +17,7 @@ import {
   submitCampaignForApproval,
   generateAdCampaignSuggestions,
   executeCampaignDeployment,
+  runDedicatedAiAdsManager,
 } from "@/server/services/ads/service";
 import type { AdPlatform, AdCampaignInput, CampaignObjective } from "@/server/services/ads/domain";
 import {
@@ -32,6 +33,8 @@ import {
 import type { MediaAnalysisResult, ManualMediaInput } from "@/server/services/media/domain";
 import {
   generateMultiplatformSocialDrafts,
+  generateCategorySpecificDrafts,
+  type SocialStudioCategory,
 } from "@/server/services/social/engine";
 import {
   getMarketingPerformanceData,
@@ -405,6 +408,104 @@ export async function generateMultiplatformSocialDraftsAction(params: {
     return {
       success: false,
       error: err instanceof Error ? err.message : "Sosyal medya taslakları üretilemedi.",
+    };
+  }
+}
+
+/**
+ * LOOP 2: Generates specialized, category-specific drafts for Post, Reels/Shorts, Story, or Video
+ * using true visual grounding, format constraints, and SEO/GEO keywords.
+ */
+export async function generateCategorySocialDraftAction(params: {
+  category: SocialStudioCategory;
+  analysis?: MediaAnalysisResult;
+  manualTopic?: string;
+  transcriptOrDescription?: string;
+  mediaUrls?: string[];
+  companyName?: string;
+  websiteUrl?: string;
+  targetCity?: string;
+  language?: "tr" | "en";
+  platforms?: ("instagram" | "facebook" | "youtube" | "google" | "tiktok")[];
+}) {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    return { success: false, error: "Oturum gerekli." };
+  }
+
+  // Fetch verified products for context
+  const admin = createSupabaseAdminClient();
+  let verifiedCatalog: string[] = [];
+  try {
+    const { data: prods } = await admin
+      .from("products")
+      .select("name")
+      .eq("organization_id", ctx.organization.id)
+      .limit(10);
+    if (prods && prods.length > 0) {
+      verifiedCatalog = prods.map((p) => p.name).filter(Boolean);
+    }
+  } catch {
+    verifiedCatalog = [];
+  }
+
+  const targetCity = params.targetCity || ctx.organization.city || "Marmara Bölgesi";
+
+  try {
+    const result = await generateCategorySpecificDrafts({
+      category: params.category,
+      analysis: params.analysis,
+      manualTopic: params.manualTopic,
+      transcriptOrDescription: params.transcriptOrDescription,
+      mediaUrls: params.mediaUrls,
+      companyName: params.companyName || ctx.organization.name,
+      websiteUrl: params.websiteUrl || ctx.organization.website || "https://flowsales-ai-six.vercel.app",
+      targetCity,
+      language: params.language,
+      platforms: params.platforms,
+      verifiedCatalog,
+    });
+    return { success: true, result };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Kategori taslakları üretilemedi.",
+    };
+  }
+}
+
+/**
+ * LOOP 5: AI Ads Manager dedicated server action.
+ */
+export async function runAiAdsManagerAction(params: {
+  platform: AdPlatform;
+  topic?: string;
+  productOrService?: string;
+  mediaAnalysis?: MediaAnalysisResult | null;
+  currentDailyBudget?: number;
+  websiteUrl?: string;
+  targetLocations?: string[];
+}) {
+  const ctx = await loadWorkspaceContext();
+  if (!ctx?.organization?.id) {
+    return { success: false, error: "Oturum gerekli." };
+  }
+
+  try {
+    const result = await runDedicatedAiAdsManager({
+      platform: params.platform,
+      topic: params.topic,
+      productOrService: params.productOrService,
+      mediaAnalysis: params.mediaAnalysis,
+      currentDailyBudget: params.currentDailyBudget,
+      websiteUrl: params.websiteUrl || ctx.organization.website || "https://flowsales-ai-six.vercel.app",
+      targetLocations: params.targetLocations || [ctx.organization.city || "İstanbul", "Kocaeli", "Türkiye"],
+    });
+    return { success: true, result };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "AI Ads Manager analizi gerçekleştirilemedi.",
     };
   }
 }

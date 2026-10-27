@@ -568,3 +568,309 @@ SADECE geçerli JSON çıktısı üret:
     generatedAt: new Date().toISOString(),
   };
 }
+
+export type SocialStudioCategory = "post" | "reel" | "story" | "video";
+
+export type CategoryDraftGenerationParams = {
+  category: SocialStudioCategory;
+  analysis?: MediaAnalysisResult | z.input<typeof mediaAnalysisResultSchema>;
+  manualTopic?: string;
+  transcriptOrDescription?: string;
+  mediaUrls?: string[];
+  companyName?: string;
+  websiteUrl?: string;
+  targetCity?: string;
+  language?: "tr" | "en";
+  platforms?: ("instagram" | "facebook" | "youtube" | "google" | "tiktok")[];
+  verifiedCatalog?: string[];
+};
+
+export type CategoryDraftGenerationResult = {
+  category: SocialStudioCategory;
+  subjectTitle: string;
+  drafts: SocialPlatformDraft[];
+  seoKeywords: string[];
+  geoRegions: string[];
+  qualityPassed: boolean;
+  notes: string[];
+};
+
+/**
+ * Generates specialized, category-specific drafts for Post, Reels/Shorts, Story, or Video
+ * with in-depth tailoring to format constraints, character limits, and visual evidence.
+ */
+export async function generateCategorySpecificDrafts(
+  params: CategoryDraftGenerationParams,
+): Promise<CategoryDraftGenerationResult> {
+  const {
+    category,
+    manualTopic,
+    transcriptOrDescription,
+    mediaUrls = [],
+    companyName = "İzon Konteyner",
+    websiteUrl = "https://flowsales-ai-six.vercel.app",
+    targetCity = "Marmara Bölgesi",
+    verifiedCatalog = [],
+  } = params;
+
+  const rawAnalysis = params.analysis
+    ? mediaAnalysisResultSchema.parse(params.analysis)
+    : null;
+
+  const subject =
+    manualTopic?.trim() ||
+    rawAnalysis?.productOrService ||
+    rawAnalysis?.primarySubject ||
+    "Modüler Konteyner Yapı";
+
+  const visualFeatures = rawAnalysis?.visible_features?.length
+    ? rawAnalysis.visible_features
+    : rawAnalysis?.keyFeatures?.length
+    ? rawAnalysis.keyFeatures
+    : ["Yüksek ısı ve ses yalıtımı", "Galvaniz çelik şase", "Hızlı fabrika teslim"];
+
+  const detectedObjects = rawAnalysis?.detected_objects || [];
+  const primaryMediaUrl = mediaUrls[0] || "";
+
+  // 1. Build deterministic category-specific fallbacks
+  let fallbackPlacements: { platform: "instagram" | "facebook" | "youtube" | "google" | "tiktok"; placement: PlatformDraftPlacement }[] = [];
+  if (category === "post") {
+    fallbackPlacements = [
+      { platform: "instagram", placement: "feed" },
+      { platform: "facebook", placement: "feed" },
+      { platform: "google", placement: "update" },
+    ];
+  } else if (category === "reel") {
+    fallbackPlacements = [
+      { platform: "instagram", placement: "reel" },
+      { platform: "youtube", placement: "shorts" },
+    ];
+  } else if (category === "story") {
+    fallbackPlacements = [
+      { platform: "instagram", placement: "story" },
+      { platform: "facebook", placement: "story" },
+    ];
+  } else if (category === "video") {
+    fallbackPlacements = [
+      { platform: "facebook", placement: "video" },
+      { platform: "youtube", placement: "video" },
+    ];
+  }
+
+  const categoryFallbackDrafts: SocialPlatformDraft[] = fallbackPlacements.map(({ platform, placement }) => {
+    let headline = `${companyName} — ${subject}`;
+    let hook = "Modern ve fonksiyonel modüler yapı çözümlerini keşfedin!";
+    let caption = `${subject} modelimiz yüksek mühendislik ve fabrika çıkışı garantisiyle üretilmektedir. ${visualFeatures.slice(0, 3).map((f) => `• ${f}`).join(" ")}`;
+    let cta = "Detaylı bilgi ve fiyat teklifi için bizimle iletişime geçin!";
+    let tags = ["#IzonKonteyner", "#Konteyner", "#ModulerYapi"];
+    let primaryKw = `${subject.toLowerCase()} fiyatları`;
+    const secKw = ["hazır konteyner", "şantiye konteyneri"];
+    let intent: "commercial" | "transactional" | "informational" = "commercial";
+
+    if (category === "reel") {
+      headline = `${companyName} | ${subject} İncelemesi`;
+      hook = "İşte şantiyenize veya arazinize anında değer katacak modüler ünite!";
+      caption = `60 saniyede ${subject} özelliklerini inceliyoruz. ${transcriptOrDescription || "Yüksek yalıtımlı sandviç panel ve sağlam çelik profil karkas ile 4 mevsim konfor."}\n\nFiyat ve katalog linki profilde!`;
+      cta = "Detaylar için profildeki linke tıklayın veya DM atın!";
+      tags = ["#IzonKonteyner", "#KonteynerReels", "#Shorts", "#ModulerEv"];
+      primaryKw = `${subject.toLowerCase()} inceleme`;
+      intent = "informational";
+    } else if (category === "story") {
+      headline = `Günün Öne Çıkanı: ${subject}`;
+      hook = "Yeni teslimatlarımız yola çıkıyor!";
+      caption = `${subject} fabrikamızdan doğrudan teslim avantajıyla hazır. Görmek için yukarı kaydırın veya mesaj gönderin.`;
+      cta = "Mesaj gönder / Bilgi al";
+      tags = [];
+      primaryKw = `${targetCity} konteyner teslimat`;
+      intent = "transactional";
+    } else if (category === "video") {
+      headline = `${companyName} — ${subject} Kapsamlı Tanıtım ve Teknik Şartname`;
+      hook = `${subject} alırken dikkat edilmesi gereken kritik detaylar bu videoda.`;
+      caption = `Bu detaylı videomuzda ${subject} modelimizin malzeme yapısını, izolasyon standartlarını ve nakliye süreçlerini anlatıyoruz.\n\n0:00 Giriş ve Genel Görünüm\n0:45 İzolasyon ve Karkas Yapısı\n1:30 Kullanım Alanları ve Sipariş\n\nTeklif ve teknik destek için web sitemizi ziyaret edebilirsiniz.`;
+      cta = "Videoyu beğenip abone olmayı ve teklif için web sitemizi ziyaret etmeyi unutmayın!";
+      tags = ["#KonteynerRehberi", "#IzonKonteyner", "#KonteynerFiyatlari"];
+      primaryKw = `${subject.toLowerCase()} teknik özellikleri`;
+      intent = "informational";
+    } else if (platform === "google") {
+      headline = `${targetCity} Konteyner Üretimi: ${subject}`;
+      hook = `${companyName} tesislerimizden doğrudan fabrika teslimi.`;
+      caption = `${subject} yüksek mukavemetli şasesi ve fabrika garantisiyle ${targetCity} ve tüm bölgedeki müşterilerimiz için hazır. Showroom alanımızı ziyaret edebilir veya hemen teklif alabilirsiniz.`;
+      cta = "Hemen Ara / Yol Tarifi Al";
+      tags = [];
+      primaryKw = `${targetCity} konteyner satışı`;
+      intent = "transactional";
+    }
+
+    return {
+      id: crypto.randomUUID(),
+      platform,
+      placement,
+      headline,
+      hook,
+      caption,
+      cta,
+      hashtags: tags.slice(0, 5),
+      targetUrl: websiteUrl,
+      mediaUrl: primaryMediaUrl,
+      scheduledAt: null,
+      primaryKeyword: primaryKw,
+      secondaryKeywords: secKw,
+      searchIntent: intent,
+      alternativeHooks: [
+        `${subject} ile projenizi hızlandırın.`,
+        "Fabrikadan doğrudan satış ve montaj kolaylığı.",
+        "Sağlam, güvenli ve uzun ömürlü modüler yapı.",
+      ],
+      targetRegions: [targetCity],
+      unverifiedClaimsWarning: null,
+      qualityPassed: true,
+      qualityNotes: [],
+    };
+  });
+
+  // 2. Try AI generation if API is available
+  try {
+    const prompt = `Sen ${companyName} markasının uzman içerik üreticisisin.
+Aşağıdaki İÇERİK KATEGORİSİ ve MEDYA VERİSİNE göre doğrudan yayınlanmaya hazır, yüksek kaliteli ve platforma özel taslaklar üret.
+
+KATEGORİ: ${category.toUpperCase()}
+ÜRÜN / KONU: ${subject}
+DOĞRULANMIŞ GÖRSEL NESNELERİ: ${detectedObjects.join(", ") || "Belirtilmedi"}
+DOĞRULANMIŞ ÖZELLİKLER: ${visualFeatures.join(", ")}
+TRANSKRİPT / KULLANICI AÇIKLAMASI: ${transcriptOrDescription || "Mevcut değil"}
+HEDEF BÖLGE: ${targetCity}
+WEB SİTESİ: ${websiteUrl}
+KULLANILABİLİR KATALOG ÜRÜNLERİ: ${verifiedCatalog.join(", ") || "Standart konteynerler"}
+
+KATEGORİ KURALLARI:
+${category === "post" ? `
+- Instagram Feed, Facebook Feed ve Google Business Update için 3 ayrı taslak hazırla.
+- Görseldeki gerçek özellikleri temel al. Görselde olmayan uydurma iddia yazma.
+- Dosya adını ASLA metinde veya başlıkta kullanma.
+- Her taslak için EN FAZLA 5 adet hashtag koy (Instagram/Facebook). Google Business için hashtag koyma (boş liste).
+- Google Business Profile için yerel SEO (${targetCity}) ve eylem çağrısı ("Hemen Ara", "Teklif Al") ekle.
+` : category === "reel" ? `
+- Instagram Reel ve YouTube Shorts için 2 ayrı taslak hazırla.
+- İlk 3 saniyede izleyiciyi yakalayacak vurucu HOOK üret.
+- YouTube Shorts için SEO uyumlu başlık ve açıklama yaz.
+- Video formatına uygun dinamik, samimi ve harekete geçirici dil kullan.
+- EN FAZLA 5 adet hashtag koy.
+` : category === "story" ? `
+- Instagram Story ve Facebook Story için 2 ayrı taslak hazırla.
+- 9:16 dikey format için kısa, öz ve dikkat çekici metinler (1-3 kısa cümle).
+- İzleyiciyi harekete geçirecek doğal CTA ("Yukarı kaydır", "Mesaj at").
+- Sağlayıcının desteklemediği anket/quiz gibi unsurları API üzerinden destekleniyor gibi gösterme.
+- Hashtags boş liste olmalı.
+` : `
+- Facebook Video ve YouTube Video için 2 ayrı taslak hazırla.
+- YouTube için SEO odaklı başlık (örn: "Nasıl Seçilir?", "Teknik İnceleme").
+- YouTube açıklamasına zaman damgalı bölümler (0:00 Giriş vb.) ve anahtar kelimeler ekle.
+- Facebook Video için iş dünyasına ve müteahhitlere hitap eden kurumsal açıklama yaz.
+- EN FAZLA 5 adet hashtag koy.
+`}
+
+SADECE GEÇERLİ JSON ÜRET:
+{
+  "subjectTitle": "${subject}",
+  "seoKeywords": ["anahtar1", "anahtar2", "anahtar3"],
+  "geoRegions": ["${targetCity}"],
+  "drafts": [
+    {
+      "platform": "instagram",
+      "placement": "${category === "post" ? "feed" : category === "reel" ? "reel" : category === "story" ? "story" : "video"}",
+      "headline": "...",
+      "hook": "...",
+      "caption": "...",
+      "cta": "...",
+      "hashtags": ["#tag1", "#tag2", "#tag3"],
+      "primaryKeyword": "...",
+      "secondaryKeywords": ["..."],
+      "searchIntent": "commercial",
+      "alternativeHooks": ["...", "...", "..."],
+      "targetRegions": ["${targetCity}"]
+    }
+  ]
+}`;
+
+    const rawResponse = await generateText(prompt, { responseMimeType: "application/json" });
+    const parsed = JSON.parse(rawResponse);
+
+    if (parsed && Array.isArray(parsed.drafts) && parsed.drafts.length > 0) {
+      const generatedDrafts: SocialPlatformDraft[] = parsed.drafts.map((d: Record<string, unknown>) => {
+        const platform = normalizePlatform(d.platform);
+        const placement = normalizePlacement(d.placement);
+
+        const draftCandidate: SocialPlatformDraft = {
+          id: crypto.randomUUID(),
+          platform,
+          placement,
+          headline: String(d.headline || `${companyName} — ${subject}`),
+          hook: String(d.hook || "Projenize özel modüler yaşam ve çalışma alanları."),
+          caption: String(d.caption || `${companyName} güvencesiyle üretilen ${subject}.`),
+          cta: String(d.cta || "Detaylı bilgi için bizimle iletişime geçin!"),
+          hashtags: sanitizeHashtags(d.hashtags),
+          targetUrl: websiteUrl,
+          mediaUrl: primaryMediaUrl,
+          scheduledAt: null,
+          primaryKeyword: String(d.primaryKeyword || `${subject} modelleri`).toLowerCase(),
+          secondaryKeywords: Array.isArray(d.secondaryKeywords) ? d.secondaryKeywords.map(String) : [],
+          searchIntent: (d.searchIntent === "informational" || d.searchIntent === "transactional") ? d.searchIntent : "commercial",
+          alternativeHooks: Array.isArray(d.alternativeHooks) ? d.alternativeHooks.map(String) : [],
+          targetRegions: Array.isArray(d.targetRegions) ? d.targetRegions.map(String) : [targetCity],
+          unverifiedClaimsWarning: null,
+          qualityPassed: true,
+          qualityNotes: [],
+        };
+
+        if (rawAnalysis) {
+          const qg = evaluateDraftQuality(draftCandidate, rawAnalysis, { companyName, allowedRegions: [targetCity] });
+          draftCandidate.qualityPassed = qg.passed;
+          draftCandidate.qualityNotes = [...qg.issues, ...qg.warnings];
+          if (qg.warnings.some((w) => w.includes("fiyat") || w.includes("doğrulanamayan"))) {
+            draftCandidate.unverifiedClaimsWarning = "Görselden doğrulanamayan iddialar içeriyor olabilir.";
+          }
+        }
+
+        return draftCandidate;
+      });
+
+      // Merge with category fallbacks to ensure required placements exist
+      const existingKeys = new Set(generatedDrafts.map((d) => `${d.platform}:${d.placement}`));
+      const finalDrafts = [...generatedDrafts];
+      for (const fb of categoryFallbackDrafts) {
+        const key = `${fb.platform}:${fb.placement}`;
+        if (!existingKeys.has(key)) {
+          finalDrafts.push(fb);
+          existingKeys.add(key);
+        }
+      }
+
+      const distinctness = verifyCrossPlatformDistinctness(finalDrafts);
+      if (!distinctness.distinct) {
+        finalDrafts.forEach((d) => d.qualityNotes.push(...distinctness.warnings));
+      }
+
+      return {
+        category,
+        subjectTitle: parsed.subjectTitle || subject,
+        drafts: finalDrafts,
+        seoKeywords: Array.isArray(parsed.seoKeywords) ? parsed.seoKeywords : [`${subject.toLowerCase()} fiyatları`],
+        geoRegions: Array.isArray(parsed.geoRegions) ? parsed.geoRegions : [targetCity],
+        qualityPassed: finalDrafts.every((d) => d.qualityPassed),
+        notes: [],
+      };
+    }
+  } catch {
+    // Graceful fallback to deterministic category drafts
+  }
+
+  return {
+    category,
+    subjectTitle: subject,
+    drafts: categoryFallbackDrafts,
+    seoKeywords: [`${subject.toLowerCase()} modelleri`, "konteyner satışı"],
+    geoRegions: [targetCity],
+    qualityPassed: true,
+    notes: ["Deterministik yerel kural motoru ile oluşturuldu."],
+  };
+}

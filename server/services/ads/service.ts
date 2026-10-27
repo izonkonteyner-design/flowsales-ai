@@ -10,7 +10,11 @@ import {
   type AdPlatform,
   type CampaignObjective,
   type AdsDiagnosticResult,
+  type AiAdsManagerResult,
+  type AdPolicyRisk,
+  type AdCopyVariation,
 } from "./domain";
+import type { MediaAnalysisResult } from "@/server/services/media/domain";
 import { logger } from "@/lib/logger";
 
 /**
@@ -557,5 +561,353 @@ export async function executeCampaignDeployment(params: {
     success: true,
     status: "paused",
     diagnosticNote: "Kampanya güvenlik protokolü gereği PAUSED (Duraklatılmış) olarak sisteme işlendi. Reklam harcaması güvenli limitler altındadır.",
+  };
+}
+
+
+// ==========================================
+// LOOP 5: Dedicated AI Ads Manager Implementation
+// ==========================================
+
+/**
+ * Scans ad text and headlines for platform advertising policy violations
+ * (Google Ads Editorial Standards and Meta Advertising Standards).
+ */
+export function detectAdPolicyRisks(params: {
+  headlines: string[];
+  descriptions: string[];
+  primaryText?: string;
+  finalUrl?: string;
+}): AdPolicyRisk[] {
+  const risks: AdPolicyRisk[] = [];
+  const allTexts = [...params.headlines, ...params.descriptions, params.primaryText || ""];
+  const combined = allTexts.join(" ");
+
+  // 1. Check for misleading superlatives or absolute guarantees
+  const absoluteClaims = [
+    { regex: /%100\s*(?:garanti|kesin|ücretsiz)/i, claim: "%100 garanti / kesin" },
+    { regex: /\ben\s*ucuz\b/i, claim: "'en ucuz' iddiası" },
+    { regex: /\b(?:asla\s*yıkılmaz|ömürlük\s*sıfır\s*arıza)\b/i, claim: "dayanıklılık abartısı" },
+  ];
+  for (const item of absoluteClaims) {
+    if (item.regex.test(combined)) {
+      risks.push({
+        severity: "medium",
+        rule: "Google/Meta Ticari İddia ve Tüketiciyi Yanıltmama Politikası",
+        reason: `Metin içinde '${item.claim}' gibi kanıtlanması güç mutlak ifadeler bulundu.`,
+        suggestedFix: "İfadeyi 'Yüksek dayanıklılık standardı' veya 'Fabrika çıkış avantajı' ile değiştirin.",
+      });
+    }
+  }
+
+  // 2. Excessive capitalization check (e.g. 'HEMEN AL', 'DİKKAT')
+  const shoutingWords = combined.match(/\b[A-ZÇĞİÖŞÜ]{4,}\b/g) || [];
+  const filteredShouting = shoutingWords.filter(
+    (w) => !["İZON", "PVC", "HTML", "URL", "CAD", "PRO"].includes(w),
+  );
+  if (filteredShouting.length >= 2) {
+    risks.push({
+      severity: "low",
+      rule: "Google Yazım ve Dilbilgisi Kuralları (Büyük Harf Kuralı)",
+      reason: `Tamamı büyük harflerden oluşan kelimeler tespit edildi: ${filteredShouting.slice(0, 3).join(", ")}.`,
+      suggestedFix: "Sadece baş harfleri büyük yazacak şekilde metni düzenleyin.",
+    });
+  }
+
+  // 3. Landing page check
+  if (!params.finalUrl || !params.finalUrl.startsWith("https://")) {
+    risks.push({
+      severity: "high",
+      rule: "Hedef Sayfa Güvenliği Politikası",
+      reason: "Hedef URL HTTPS protokolü içermiyor veya boş.",
+      suggestedFix: "Geçerli bir https:// bağlantısı sağlayın.",
+    });
+  }
+
+  return risks;
+}
+
+/**
+ * AI Ads Manager: Specialized marketing intelligence engine responsible for
+ * analyzing ad assets, proposing campaign structure, validating character limits,
+ * generating multi-angle variations, and guarding against ad policy rejections.
+ */
+export async function runDedicatedAiAdsManager(params: {
+  platform: AdPlatform;
+  topic?: string;
+  productOrService?: string;
+  mediaAnalysis?: MediaAnalysisResult | null;
+  currentDailyBudget?: number;
+  websiteUrl?: string;
+  targetLocations?: string[];
+  historicalMetrics?: {
+    totalSpendLira?: number;
+    leadsGenerated?: number;
+    avgCplLira?: number;
+    topPerformingPlatform?: string;
+  };
+}): Promise<AiAdsManagerResult> {
+  const isGoogle = params.platform === "google_ads";
+  const finalUrl = params.websiteUrl || "https://flowsales-ai-six.vercel.app";
+  const defaultBudget = params.currentDailyBudget && params.currentDailyBudget > 0 ? params.currentDailyBudget : 250;
+  const targetLocations = params.targetLocations?.length ? params.targetLocations : ["Türkiye", "İstanbul", "Kocaeli", "Bursa"];
+
+  const visualSubject = params.mediaAnalysis?.productOrService || params.mediaAnalysis?.primarySubject || "";
+  const subject = params.topic?.trim() || visualSubject || params.productOrService || "Modüler Konteyner";
+
+  const missingInfo: string[] = [];
+  if (!params.websiteUrl) missingInfo.push("Hedef web sitesi URL'si tanımlanmadı.");
+  if (!params.mediaAnalysis && !isGoogle) missingInfo.push("Meta Ads için görsel veya video yüklenmedi; metin tabanlı taslak oluşturuluyor.");
+
+  // Determine campaign type
+  const recommendedCampaignType = isGoogle
+    ? "search"
+    : "meta_feed";
+
+  // Build standard variations
+  const searchHeadlinesVariation1 = [
+    `${subject.slice(0, 20)} Modelleri`.slice(0, 30),
+    "Fabrikadan Doğrudan Satış".slice(0, 30),
+    "Hızlı ve Güvenli Teslimat".slice(0, 30),
+    "İzon Konteyner Güvencesi".slice(0, 30),
+    "Hemen Fiyat Teklifi Alın".slice(0, 30),
+  ];
+  const searchDescriptionsVariation1 = [
+    "Depreme dayanıklı, yüksek yalıtımlı modüler yaşam ve şantiye konteynerleri.".slice(0, 90),
+    "Projenize özel üretim avantajı ve hızlı sevkiyat ile fabrikadan doğrudan teslim.".slice(0, 90),
+  ];
+
+  const searchHeadlinesVariation2 = [
+    "Yüksek Isı Yalıtımlı Yapı".slice(0, 30),
+    "Galvaniz Çelik Karkas".slice(0, 30),
+    "Şantiye Ofis Çözümleri".slice(0, 30),
+    "4 Mevsim Dayanıklı Kabin".slice(0, 30),
+    "Teknik Şartnameyi İncele".slice(0, 30),
+  ];
+  const searchDescriptionsVariation2 = [
+    "Sandviç panel duvarlar ve galvaniz şase ile ağır şantiye koşullarına tam uyum.".slice(0, 90),
+    "Hızlı kurulum, uzun ömürlü kullanım ve kurumsal satış desteği İzon Konteyner'de.".slice(0, 90),
+  ];
+
+  const searchHeadlinesVariation3 = [
+    "Aynı Gün Nakliye Planlama".slice(0, 30),
+    "Şantiye İhtiyacına Özel".slice(0, 30),
+    "Garantili Fabrika Çıkışı".slice(0, 30),
+    "Konteyner ve Prefabrik".slice(0, 30),
+    "Hemen Teklif İste".slice(0, 30),
+  ];
+  const searchDescriptionsVariation3 = [
+    "Zaman kaybetmeden şantiyenizi kurun. Uygun ödeme ve nakliye planlama imkânı.".slice(0, 90),
+    "Türkiye geneli sevkiyat ve güvenilir montaj desteği ile anahtar teslim çözümler.".slice(0, 90),
+  ];
+
+  const defaultVariations: AdCopyVariation[] = [
+    {
+      id: randomUUID(),
+      angle: "Dönüşüm & Fiyat Avantajı",
+      headlines: searchHeadlinesVariation1,
+      descriptions: searchDescriptionsVariation1,
+      primaryText: `🏗️ ${subject} arayışınızda fabrika çıkış avantajı!\n\nAracı komisyonu olmadan, doğrudan üreticiden en uygun koşullarla temin edin. Hızlı montaj ve yüksek yalıtım standardı ile projenize hemen başlayın.`,
+      callToAction: "GET_QUOTE",
+    },
+    {
+      id: randomUUID(),
+      angle: "Mühendislik & Kalite Güvencesi",
+      headlines: searchHeadlinesVariation2,
+      descriptions: searchDescriptionsVariation2,
+      primaryText: `Zorlu saha şartlarına dayanıklı ${subject} çözümleri.\n\nGalvaniz çelik karkas yapısı, taşyünü/EPS sandviç panel yalıtımı ve çift camlı PVC doğramalar ile 4 mevsim kesintisiz konfor.`,
+      callToAction: "LEARN_MORE",
+    },
+    {
+      id: randomUUID(),
+      angle: "Hızlı Termin & Şantiye Çözümü",
+      headlines: searchHeadlinesVariation3,
+      descriptions: searchDescriptionsVariation3,
+      primaryText: `Şantiyeniz için vakit kaybetmeyin! ${subject} hazır stoktan aynı gün sevkiyat planlaması ile kapınızda.`,
+      callToAction: "CONTACT_US",
+    },
+  ];
+
+  const negativeKeywords = [
+    "bedava",
+    "ücretsiz",
+    "staj",
+    "iş ilanları",
+    "ikinci el hurda",
+    "sahibinden ücretsiz",
+    "kiralık arsa",
+  ];
+
+  const optimizationAdvice: string[] = [
+    "Negatif anahtar kelimeler eklenerek bütçenin iş arayan veya hurda arayan kullanıcılar tarafından tüketilmesi engellendi.",
+    "Arama reklamlarında başlıklar 30 karakter, açıklamalar 90 karakter sınırına tam uyumlu hale getirildi.",
+    "Kampanya lansmanı sonrasında 50 dönüşüm verisi toplanana kadar teklif stratejisi 'Dönüşümleri Artırma (Maximize Conversions)' olarak önerilir.",
+  ];
+
+  if (params.historicalMetrics?.avgCplLira && params.historicalMetrics.avgCplLira > 150) {
+    optimizationAdvice.push(`Mevcut CPL (${params.historicalMetrics.avgCplLira} TL) hedef eşiğin üzerinde; coğrafi hedeflemeyi yalnızca yüksek dönüşümlü sanayi bölgelerine daraltmanız önerilir.`);
+  }
+
+  // Try real Gemini AI generation with fallback
+  try {
+    const aiPrompt = `Sen profesyonel Google Ads ve Meta Ads Yapay Zeka Yöneticisisin (AI Ads Manager).
+Kullanıcının reklam kampanyasını yapılandır.
+
+PLATFORM: ${params.platform}
+KONU / ÜRÜN: ${subject}
+HEDEF BÖLGELER: ${targetLocations.join(", ")}
+BÜTÇE: ${defaultBudget} TRY / gün
+GÖRSEL ANALİZ: ${params.mediaAnalysis ? JSON.stringify(params.mediaAnalysis.detected_objects) : "Görsel yok"}
+
+KURALLAR:
+1. Google Search Headlines: HER BİRİ KESİNLİKLE EN FAZLA 30 KARAKTER OLMALIDIR!
+2. Google Search Descriptions: HER BİRİ KESİNLİKLE EN FAZLA 90 KARAKTER OLMALIDIR!
+3. Negatif Anahtar Kelimeler: En az 5 adet alakasız terim.
+4. Meta Ads: 2-3 paragraflık dönüşüm odaklı primaryText ve dikkat çekici headline.
+5. Reklam politikası risklerini değerlendir (%100 garanti gibi abartılardan kaçın).
+6. 3 farklı metin varyasyonu üret (Fiyat/Hız, Kalite/Mühendislik, Şantiye/Operasyon).
+
+SADECE GEÇERLİ JSON ÜRET:
+{
+  "campaignName": "${isGoogle ? "Google Search" : "Meta Feed"} - ${subject.slice(0, 30)}",
+  "recommendedCampaignType": "${recommendedCampaignType}",
+  "recommendedObjective": "lead_generation",
+  "recommendedDailyBudget": ${defaultBudget},
+  "searchAssets": {
+    "headlines": ["...", "...", "..."],
+    "descriptions": ["...", "..."],
+    "keywords": ["...", "..."],
+    "negativeKeywords": ["bedava", "staj", "iş ilanları", "hurda"]
+  },
+  "metaCreative": {
+    "primaryText": "...",
+    "headlines": ["..."],
+    "descriptions": ["..."],
+    "callToAction": "GET_QUOTE"
+  },
+  "targetAudience": {
+    "locations": ${JSON.stringify(targetLocations)},
+    "languages": ["tr"],
+    "ageRange": [25, 60],
+    "interests": ["İnşaat", "Prefabrik", "Mimarlık", "Şantiye"],
+    "rationale": "Modüler yapı ve şantiye ihtiyacı olan kurumsal ve bireysel alıcılar."
+  },
+  "variations": [
+    {
+      "id": "var-1",
+      "angle": "Dönüşüm / Fiyat Avantajı",
+      "headlines": ["..."],
+      "descriptions": ["..."],
+      "primaryText": "...",
+      "callToAction": "GET_QUOTE"
+    }
+  ]
+}`;
+
+    const rawResponse = await generateText(aiPrompt, { responseMimeType: "application/json" });
+    const parsed = JSON.parse(rawResponse);
+
+    if (parsed && (parsed.searchAssets || parsed.metaCreative)) {
+      const sanitizedHeadlines = Array.isArray(parsed.searchAssets?.headlines)
+        ? parsed.searchAssets.headlines.map((h: string) => String(h).trim().slice(0, 30))
+        : searchHeadlinesVariation1;
+
+      const sanitizedDescriptions = Array.isArray(parsed.searchAssets?.descriptions)
+        ? parsed.searchAssets.descriptions.map((d: string) => String(d).trim().slice(0, 90))
+        : searchDescriptionsVariation1;
+
+      const policyRisks = detectAdPolicyRisks({
+        headlines: sanitizedHeadlines,
+        descriptions: sanitizedDescriptions,
+        primaryText: parsed.metaCreative?.primaryText || defaultVariations[0].primaryText,
+        finalUrl,
+      });
+
+      const parsedVariations: AdCopyVariation[] = Array.isArray(parsed.variations) && parsed.variations.length > 0
+        ? parsed.variations.map((v: Record<string, unknown>, idx: number) => ({
+            id: typeof v.id === "string" ? v.id : `var-${idx + 1}`,
+            angle: String(v.angle || `Varyasyon ${idx + 1}`),
+            headlines: Array.isArray(v.headlines) ? v.headlines.map((h: string) => String(h).slice(0, 30)) : searchHeadlinesVariation1,
+            descriptions: Array.isArray(v.descriptions) ? v.descriptions.map((d: string) => String(d).slice(0, 90)) : searchDescriptionsVariation1,
+            primaryText: String(v.primaryText || defaultVariations[0].primaryText),
+            callToAction: String(v.callToAction || "GET_QUOTE"),
+          }))
+        : defaultVariations;
+
+      return {
+        platform: params.platform,
+        recommendedCampaignType,
+        recommendedObjective: parsed.recommendedObjective || "lead_generation",
+        campaignName: parsed.campaignName || `${isGoogle ? "Google Search" : "Meta Feed"} - ${subject}`,
+        recommendedDailyBudget: parsed.recommendedDailyBudget || defaultBudget,
+        currency: "TRY",
+        targetAudience: {
+          locations: Array.isArray(parsed.targetAudience?.locations) ? parsed.targetAudience.locations : targetLocations,
+          languages: ["tr"],
+          ageRange: [25, 60],
+          interests: Array.isArray(parsed.targetAudience?.interests) ? parsed.targetAudience.interests : ["İnşaat", "Prefabrik"],
+          rationale: parsed.targetAudience?.rationale || "Bölgedeki aktif müteahhit ve arsa sahipleri.",
+        },
+        searchAssets: {
+          headlines: sanitizedHeadlines,
+          descriptions: sanitizedDescriptions,
+          keywords: Array.isArray(parsed.searchAssets?.keywords) ? parsed.searchAssets.keywords : [`${subject.toLowerCase()} fiyatları`, "konteyner satışı"],
+          negativeKeywords: Array.isArray(parsed.searchAssets?.negativeKeywords) ? parsed.searchAssets.negativeKeywords : negativeKeywords,
+        },
+        metaCreative: {
+          primaryText: parsed.metaCreative?.primaryText || defaultVariations[0].primaryText,
+          headlines: Array.isArray(parsed.metaCreative?.headlines) ? parsed.metaCreative.headlines : [subject],
+          descriptions: Array.isArray(parsed.metaCreative?.descriptions) ? parsed.metaCreative.descriptions : ["Fabrikadan doğrudan satış güvencesi."],
+          callToAction: parsed.metaCreative?.callToAction || "GET_QUOTE",
+        },
+        variations: parsedVariations,
+        policyRisks,
+        missingInfo,
+        optimizationAdvice,
+        visualAnalysisSummary: params.mediaAnalysis?.visual_description,
+      };
+    }
+  } catch {
+    // Graceful fallback
+  }
+
+  const fallbackPolicyRisks = detectAdPolicyRisks({
+    headlines: searchHeadlinesVariation1,
+    descriptions: searchDescriptionsVariation1,
+    primaryText: defaultVariations[0].primaryText,
+    finalUrl,
+  });
+
+  return {
+    platform: params.platform,
+    recommendedCampaignType,
+    recommendedObjective: "lead_generation",
+    campaignName: `${isGoogle ? "Google Search" : "Meta Feed"} - ${subject}`,
+    recommendedDailyBudget: defaultBudget,
+    currency: "TRY",
+    targetAudience: {
+      locations: targetLocations,
+      languages: ["tr"],
+      ageRange: [25, 60],
+      interests: ["İnşaat", "Prefabrik", "Mimarlık", "Şantiye"],
+      rationale: "Şantiye kuran firmalar, müteahhitler ve bahçe sahipleri.",
+    },
+    searchAssets: {
+      headlines: searchHeadlinesVariation1,
+      descriptions: searchDescriptionsVariation1,
+      keywords: [`${subject.toLowerCase()} fiyatları`, `${subject.toLowerCase()} modelleri`, "şantiye konteyneri"],
+      negativeKeywords,
+    },
+    metaCreative: {
+      primaryText: defaultVariations[0].primaryText,
+      headlines: [`${subject} Modelleri`, "Fabrikadan Doğrudan Teslimat"],
+      descriptions: ["Dayanıklı şase ve yüksek izolasyon standardı."],
+      callToAction: "GET_QUOTE",
+    },
+    variations: defaultVariations,
+    policyRisks: fallbackPolicyRisks,
+    missingInfo,
+    optimizationAdvice,
+    visualAnalysisSummary: params.mediaAnalysis?.visual_description,
   };
 }

@@ -27,8 +27,9 @@ import {
 } from "@/server/services/creative/pipeline";
 import {
   uploadMarketingMediaAsset,
+  reanalyzeMarketingMediaAsset,
 } from "@/server/services/media/service";
-import type { MediaAnalysisResult } from "@/server/services/media/domain";
+import type { MediaAnalysisResult, ManualMediaInput } from "@/server/services/media/domain";
 import {
   generateMultiplatformSocialDrafts,
 } from "@/server/services/social/engine";
@@ -278,6 +279,26 @@ export async function uploadMarketingMediaAction(formData: FormData) {
     return { success: false, error: "Geçerli bir medya dosyası seçilmedi." };
   }
 
+  // Parse optional manual product information
+  const manualProductOrService = formData.get("manualProductOrService")?.toString()?.trim();
+  const manualCategory = formData.get("manualCategory")?.toString()?.trim();
+  const manualFeaturesRaw = formData.get("manualFeatures")?.toString()?.trim();
+  const manualTargetCity = formData.get("manualTargetCity")?.toString()?.trim();
+  const manualTargetAudience = formData.get("manualTargetAudience")?.toString()?.trim();
+
+  const manualInput: ManualMediaInput | undefined =
+    manualProductOrService || manualCategory || manualFeaturesRaw
+      ? {
+          productOrService: manualProductOrService,
+          productCategory: manualCategory,
+          features: manualFeaturesRaw
+            ? manualFeaturesRaw.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean)
+            : undefined,
+          targetCity: manualTargetCity,
+          targetAudience: manualTargetAudience,
+        }
+      : undefined;
+
   try {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -289,6 +310,7 @@ export async function uploadMarketingMediaAction(formData: FormData) {
       fileName: file.name,
       fileType: file.type,
       fileSizeBytes: file.size,
+      manualInput,
     });
 
     revalidatePath("/social");
@@ -302,6 +324,39 @@ export async function uploadMarketingMediaAction(formData: FormData) {
 }
 
 /**
+ * Re-analyzes an existing marketing media asset with optional manual inputs.
+ */
+export async function reanalyzeMarketingMediaAction(params: {
+  assetId: string;
+  manualInput?: ManualMediaInput;
+}) {
+  const ctx = await loadWorkspaceContext();
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Yetkisiz işlem veya demo ortamında analiz tekrarlanamaz." };
+  }
+
+  try {
+    const asset = await reanalyzeMarketingMediaAsset({
+      assetId: params.assetId,
+      organizationId: ctx.organization.id,
+      manualInput: params.manualInput,
+    });
+
+    if (!asset) {
+      return { success: false, error: "Medya kaydı bulunamadı." };
+    }
+
+    revalidatePath("/social");
+    return { success: true, asset };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Görsel analizi tekrarlanamadı.",
+    };
+  }
+}
+
+/**
  * Generates tailored drafts for all platforms based on media analysis.
  */
 export async function generateMultiplatformSocialDraftsAction(params: {
@@ -310,19 +365,40 @@ export async function generateMultiplatformSocialDraftsAction(params: {
   companyName?: string;
   websiteUrl?: string;
   language?: "tr" | "en";
+  targetCity?: string;
 }) {
   const ctx = await loadWorkspaceContext();
   if (!ctx?.organization?.id) {
     return { success: false, error: "Oturum gerekli." };
   }
 
+  // Fetch verified products for context
+  const admin = createSupabaseAdminClient();
+  let verifiedCatalog: string[] = [];
+  try {
+    const { data: prods } = await admin
+      .from("products")
+      .select("name")
+      .eq("organization_id", ctx.organization.id)
+      .limit(10);
+    if (prods && prods.length > 0) {
+      verifiedCatalog = prods.map((p) => p.name).filter(Boolean);
+    }
+  } catch {
+    verifiedCatalog = [];
+  }
+
+  const targetCity = params.targetCity || ctx.organization.city || "Marmara Bölgesi";
+
   try {
     const campaignDraft = await generateMultiplatformSocialDrafts({
       analysis: params.analysis,
       mediaUrl: params.mediaUrl,
       companyName: params.companyName || ctx.organization.name,
-      websiteUrl: params.websiteUrl,
+      websiteUrl: params.websiteUrl || ctx.organization.website || "https://flowsales-ai-six.vercel.app",
       language: params.language,
+      targetCity,
+      verifiedCatalog,
     });
     return { success: true, campaignDraft };
   } catch (err) {

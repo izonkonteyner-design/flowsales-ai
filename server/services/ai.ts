@@ -25,7 +25,7 @@ export function getAiProvider(): AiProvider {
 }
 
 function readGeminiConfig(): GeminiConfig {
-  const apiKey = process.env.GEMINI_API_KEY?.trim() ?? "";
+  const apiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || "";
   const model = getGeminiModel();
 
   if (!apiKey) {
@@ -48,7 +48,7 @@ export function getDefaultGeminiModel() {
 }
 
 export function hasGeminiConfig() {
-  return Boolean(process.env.GEMINI_API_KEY?.trim());
+  return Boolean(process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim());
 }
 
 export function hasOllamaConfig() {

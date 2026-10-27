@@ -13,10 +13,55 @@ export const MAX_VIDEO_DURATION_SECONDS = 600; // 10 minutes
 export const mediaKindSchema = z.enum(["image", "video"]);
 export type MediaKind = z.infer<typeof mediaKindSchema>;
 
-export const mediaAnalysisStatusSchema = z.enum(["pending", "completed", "fallback", "failed"]);
+export const mediaAnalysisStatusEnum = z.enum([
+  "ANALYZED",
+  "NEEDS_INPUT",
+  "RATE_LIMITED",
+  "PROVIDER_UNAVAILABLE",
+  "FAILED",
+]);
+export type MediaAnalysisStructuredStatus = z.infer<typeof mediaAnalysisStatusEnum>;
+
+export const mediaAnalysisStatusSchema = z.enum([
+  "pending",
+  "completed",
+  "fallback",
+  "failed",
+  "ANALYZED",
+  "NEEDS_INPUT",
+  "RATE_LIMITED",
+  "PROVIDER_UNAVAILABLE",
+  "FAILED",
+]);
 export type MediaAnalysisStatus = z.infer<typeof mediaAnalysisStatusSchema>;
 
+export const manualMediaInputSchema = z.object({
+  productOrService: z.string().optional(),
+  productCategory: z.string().optional(),
+  features: z.array(z.string()).optional(),
+  targetCity: z.string().optional(),
+  targetAudience: z.string().optional(),
+  marketingAngle: z.string().optional(),
+  notes: z.string().optional(),
+});
+export type ManualMediaInput = z.infer<typeof manualMediaInputSchema>;
+
 export const mediaAnalysisResultSchema = z.object({
+  // Section 2: Structured Visual Analysis Attributes
+  detected_objects: z.array(z.string()).default([]),
+  visual_description: z.string().default(""),
+  product_category: z.string().default(""),
+  visible_features: z.array(z.string()).default([]),
+  visible_text: z.array(z.string()).default([]),
+  possible_use_cases: z.array(z.string()).default([]),
+  confidence: z.number().min(0).max(1).default(0),
+  unknown_or_unverified_details: z.array(z.string()).default([]),
+  analysis_provider: z.enum(["gemini", "ollama", "manual", "none"]).default("gemini"),
+  analysis_model: z.string().default(""),
+  analysis_status: mediaAnalysisStatusEnum.default("ANALYZED"),
+  analyzed_at: z.string().default(() => new Date().toISOString()),
+
+  // Backwards compatibility / convenience fields for existing consumers
   productOrService: z.string().default("İzon Konteyner Ürünleri"),
   primarySubject: z.string().default("Modüler Yaşam ve Çalışma Alanı"),
   detectedTheme: z.string().default("Endüstriyel Üretim ve Yüksek Kalite"),

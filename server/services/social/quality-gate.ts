@@ -30,7 +30,7 @@ const RAW_FILE_NAME_REGEX = /\b(?:IMG_\d+|DSC_\d+|PXL_\d+|WhatsApp_Image|\w+\.(?
 export function evaluateDraftQuality(
   draft: SocialPlatformDraft,
   analysis: MediaAnalysisResult,
-  _options: QualityGateOptions = {}
+  options: QualityGateOptions = {}
 ): QualityGateResult {
   const issues: string[] = [];
   const warnings: string[] = [];
@@ -39,6 +39,10 @@ export function evaluateDraftQuality(
   const captionLower = (draft.caption || "").toLowerCase();
   const headlineLower = (draft.headline || "").toLowerCase();
   const combinedText = `${headlineLower} ${captionLower}`;
+
+  if (options.companyName && !combinedText.includes(options.companyName.toLowerCase())) {
+    warnings.push(`${options.companyName} marka adı metinde doğrudan yer almıyor.`);
+  }
 
   // 1. Guard against raw file names leaking into customer-facing copy
   if (RAW_FILE_NAME_REGEX.test(draft.headline) || RAW_FILE_NAME_REGEX.test(draft.caption)) {

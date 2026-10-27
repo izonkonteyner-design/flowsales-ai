@@ -2,7 +2,10 @@ import "server-only";
 
 import { z } from "zod";
 import { generateText } from "@/server/services/ai";
-import type { MediaAnalysisResult } from "@/server/services/media/domain";
+import {
+  type MediaAnalysisResult,
+  mediaAnalysisResultSchema,
+} from "@/server/services/media/domain";
 import { evaluateDraftQuality, verifyCrossPlatformDistinctness } from "./quality-gate";
 
 export const platformDraftPlacementSchema = z.enum([
@@ -332,7 +335,7 @@ function buildFallbackDrafts(
  * combining real visual analysis, company profile, verified locations, and SEO/GEO keywords.
  */
 export async function generateMultiplatformSocialDrafts(params: {
-  analysis: MediaAnalysisResult;
+  analysis: MediaAnalysisResult | z.input<typeof mediaAnalysisResultSchema>;
   mediaUrl?: string;
   companyName?: string;
   websiteUrl?: string;
@@ -341,8 +344,8 @@ export async function generateMultiplatformSocialDrafts(params: {
   verifiedCatalog?: string[];
 }): Promise<MultiplatformSocialCampaignDraft> {
   const isEn = params.language === "en";
+  const analysis = mediaAnalysisResultSchema.parse(params.analysis);
   const {
-    analysis,
     mediaUrl = "",
     companyName = "İzon Konteyner",
     websiteUrl = "https://flowsales-ai-six.vercel.app",

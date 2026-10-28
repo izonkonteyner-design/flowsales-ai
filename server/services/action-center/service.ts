@@ -131,9 +131,30 @@ export async function decideAiActionProposal(
     organizationId: string;
     decision: "approved" | "rejected" | "dismissed";
     userId?: string;
+    userRole?: string;
     decisionNote?: string;
   }
 ): Promise<AiActionProposalRecord> {
+  const { data: existing, error: fetchErr } = await supabase
+    .from("ai_action_proposals")
+    .select("*")
+    .eq("id", params.proposalId)
+    .eq("organization_id", params.organizationId)
+    .maybeSingle();
+
+  if (fetchErr || !existing) {
+    throw new Error(`Proposal not found: ${params.proposalId}`);
+  }
+
+  if (existing.status === "executed") {
+    throw new Error("Cannot decide an already executed proposal.");
+  }
+
+  // RBAC validation: If proposal requires admin privileges, non-admin users cannot decide
+  if (existing.required_role === "admin" && params.userRole && !["admin", "owner"].includes(params.userRole)) {
+    throw new Error("Insufficient role: this proposal requires admin role to decide.");
+  }
+
   const nextStatus = params.decision === "approved" ? "approved" : params.decision;
 
   const { data, error } = await supabase
@@ -152,6 +173,60 @@ export async function decideAiActionProposal(
 
   if (error || !data) {
     throw new Error(`Failed to update proposal decision: ${error?.message || "Proposal not found"}`);
+  }
+
+  return mapDbRecordToProposal(data);
+}
+
+/**
+ * Executes an approved AI action proposal.
+ * STRICT: Only proposals in "approved" status can be executed.
+ */
+export async function executeAiActionProposal(
+  supabase: SupabaseClient,
+  params: {
+    proposalId: string;
+    organizationId: string;
+    userId?: string;
+    userRole?: string;
+    executionResult?: Record<string, unknown>;
+  }
+): Promise<AiActionProposalRecord> {
+  const { data: existing, error: fetchErr } = await supabase
+    .from("ai_action_proposals")
+    .select("*")
+    .eq("id", params.proposalId)
+    .eq("organization_id", params.organizationId)
+    .maybeSingle();
+
+  if (fetchErr || !existing) {
+    throw new Error(`Proposal not found: ${params.proposalId}`);
+  }
+
+  if (existing.status !== "approved") {
+    throw new Error(`Only approved proposals can be executed. Current status: ${existing.status}`);
+  }
+
+  // RBAC validation
+  if (existing.required_role === "admin" && params.userRole && !["admin", "owner"].includes(params.userRole)) {
+    throw new Error("Insufficient role: proposal requires admin privileges to execute.");
+  }
+
+  const { data, error } = await supabase
+    .from("ai_action_proposals")
+    .update({
+      status: "executed",
+      executed_at: new Date().toISOString(),
+      execution_result: params.executionResult ?? { executedBy: params.userId ?? "system", success: true },
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", params.proposalId)
+    .eq("organization_id", params.organizationId)
+    .select()
+    .single();
+
+  if (error || !data) {
+    throw new Error(`Failed to execute AI action proposal: ${error?.message || "Unknown error"}`);
   }
 
   return mapDbRecordToProposal(data);

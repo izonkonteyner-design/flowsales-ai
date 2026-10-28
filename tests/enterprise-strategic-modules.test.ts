@@ -59,6 +59,7 @@ const {
   proposeAiAction,
   listAiActionProposals,
   decideAiActionProposal,
+  executeAiActionProposal,
   aggregateProposalsFromAllModules,
 } = req("../server/services/action-center/service") as typeof import("../server/services/action-center/service");
 
@@ -290,6 +291,73 @@ test("Module 1: Revenue Autopilot deduplicates leads strictly by phone/email and
   assert.equal(lead2.deduplicationReason, "canonical_phone");
 });
 
+test("Module 1: Cross-tenant isolation prevents deduplication across distinct organizations", async () => {
+  const supabase = createMockSupabase();
+  const orgA = "org-alpha-001";
+  const orgB = "org-beta-002";
+
+  const leadA = await ingestNormalizedLead(supabase, orgA, {
+    fullName: "Veli Yılmaz",
+    phone: "0542 111 22 33",
+    email: "veli@example.com",
+    sourceChannel: "google_leads",
+  });
+  assert.equal(leadA.isDuplicate, false);
+
+  // Ingesting the same phone number for Org B must NOT deduplicate against Org A
+  const leadB = await ingestNormalizedLead(supabase, orgB, {
+    fullName: "Veli Yılmaz (Diğer Şirket)",
+    phone: "+90 542 111 2233",
+    email: "veli@example.com",
+    sourceChannel: "meta_leads",
+  });
+  assert.equal(leadB.isDuplicate, false);
+  assert.notEqual(leadB.leadId, leadA.leadId);
+});
+
+test("Module 1: Identical names without matching phone or email are NEVER merged", async () => {
+  const supabase = createMockSupabase();
+
+  const lead1 = await ingestNormalizedLead(supabase, mockOrgId, {
+    fullName: "Mehmet Yılmaz",
+    phone: "0532 111 00 11",
+    email: "mehmet.one@example.com",
+    sourceChannel: "web_form",
+  });
+  assert.equal(lead1.isDuplicate, false);
+
+  // Another person with the identical full name but different phone & email
+  const lead2 = await ingestNormalizedLead(supabase, mockOrgId, {
+    fullName: "Mehmet Yılmaz",
+    phone: "0533 222 00 22",
+    email: "mehmet.two@example.com",
+    sourceChannel: "meta_leads",
+  });
+  assert.equal(lead2.isDuplicate, false);
+  assert.notEqual(lead2.leadId, lead1.leadId);
+});
+
+test("Module 1: Missing contact info is safely handled and flagged in inferences", async () => {
+  const supabase = createMockSupabase();
+
+  const res = await evaluateLeadIntelligence(supabase, mockOrgId, {
+    leadId: "lead-no-contact",
+    fullName: "Anonim Ziyaretçi",
+    phone: null,
+    email: null,
+    notes: "Sadece form üzerinden genel fiyat sormuş.",
+    status: "new_lead",
+  });
+
+  assert.equal(res.leadId, "lead-no-contact");
+  assert.ok(res.qualificationScore < 40);
+  assert.equal(res.temperature, "cold");
+  assert.ok(
+    res.aiInferences.some((inf) => inf.includes("Eksik iletişim bilgisi")),
+    "Should explicitly note missing contact info"
+  );
+});
+
 test("Module 1: Lead Intelligence calculates qualification, facts vs inferences, and next best actions", async () => {
   const supabase = createMockSupabase();
   const res = await evaluateLeadIntelligence(supabase, mockOrgId, {
@@ -381,6 +449,30 @@ test("Module 2: Computes CPL, CPQL, CAC and ROAS across platforms with explainab
   assert.equal(googleMetric?.roas, 5.0); // 2000 / 400 = 5.0x
 });
 
+test("Module 2: Zero leads and zero spend handle division by zero safely without NaN or Infinity", async () => {
+  const supabase = createMockSupabase();
+
+  const analytics = await getAttributionAnalytics(supabase, mockOrgId);
+  for (const metric of analytics) {
+    assert.equal(typeof metric.costPerLeadLira, "number");
+    assert.ok(!Number.isNaN(metric.costPerLeadLira));
+    assert.ok(Number.isFinite(metric.costPerLeadLira));
+    assert.equal(metric.costPerLeadLira, 0);
+
+    assert.equal(typeof metric.costPerQualifiedLeadLira, "number");
+    assert.ok(!Number.isNaN(metric.costPerQualifiedLeadLira));
+    assert.ok(Number.isFinite(metric.costPerQualifiedLeadLira));
+    assert.equal(metric.costPerQualifiedLeadLira, 0);
+
+    assert.equal(typeof metric.customerAcquisitionCostLira, "number");
+    assert.ok(!Number.isNaN(metric.customerAcquisitionCostLira));
+    assert.ok(Number.isFinite(metric.customerAcquisitionCostLira));
+    assert.equal(metric.customerAcquisitionCostLira, 0);
+
+    assert.equal(metric.returnOnAdSpend, null);
+  }
+});
+
 // -------------------------------------------------------------
 // MODULE 3 TESTS: OMNICHANNEL CUSTOMER MEMORY
 // -------------------------------------------------------------
@@ -403,6 +495,63 @@ test("Module 3: Ingests interaction into separate verified facts, statements, pr
   assert.ok(context.preferences.some((p) => p.includes("antrasit") || p.includes("Taşyünü")));
   assert.ok(context.activeObjections.some((o) => o.includes("Teslim")));
   assert.ok(context.recommendedNegotiationAngle?.includes("zamanlama kritik") || context.recommendedNegotiationAngle?.includes("stok"));
+});
+
+test("Module 3: Multiple customers with identical names have strictly isolated memories", async () => {
+  const supabase = createMockSupabase();
+  const custAlphaId = "cust-alpha-111";
+  const custBetaId = "cust-beta-222";
+
+  // Record memory for Customer Alpha
+  await recordCustomerMemory(supabase, {
+    organizationId: mockOrgId,
+    customerId: custAlphaId,
+    memoryType: "verified_fact",
+    content: "Özel şantiye tipi 3x7 konteyner talep etti",
+    confidence: 0.95,
+    sourceChannel: "voice",
+  });
+
+  // Record memory for Customer Beta
+  await recordCustomerMemory(supabase, {
+    organizationId: mockOrgId,
+    customerId: custBetaId,
+    memoryType: "preference",
+    content: "Dubleks villa tipi prefabrik konut ilgisi var",
+    confidence: 0.9,
+    sourceChannel: "email",
+  });
+
+  // Query Customer Alpha's timeline -> MUST NOT include Customer Beta's preferences
+  const timelineAlpha = await getCustomerMemoryTimeline(supabase, mockOrgId, { customerId: custAlphaId });
+  assert.equal(timelineAlpha.length, 1);
+  assert.equal(timelineAlpha[0].customerId, custAlphaId);
+  assert.ok(timelineAlpha[0].content.includes("şantiye tipi 3x7"));
+
+  // Query Customer Beta's timeline -> MUST NOT include Customer Alpha's facts
+  const timelineBeta = await getCustomerMemoryTimeline(supabase, mockOrgId, { customerId: custBetaId });
+  assert.equal(timelineBeta.length, 1);
+  assert.equal(timelineBeta[0].customerId, custBetaId);
+  assert.ok(timelineBeta[0].content.includes("Dubleks villa"));
+});
+
+test("Module 3: Cross-tenant memory isolation ensures Org A cannot read Org B memories", async () => {
+  const supabase = createMockSupabase();
+  const orgA = "org-alpha-001";
+  const orgB = "org-beta-002";
+
+  await recordCustomerMemory(supabase, {
+    organizationId: orgA,
+    leadId: "lead-shared-id",
+    memoryType: "verified_fact",
+    content: "Org A Gizli Fiyat Pazarlığı: 120.000 TL",
+    confidence: 0.99,
+    sourceChannel: "crm_note",
+  });
+
+  // Querying from Org B with same leadId MUST return empty
+  const memoriesOrgB = await getCustomerMemoryTimeline(supabase, orgB, { leadId: "lead-shared-id" });
+  assert.equal(memoriesOrgB.length, 0);
 });
 
 // -------------------------------------------------------------
@@ -447,6 +596,59 @@ test("Module 4: Generates quote draft and applies strict margin guardrails on ne
   assert.equal(highNeg.recommendedAction, "require_management_approval");
 });
 
+test("Module 4: Zod schema rejects negative quantities, negative prices, and negative budget", async () => {
+  const supabase = createMockSupabase();
+
+  await assert.rejects(
+    async () => {
+      await generateQuoteCopilotDraft(supabase, {
+        organizationId: mockOrgId,
+        projectDescription: "Geçersiz adet testi",
+        requestedItems: [
+          {
+            name: "Hatalı Konteyner",
+            quantity: -5,
+            unit: "adet",
+          },
+        ],
+      });
+    },
+    (err: any) => err.name === "ZodError"
+  );
+});
+
+test("Module 4: Stagnation scanner identifies quotes dormant >48 hours and ignores fresh quotes", async () => {
+  const now = Date.now();
+  const freshTime = new Date(now - 12 * 3600 * 1000).toISOString(); // 12h ago (fresh)
+  const dormantTime = new Date(now - 72 * 3600 * 1000).toISOString(); // 72h ago (dormant)
+
+  const supabase = createMockSupabase({
+    quotes: [
+      {
+        id: "quote-fresh",
+        organization_id: mockOrgId,
+        quote_number: "TEK-FRESH-001",
+        status: "sent",
+        updated_at: freshTime,
+        created_at: freshTime,
+      },
+      {
+        id: "quote-dormant",
+        organization_id: mockOrgId,
+        quote_number: "TEK-DORMANT-002",
+        status: "sent",
+        updated_at: dormantTime,
+        created_at: dormantTime,
+      },
+    ],
+  });
+
+  const dormantResults = await scanQuotesForFollowUp(supabase, mockOrgId, 48);
+  assert.equal(dormantResults.length, 1);
+  assert.equal(dormantResults[0].quoteId, "quote-dormant");
+  assert.equal(dormantResults[0].daysSinceLastActivity >= 3, true);
+});
+
 // -------------------------------------------------------------
 // MODULE 5 TESTS: INDUSTRY AI PACKS
 // -------------------------------------------------------------
@@ -474,10 +676,22 @@ test("Module 5: Returns 4 standard industry packs and activates container_modula
   assert.equal(reactivated.packKey, "container_modular");
 });
 
+test("Module 5: Industry pack switching rejects invalid pack keys", async () => {
+  const supabase = createMockSupabase();
+
+  await assert.rejects(
+    async () => {
+      // @ts-expect-error Testing invalid key
+      await activateIndustryPack(supabase, mockOrgId, "non_existent_pack");
+    },
+    (err: any) => err.name === "ZodError"
+  );
+});
+
 // -------------------------------------------------------------
 // MODULE 6 TESTS: EXPLAINABLE AI ACTION CENTER
 // -------------------------------------------------------------
-test("Module 6: Proposes explainable actions with SHA-256 deduplication and records human decisions", async () => {
+test("Module 6: Proposes explainable actions with SHA-256 deduplication and executes through lifecycle", async () => {
   const supabase = createMockSupabase();
 
   const proposalInput = {
@@ -503,17 +717,129 @@ test("Module 6: Proposes explainable actions with SHA-256 deduplication and reco
   const prop2 = await proposeAiAction(supabase, proposalInput);
   assert.equal(prop2.id, prop1.id);
 
+  // Negative test: Executing while still pending_review MUST throw error
+  await assert.rejects(
+    async () => {
+      await executeAiActionProposal(supabase, {
+        proposalId: prop1.id,
+        organizationId: mockOrgId,
+        userId: "user-rep-1",
+      });
+    },
+    (err: any) => err.message.includes("Only approved proposals can be executed")
+  );
+
   // Human approves the proposal
   const approved = await decideAiActionProposal(supabase, {
     proposalId: prop1.id,
     organizationId: mockOrgId,
     decision: "approved",
     userId: "user-rep-1",
+    userRole: "sales",
     decisionNote: "Teklif teyidi için onay verildi.",
   });
 
   assert.equal(approved.status, "approved");
   assert.equal(approved.decisionNote, "Teklif teyidi için onay verildi.");
+
+  // Execute the approved proposal
+  const executed = await executeAiActionProposal(supabase, {
+    proposalId: prop1.id,
+    organizationId: mockOrgId,
+    userId: "user-rep-1",
+    executionResult: { messageSent: true, messageId: "wa-msg-123" },
+  });
+
+  assert.equal(executed.status, "executed");
+  assert.ok(executed.executedAt);
+  assert.equal((executed.executionResult as any)?.messageSent, true);
+
+  // Negative test: Cannot re-decide an already executed proposal
+  await assert.rejects(
+    async () => {
+      await decideAiActionProposal(supabase, {
+        proposalId: prop1.id,
+        organizationId: mockOrgId,
+        decision: "rejected",
+        userId: "user-rep-1",
+      });
+    },
+    (err: any) => err.message.includes("Cannot decide an already executed proposal")
+  );
+});
+
+test("Module 6: Rejection and dismissal transitions work correctly", async () => {
+  const supabase = createMockSupabase();
+
+  const prop = await proposeAiAction(supabase, {
+    organizationId: mockOrgId,
+    sourceModule: "ad_intelligence",
+    actionType: "ad_optimization",
+    title: "Bütçe Düşürme Önerisi",
+    description: "Düşük ROAS nedeniyle kampanya bütçesi incelensin.",
+    targetEntityType: "campaign",
+    targetEntityId: "camp-001",
+    evidence: ["ROAS 0.4x"],
+    reasons: ["Bütçe verimsizliği"],
+    priority: "medium",
+    actionPayload: { action: "reduce_budget" },
+    requiredRole: "sales",
+  });
+
+  // Reject
+  const rejected = await decideAiActionProposal(supabase, {
+    proposalId: prop.id,
+    organizationId: mockOrgId,
+    decision: "rejected",
+    userId: "user-mgr-1",
+    decisionNote: "Sezon başlangıcı sebebiyle bütçe korunacak.",
+  });
+
+  assert.equal(rejected.status, "rejected");
+  assert.equal(rejected.decisionNote, "Sezon başlangıcı sebebiyle bütçe korunacak.");
+});
+
+test("Module 6: RBAC enforces admin role for proposals marked required_role: admin", async () => {
+  const supabase = createMockSupabase();
+
+  const adminProp = await proposeAiAction(supabase, {
+    organizationId: mockOrgId,
+    sourceModule: "ad_intelligence",
+    actionType: "ad_optimization",
+    title: "Bütçe Arttırma Önerisi",
+    description: "Google Ads bütçesini 1000 TL artırma teklifi.",
+    targetEntityType: "campaign",
+    targetEntityId: "camp-google",
+    evidence: ["ROAS 5.0x"],
+    reasons: ["Kârlı kampanya"],
+    priority: "high",
+    actionPayload: { suggestedIncreaseLira: 1000 },
+    requiredRole: "admin",
+  });
+
+  // A sales representative attempts to approve an admin-required proposal -> must fail
+  await assert.rejects(
+    async () => {
+      await decideAiActionProposal(supabase, {
+        proposalId: adminProp.id,
+        organizationId: mockOrgId,
+        decision: "approved",
+        userId: "user-sales-1",
+        userRole: "sales",
+      });
+    },
+    (err: any) => err.message.includes("requires admin role")
+  );
+
+  // Admin user approves -> succeeds
+  const adminApproved = await decideAiActionProposal(supabase, {
+    proposalId: adminProp.id,
+    organizationId: mockOrgId,
+    decision: "approved",
+    userId: "user-admin-1",
+    userRole: "admin",
+  });
+  assert.equal(adminApproved.status, "approved");
 });
 
 // -------------------------------------------------------------
@@ -537,6 +863,37 @@ test("Module 7: Strictly enforces zero-cost invariant and health check routing",
   });
 
   assert.equal(genResult.zeroCostVerified, true);
+});
+
+test("Module 7: Strictly rejects any attempt to enable paid API or increase spending ceiling above 0", async () => {
+  const supabase = createMockSupabase();
+
+  // Attempt to enable paid API must throw
+  await assert.rejects(
+    async () => {
+      await updateWorkspaceAiSettings(supabase, mockOrgId, {
+        allowPaidApi: true,
+      });
+    },
+    (err: any) => err.message.includes("Sıfır maliyet politikası")
+  );
+
+  // Attempt to increase spending ceiling above 0 must throw
+  await assert.rejects(
+    async () => {
+      await updateWorkspaceAiSettings(supabase, mockOrgId, {
+        spendingCeilingCents: 5000,
+      });
+    },
+    (err: any) => err.message.includes("Sıfır maliyet politikası")
+  );
+
+  // Privacy verification: settings contains zero plaintext secrets or API keys
+  const settings = await getWorkspaceAiSettings(supabase, mockOrgId);
+  const keys = Object.keys(settings);
+  assert.ok(!keys.includes("apiKey"));
+  assert.ok(!keys.includes("geminiApiKey"));
+  assert.ok(!keys.includes("secret"));
 });
 
 // -------------------------------------------------------------

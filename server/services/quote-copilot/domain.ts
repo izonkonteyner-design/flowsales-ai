@@ -19,7 +19,7 @@ export const quoteCopilotDraftInputSchema = z.object({
   targetBudget: z.number().optional(),
   currency: z.string().default("TRY"),
 });
-export type QuoteCopilotDraftInput = z.infer<typeof quoteCopilotDraftInputSchema>;
+export type QuoteCopilotDraftInput = z.input<typeof quoteCopilotDraftInputSchema>;
 
 export const quoteCopilotDraftResultSchema = z.object({
   title: z.string(),

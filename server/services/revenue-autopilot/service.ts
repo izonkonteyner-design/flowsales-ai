@@ -285,6 +285,10 @@ export async function evaluateLeadIntelligence(
     aiInferences.push("Fiyat itirazı algılandı; alternatif standart model veya esnek ödeme planı önerilmeli.");
   }
 
+  if (!lead.phone && !lead.email) {
+    aiInferences.push("Eksik iletişim bilgisi: Ne geçerli bir telefon numarası ne de e-posta adresi mevcut.");
+  }
+
   // Determine recommended stage
   let recommendedStage: LeadIntelligenceResult["recommendedStage"] = "new_lead";
   if (quotes.some((q: { status?: string | null }) => q.status === "approved" || q.status === "sent")) {

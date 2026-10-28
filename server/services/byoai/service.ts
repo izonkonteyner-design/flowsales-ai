@@ -77,8 +77,18 @@ export async function updateWorkspaceAiSettings(
 ): Promise<WorkspaceAiSettingsRecord> {
   const validated = updateWorkspaceAiSettingsInputSchema.parse(input);
 
+  // Strict Zero-Cost Invariant Enforcement: Never allow paid API or spend ceiling > 0
+  if (validated.allowPaidApi === true) {
+    throw new Error("Sıfır maliyet politikası gereği ücretli API kullanımına izin verilmez (allowPaidApi: false olmalıdır).");
+  }
+  if (validated.spendingCeilingCents !== undefined && validated.spendingCeilingCents > 0) {
+    throw new Error("Sıfır maliyet politikası gereği harcama tavanı 0'dan büyük olamaz (spendingCeilingCents: 0 olmalıdır).");
+  }
+
   const updatePayload: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
+    spending_ceiling_cents: 0,
+    allow_paid_api: false,
   };
 
   if (validated.activeProvider) updatePayload.active_provider = validated.activeProvider;
@@ -87,8 +97,6 @@ export async function updateWorkspaceAiSettings(
   if (validated.ollamaModel) updatePayload.ollama_model = validated.ollamaModel;
   if (validated.customLocalEndpoint !== undefined) updatePayload.custom_local_endpoint = validated.customLocalEndpoint;
   if (validated.customLocalModel !== undefined) updatePayload.custom_local_model = validated.customLocalModel;
-  if (validated.spendingCeilingCents !== undefined) updatePayload.spending_ceiling_cents = validated.spendingCeilingCents;
-  if (validated.allowPaidApi !== undefined) updatePayload.allow_paid_api = validated.allowPaidApi;
   if (validated.visionCapable !== undefined) updatePayload.vision_capable = validated.visionCapable;
 
   const { data, error } = await supabase

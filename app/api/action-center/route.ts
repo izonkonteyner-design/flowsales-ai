@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   aggregateProposalsFromAllModules,
   decideAiActionProposal,
+  executeAiActionProposal,
   listAiActionProposals,
   proposeAiAction,
 } from "@/server/services/action-center/service";
@@ -119,9 +120,32 @@ export async function POST(request: Request) {
         organizationId: member.organization_id,
         decision: decision as "approved" | "rejected" | "dismissed",
         userId: user.id,
+        userRole: member.role,
         decisionNote,
       });
       return NextResponse.json({ success: true, data: updated });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+  }
+
+  // Action execution (only approved actions)
+  if (body.action === "execute") {
+    const proposalId = typeof body.proposalId === "string" ? body.proposalId : "";
+    if (!proposalId) {
+      return NextResponse.json({ error: "missing_proposal_id" }, { status: 400 });
+    }
+
+    try {
+      const executed = await executeAiActionProposal(supabase, {
+        proposalId,
+        organizationId: member.organization_id,
+        userId: user.id,
+        userRole: member.role,
+        executionResult: (body.executionResult && typeof body.executionResult === "object") ? (body.executionResult as Record<string, unknown>) : undefined,
+      });
+      return NextResponse.json({ success: true, data: executed });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       return NextResponse.json({ error: message }, { status: 400 });

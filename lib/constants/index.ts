@@ -47,6 +47,7 @@ export const APP_NAVIGATION = [
   { label: "Calendar", href: "/calendar", icon: "calendar" },
   { label: "Social Media", href: "/social", icon: "share-2" },
   { label: "AI", href: "/ai", icon: "bot" },
+  { label: "Maestro", href: "/orchestration", icon: "bot" },
   { label: "Sales Operations", href: "/sales-operations", icon: "check-circle-2" },
   { label: "Command Center", href: "/command-center", icon: "braces" },
   { label: "Sales Analyst", href: "/sales-analyst", icon: "bot" },

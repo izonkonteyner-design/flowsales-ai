@@ -28,7 +28,7 @@ const iconMap = {
 const navigationGroups = [
   { key: "workspace" as const, matches: ["/dashboard", "/inbox", "/leads", "/customers", "/products", "/quotes", "/tasks", "/calendar", "/social"] },
   { key: "intelligence" as const, matches: ["/ai", "/ai-history", "/approvals", "/reports", "/sales-cockpit", "/revenue-intelligence", "/opportunities", "/sales-analyst", "/growth-control"] },
-  { key: "operations" as const, matches: ["/operations", "/notifications", "/usage", "/security", "/audit-logs", "/api-layer", "/sales-operations", "/command-center"] },
+  { key: "operations" as const, matches: ["/operations", "/notifications", "/usage", "/security", "/audit-logs", "/api-layer", "/sales-operations", "/command-center", "/orchestration"] },
   { key: "settings" as const, matches: ["/account", "/settings", "/billing", "/team", "/permissions", "/upgrade"] },
 ] as const;
 

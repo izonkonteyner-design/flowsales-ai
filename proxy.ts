@@ -38,6 +38,7 @@ const protectedRoutes = [
   "/operations",
   "/usage",
   "/upgrade",
+  "/orchestration",
 ];
 
 const authPages = ["/login", "/signup", "/register"];

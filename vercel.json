@@ -8,6 +8,10 @@
     {
       "path": "/api/cron/social-publishing",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/orchestration",
+      "schedule": "*/10 * * * *"
     }
   ]
 }

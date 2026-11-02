@@ -199,7 +199,7 @@ export async function scanQuotesForFollowUp(
 
   const { data: quotes, error } = await supabase
     .from("quotes")
-    .select("id, quote_number, total_amount, currency, status, created_at, updated_at, contact_id, lead_id")
+    .select("id, quote_number, status, created_at, updated_at, lead_id")
     .eq("organization_id", organizationId)
     .in("status", ["sent", "negotiation", "pending"])
     .lt("updated_at", cutoff)

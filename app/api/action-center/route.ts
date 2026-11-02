@@ -50,8 +50,12 @@ export async function GET(request: Request) {
   const parsedPriority = actionPrioritySchema.safeParse(rawPriority);
 
   const shouldAggregate = url.searchParams.get("aggregate") === "true";
+  const DEMO_ORG_ID = "d3e00000-0000-0000-0000-000000000000";
 
   if (shouldAggregate) {
+    if (member.role === "viewer" || member.organization_id === DEMO_ORG_ID) {
+      return NextResponse.json({ error: "forbidden_read_only_workspace" }, { status: 403 });
+    }
     const aggResult = await aggregateProposalsFromAllModules(supabase, member.organization_id);
     return NextResponse.json({
       success: true,
@@ -95,6 +99,11 @@ export async function POST(request: Request) {
 
   if (!member) {
     return NextResponse.json({ error: "no_active_organization" }, { status: 403 });
+  }
+
+  const DEMO_ORG_ID = "d3e00000-0000-0000-0000-000000000000";
+  if (member.role === "viewer" || member.organization_id === DEMO_ORG_ID) {
+    return NextResponse.json({ error: "forbidden_read_only_workspace" }, { status: 403 });
   }
 
   let body: Record<string, unknown>;

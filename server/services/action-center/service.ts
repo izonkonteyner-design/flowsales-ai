@@ -150,6 +150,11 @@ export async function decideAiActionProposal(
     throw new Error("Cannot decide an already executed proposal.");
   }
 
+  // RBAC validation: viewer role is strictly read-only
+  if (params.userRole === "viewer") {
+    throw new Error("Insufficient role: viewer role cannot decide proposals.");
+  }
+
   // RBAC validation: If proposal requires admin privileges, non-admin users cannot decide
   if (existing.required_role === "admin" && params.userRole && !["admin", "owner"].includes(params.userRole)) {
     throw new Error("Insufficient role: this proposal requires admin role to decide.");
@@ -205,6 +210,11 @@ export async function executeAiActionProposal(
 
   if (existing.status !== "approved") {
     throw new Error(`Only approved proposals can be executed. Current status: ${existing.status}`);
+  }
+
+  // RBAC validation: viewer role is strictly read-only
+  if (params.userRole === "viewer") {
+    throw new Error("Insufficient role: viewer role cannot execute proposals.");
   }
 
   // RBAC validation

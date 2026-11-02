@@ -1004,4 +1004,50 @@ test("Module 8: Complete Closed-Loop Flywheel (Ad Click -> Lead -> Memory -> Aut
   const campaign = analytics.find((a) => a.platform === "google_ads");
   assert.ok(campaign);
   assert.ok(campaign.roas !== null && campaign.roas !== undefined && campaign.roas > 10.0); // 145000 / 125 > 10x ROAS
+
+  // 9. Verify viewer role is strictly blocked from deciding or executing proposals
+  await assert.rejects(
+    async () =>
+      decideAiActionProposal(supabase, {
+        proposalId: actionProposal.id,
+        organizationId: mockOrgId,
+        decision: "approved",
+        userId: "viewer-user",
+        userRole: "viewer",
+      }),
+    /viewer role cannot decide/i
+  );
+
+  await assert.rejects(
+    async () =>
+      executeAiActionProposal(supabase, {
+        proposalId: actionProposal.id,
+        organizationId: mockOrgId,
+        userId: "viewer-user",
+        userRole: "viewer",
+      }),
+    /viewer role cannot execute/i
+  );
+});
+
+test("Vercel Cron Gate: vercel.json adheres strictly to Hobby plan cron count and daily schedule limits", () => {
+  const fs = req("node:fs") as typeof import("node:fs");
+  const path = req("node:path") as typeof import("node:path");
+  const vercelJsonPath = path.resolve(process.cwd(), "vercel.json");
+  const vercelConfig = JSON.parse(fs.readFileSync(vercelJsonPath, "utf-8")) as {
+    crons?: Array<{ path: string; schedule: string }>;
+  };
+
+  assert.ok(Array.isArray(vercelConfig.crons), "vercel.json must define crons array");
+  assert.ok(
+    vercelConfig.crons.length <= 2,
+    `Vercel Hobby plan allows at most 2 cron jobs, found ${vercelConfig.crons.length}`
+  );
+  for (const cron of vercelConfig.crons) {
+    assert.match(
+      cron.schedule,
+      /^\d+\s+\d+\s+\*\s+\*\s+\*$/,
+      `Cron schedule '${cron.schedule}' for '${cron.path}' must be once-daily on Vercel Hobby`
+    );
+  }
 });

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       // Session tabanlı workspace bağlamını doğrula
       try {
         const context = await getWorkspaceContext();
-        if (!context || !context.organization?.id) {
+        if (!context || !context.userId || context.mode === "demo" || !context.organization?.id) {
           return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
         // Kiracı güvenliği: Kullanıcı sadece kendi organizasyonunu sorgulayabilir

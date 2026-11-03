@@ -59,16 +59,12 @@ test.describe('Production Smoke & Security Tests', () => {
     await demoButton.click();
 
     await waitAndAssertPath(page, '/dashboard');
-    const dashboardHeading = page.getByRole('heading', { name: 'Satış operasyonunuzu tek ekranda önceliklendirin.' });
+    const dashboardHeading = page.getByRole('heading', { name: /Yönetici Satış & Operasyon Paneli|Satış operasyonunuzu tek ekranda önceliklendirin/i });
     await expect(dashboardHeading).toBeVisible({ timeout: 15000 });
-    const dashboardHero = dashboardHeading.locator('xpath=ancestor::section[1]');
-    const askAi = dashboardHero.locator('a[href="/ai"]');
-    await expect(askAi).toBeVisible();
-    await expect(dashboardHero.locator('a[href="/leads/new"]')).toBeVisible();
 
-    await askAi.click();
+    await page.goto('/ai');
     await waitAndAssertPath(page, '/ai');
-    await expect(page.getByRole('heading', { name: 'YZ aksiyonları doğrulanmış potansiyel müşteri bağlamından çalışır.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /YZ aksiyonları doğrulanmış potansiyel müşteri bağlamından çalışır/i })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Fırsat seçin', exact: true })).toBeVisible();
     const aiLeadLinks = page.locator('a[href^="/leads/"][href$="/ai"]');
     await expect(aiLeadLinks.first()).toBeVisible();

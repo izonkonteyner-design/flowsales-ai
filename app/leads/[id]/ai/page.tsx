@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 type PageProps = {
-  params: Promise<{ leadId: string }>;
+  params: Promise<{ id?: string; leadId?: string }>;
   searchParams: Promise<{ toast?: string; tone?: string }>;
 };
 
@@ -28,7 +28,8 @@ function label(value: string) {
 }
 
 export default async function LeadAiPage({ params, searchParams }: PageProps) {
-  const [{ leadId }, query] = await Promise.all([params, searchParams]);
+  const [resolvedParams, query] = await Promise.all([params, searchParams]);
+  const leadId = resolvedParams.id || resolvedParams.leadId || "";
   const client = await createSupabaseServerClient();
   if (!client) redirect("/login");
   const { data: authData } = await client.auth.getUser();

@@ -29,30 +29,30 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
   const estimatedValue = lead ? String(lead.estimated_value) : "";
 
   return (
-    <form action={action} className="space-y-6">
+    <form action={action} className="space-y-4">
       <input type="hidden" name="redirect_to" value={redirectTo} />
       {leadId ? <input type="hidden" name="lead_id" value={leadId} /> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Full name">
-          <Input name="full_name" defaultValue={lead?.full_name ?? ""} required />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Ad Soyad / Yetkili">
+          <Input name="full_name" defaultValue={lead?.full_name ?? ""} required placeholder="Ad Soyad" />
         </Field>
-        <Field label="Company">
-          <Input name="company" defaultValue={lead?.company ?? ""} />
+        <Field label="Şirket / Kuruluş">
+          <Input name="company" defaultValue={lead?.company ?? ""} placeholder="Şirket Unvanı" />
         </Field>
-        <Field label="Email">
-          <Input name="email" type="email" defaultValue={lead?.email ?? ""} />
+        <Field label="E-posta">
+          <Input name="email" type="email" defaultValue={lead?.email ?? ""} placeholder="ornek@sirket.com" />
         </Field>
-        <Field label="Phone">
-          <Input name="phone" defaultValue={lead?.phone ?? ""} />
+        <Field label="Telefon Numarası">
+          <Input name="phone" defaultValue={lead?.phone ?? ""} placeholder="+90 5XX XXX XX XX" />
         </Field>
-        <Field label="City">
-          <Input name="city" defaultValue={lead?.city ?? ""} />
+        <Field label="Şehir">
+          <Input name="city" defaultValue={lead?.city ?? ""} placeholder="İzmir, İstanbul..." />
         </Field>
-        <Field label="Estimated value">
-          <Input name="estimated_value" type="number" min="0" step="0.01" defaultValue={estimatedValue} required />
+        <Field label="Tahmini Değer">
+          <Input name="estimated_value" type="number" min="0" step="0.01" defaultValue={estimatedValue} required placeholder="0.00" />
         </Field>
-        <Field label="Source">
+        <Field label="Kaynak">
           <Select name="source" defaultValue={lead?.source ?? "Website"}>
             {leadSources.map((source) => (
               <option key={source} value={source}>
@@ -61,7 +61,7 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
             ))}
           </Select>
         </Field>
-        <Field label="Status">
+        <Field label="Aşama / Durum">
           <Select name="status" defaultValue={lead?.status ?? "new"}>
             {LEAD_STATUSES.map((status) => (
               <option key={status.value} value={status.value}>
@@ -70,7 +70,7 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
             ))}
           </Select>
         </Field>
-        <Field label="Currency">
+        <Field label="Para Birimi">
           <Select name="currency" defaultValue={lead?.currency ?? "TRY"}>
             {currencies.map((currency) => (
               <option key={currency} value={currency}>
@@ -79,9 +79,9 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
             ))}
           </Select>
         </Field>
-        <Field label="Assigned user">
+        <Field label="Sorumlu Temsilci">
           <Select name="assigned_to" defaultValue={lead?.assigned_to ?? ""}>
-            <option value="">Unassigned</option>
+            <option value="">Atanmamış</option>
             {members.map((member) => (
               <option key={member.user_id} value={member.user_id}>
                 {member.full_name} ({member.role})
@@ -89,28 +89,31 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
             ))}
           </Select>
         </Field>
-        <Field label="Next follow-up">
+        <Field label="Sonraki Takip Tarihi">
           <Input name="next_follow_up_at" type="date" defaultValue={leadDate} />
         </Field>
       </div>
 
-      <Field label="Notes">
-        <Textarea name="notes" defaultValue={lead?.notes ?? ""} />
+      <Field label="Görüşme ve Talep Notları">
+        <Textarea name="notes" defaultValue={lead?.notes ?? ""} placeholder="Müşteri talebi, detaylar ve özel gereksinimler..." />
       </Field>
 
-      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-400">
+      <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
         {lead ? (
           <p>
-            Current value: <span className="font-medium text-slate-950 dark:text-white">{formatCurrency(lead.estimated_value, lead.currency)}</span>
+            Mevcut Tahmini Değer:{" "}
+            <span className="font-semibold text-foreground">
+              {formatCurrency(lead.estimated_value, lead.currency)}
+            </span>
           </p>
         ) : (
-          <p>Lead records stay scoped to the current organization and are validated on the server.</p>
+          <p>Potansiyel müşteri kayıtları organizasyon yetki kurallarına göre korunur ve sunucu tarafında doğrulanır.</p>
         )}
       </div>
 
       <button
         type="submit"
-        className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+        className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 transition-colors"
       >
         {submitLabel}
       </button>
@@ -120,8 +123,8 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="space-y-2">
-      <span className="block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+    <label className="space-y-1 block">
+      <span className="block text-xs font-medium text-foreground">{label}</span>
       {children}
     </label>
   );

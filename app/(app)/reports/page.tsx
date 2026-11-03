@@ -1,4 +1,4 @@
-import { BarChart3, LineChart, PieChart, Sparkles } from "lucide-react";
+import { BarChart3, LineChart, PieChart, TrendingUp } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
@@ -11,35 +11,107 @@ type Props = { searchParams: Promise<Record<string, string | string[] | undefine
 
 export default async function ReportsPage({ searchParams }: Props) {
   const result = await getDashboardReportData(await searchParams);
-  if (!result.ok) return <EmptyState title="Raporlar yüklenemedi" description={result.message} actionHref="/reports" actionLabel="Yeniden dene" />;
+  if (!result.ok) {
+    return (
+      <EmptyState
+        title="Raporlar yüklenemedi"
+        description={result.message}
+        actionHref="/reports"
+        actionLabel="Yeniden dene"
+      />
+    );
+  }
   const report = result.report;
 
   return (
-    <div className="space-y-6">
-      <PageHeader eyebrow="Analitik" title="Raporlar ve Satış Analitiği" description={`${report.period.label} için gerçek CRM ve teklif verilerinden oluşturulan satış görünümü.`} />
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Kazanılan gelir" value={formatCurrency(report.metrics.acceptedRevenue, report.filters.currency)} delta={`${report.metrics.acceptedQuotes} kabul edilen teklif`} icon={BarChart3} tone="emerald" />
-        <MetricCard label="Açık teklif değeri" value={formatCurrency(report.metrics.openQuoteValue, report.filters.currency)} delta={`${report.metrics.totalQuotes} toplam teklif`} icon={LineChart} tone="blue" />
-        <MetricCard label="Teklif dönüşüm oranı" value={`%${report.metrics.quoteConversionRate.toFixed(1)}`} delta={`${report.metrics.convertedLeads} kazanılan potansiyel müşteri`} icon={PieChart} tone="violet" />
-        <MetricCard label="Ortalama teklif" value={formatCurrency(report.metrics.averageQuoteValue, report.filters.currency)} delta={`${report.metrics.activeLeads} aktif fırsat`} icon={Sparkles} tone="amber" />
+    <div className="space-y-5">
+      <PageHeader
+        eyebrow="Analitik & Performans"
+        title="Satış ve Finansal Raporlar"
+        description={`${report.period.label} dönemi için CRM ve teklif verilerinden derlenen kurumsal satış raporu.`}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard
+          label="Kazanılan Gelir"
+          value={formatCurrency(report.metrics.acceptedRevenue, report.filters.currency)}
+          delta={`${report.metrics.acceptedQuotes} kabul edilen teklif`}
+          icon={BarChart3}
+          tone="emerald"
+        />
+        <MetricCard
+          label="Açık Teklif Değeri"
+          value={formatCurrency(report.metrics.openQuoteValue, report.filters.currency)}
+          delta={`${report.metrics.totalQuotes} toplam teklif`}
+          icon={LineChart}
+          tone="blue"
+        />
+        <MetricCard
+          label="Teklif Dönüşüm Oranı"
+          value={`%${report.metrics.quoteConversionRate.toFixed(1)}`}
+          delta={`${report.metrics.convertedLeads} kazanılan fırsat`}
+          icon={PieChart}
+          tone="violet"
+        />
+        <MetricCard
+          label="Ortalama Teklif"
+          value={formatCurrency(report.metrics.averageQuoteValue, report.filters.currency)}
+          delta={`${report.metrics.activeLeads} aktif fırsat`}
+          icon={TrendingUp}
+          tone="amber"
+        />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <SectionCard title="Teklif hunisi" description="Tekliflerin durumlara göre adet, değer ve pay dağılımı.">
-          <div className="space-y-3">{report.pipeline.map((item) => <Row key={item.status} label={item.label} value={`${item.count} · ${formatCurrency(item.value, report.filters.currency)} · %${item.share.toFixed(1)}`} />)}</div>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <SectionCard title="Teklif Hunisi Dağılımı" description="Tekliflerin aşamalara göre adet, toplam değer ve genel payı.">
+          <div className="space-y-2">
+            {report.pipeline.map((item) => (
+              <Row
+                key={item.status}
+                label={item.label}
+                value={`${item.count} adet · ${formatCurrency(item.value, report.filters.currency)} · %${item.share.toFixed(1)}`}
+              />
+            ))}
+          </div>
         </SectionCard>
-        <SectionCard title="En güçlü ürünler" description="Teklif edilen değere göre öne çıkan ürünler.">
-          {report.topProducts.length ? <div className="space-y-3">{report.topProducts.slice(0, 8).map((item) => <Row key={item.key} label={item.name} value={formatCurrency(item.quotedValue, item.currency)} />)}</div> : <p className="text-sm text-slate-500">Bu dönem için ürün verisi bulunmuyor.</p>}
+
+        <SectionCard title="En Çok Teklif Edilen Ürünler" description="Teklif edilen toplam değere göre en çok talep gören modeller.">
+          {report.topProducts.length ? (
+            <div className="space-y-2">
+              {report.topProducts.slice(0, 8).map((item) => (
+                <Row key={item.key} label={item.name} value={formatCurrency(item.quotedValue, item.currency)} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground text-center py-4">Bu dönem için ürün verisi bulunmuyor.</p>
+          )}
         </SectionCard>
       </div>
 
-      <SectionCard title="En değerli alıcılar" description="Kabul edilen ve toplam teklif değerine göre hesaplanan müşteri/fırsat görünümü.">
-        {report.topRecipients.length ? <div className="grid gap-3 md:grid-cols-2">{report.topRecipients.slice(0, 10).map((item) => <Row key={item.key} label={item.company ? `${item.name} · ${item.company}` : item.name} value={formatCurrency(item.acceptedValue || item.totalQuoteValue, item.currency)} />)}</div> : <p className="text-sm text-slate-500">Bu dönem için alıcı verisi bulunmuyor.</p>}
+      <SectionCard title="En Yüksek Hacimli Alıcılar" description="Kabul edilen ve toplam teklif büyüklüğüne göre sıralı müşteri listesi.">
+        {report.topRecipients.length ? (
+          <div className="grid gap-2 sm:grid-cols-2">
+            {report.topRecipients.slice(0, 10).map((item) => (
+              <Row
+                key={item.key}
+                label={item.company ? `${item.name} · ${item.company}` : item.name}
+                value={formatCurrency(item.acceptedValue || item.totalQuoteValue, item.currency)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground text-center py-4">Bu dönem için alıcı verisi bulunmuyor.</p>
+        )}
       </SectionCard>
     </div>
   );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-4 py-3"><span className="text-sm text-slate-400">{label}</span><span className="text-right text-sm font-medium text-white">{value}</span></div>;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2 text-xs shadow-xs">
+      <span className="text-muted-foreground font-medium truncate">{label}</span>
+      <span className="text-right font-bold text-foreground shrink-0">{value}</span>
+    </div>
+  );
 }

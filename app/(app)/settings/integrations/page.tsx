@@ -66,33 +66,31 @@ export default async function IntegrationsPage() {
   const anyMetaConfigured = whatsappConfigured || metaMessagingConfigured;
   const connectedMetaChannels = [whatsappConnection, instagramConnection, facebookConnection].filter((item) => item?.status === "connected").length;
 
-  return <div className="mx-auto max-w-6xl">
-    <div className="mb-8">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/20">
-          <Plug2 className="h-5 w-5" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-bold text-slate-950 dark:text-white">
-            {isTr ? "Entegrasyonlar" : "Integrations"}
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            {isTr
-              ? "Sosyal medya ve mesajlaşma kanallarınızı FlowSales AI CRM'e bağlayın."
-              : "Connect your social and messaging channels to FlowSales AI."}
-          </p>
-        </div>
+  return <div className="mx-auto max-w-6xl space-y-6">
+    <div className="flex items-center gap-3">
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs">
+        <Plug2 className="h-5 w-5" />
+      </div>
+      <div>
+        <h1 className="text-xl font-bold text-foreground">
+          {isTr ? "Entegrasyonlar" : "Integrations"}
+        </h1>
+        <p className="text-xs text-muted-foreground">
+          {isTr
+            ? "Sosyal medya ve mesajlaşma kanallarınızı FlowSales AI CRM'e bağlayın."
+            : "Connect your social and messaging channels to FlowSales AI."}
+        </p>
       </div>
     </div>
 
     {isDemo && (
-      <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200/70 bg-amber-50 px-5 py-4 dark:border-amber-800/40 dark:bg-amber-950/20">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+      <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800/40 dark:bg-amber-950/20">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
         <div>
-          <p className="font-medium text-amber-800 dark:text-amber-300">
+          <p className="font-medium text-xs text-amber-800 dark:text-amber-300">
             {isTr ? "Demo modu — salt okunur" : "Demo mode — read-only"}
           </p>
-          <p className="mt-0.5 text-sm text-amber-700 dark:text-amber-400">
+          <p className="mt-0.5 text-xs text-amber-700 dark:text-amber-400">
             {isTr
               ? "Entegrasyon bağlantıları demo çalışma alanında devre dışıdır. Kanallarınızı bağlamak için canlı bir çalışma alanına geçin."
               : "Integration connections are disabled in the demo workspace. Sign up for a live workspace to connect your channels."}
@@ -102,13 +100,13 @@ export default async function IntegrationsPage() {
     )}
 
     {!isDemo && !canManage && (
-      <div className="mb-6 flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-slate-50 px-5 py-4 dark:border-white/10 dark:bg-white/5">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" />
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
         <div>
-          <p className="font-medium text-slate-800 dark:text-slate-200">
+          <p className="font-medium text-xs text-foreground">
             {isTr ? "Salt okunur erişim" : "Read-only access"}
           </p>
-          <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-0.5 text-xs text-muted-foreground">
             {isTr
               ? "Entegrasyonları yönetmek için Sahip (Owner) veya Yönetici (Admin) rolü gereklidir."
               : "You need Owner or Admin role to manage integrations."}
@@ -118,13 +116,13 @@ export default async function IntegrationsPage() {
     )}
 
     {!isDemo && canManage && !anyConfigured && (
-      <div className="mb-6 flex items-start gap-3 rounded-2xl border border-blue-200/70 bg-blue-50 px-5 py-4 dark:border-blue-800/40 dark:bg-blue-950/20">
-        <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400" />
+      <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800/40 dark:bg-blue-950/20">
+        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
         <div>
-          <p className="font-medium text-blue-800 dark:text-blue-300">
+          <p className="font-medium text-xs text-blue-800 dark:text-blue-300">
             {isTr ? "Sağlayıcı kimlik bilgileri yapılandırılmamış" : "Provider credentials not configured"}
           </p>
-          <p className="mt-0.5 text-sm text-blue-700 dark:text-blue-400">
+          <p className="mt-0.5 text-xs text-blue-700 dark:text-blue-400">
             {isTr
               ? "Henüz herhangi bir sağlayıcı için OAuth kimlik bilgisi tanımlanmamış. Kanalları bağlamak için ortam değişkenlerini ayarlayın."
               : "No OAuth credentials are set up for any provider. Configure provider credentials to enable connections."}
@@ -216,61 +214,61 @@ export default async function IntegrationsPage() {
       })}
     </div>
     <div className="mt-8 grid gap-4 md:grid-cols-3">
-      <Link href="/settings/integrations/email" className="flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/70 p-5 transition hover:border-blue-400 dark:border-blue-900/60 dark:bg-blue-950/20">
+      <Link href="/settings/integrations/email" className="flex items-center justify-between rounded-lg border border-border bg-card p-4 transition hover:bg-muted/40 shadow-xs">
         <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-blue-600 text-white"><Mail className="h-5 w-5" /></span>
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-muted text-foreground"><Mail className="h-4 w-4" /></span>
           <div>
-            <h2 className="font-semibold text-slate-950 dark:text-white">Gmail & M365</h2>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Gelen kutusu eşitleme ve e-posta gönderimi</p>
+            <h2 className="text-sm font-semibold text-foreground">Gmail & M365</h2>
+            <p className="text-xs text-muted-foreground">Gelen kutusu eşitleme ve e-posta gönderimi</p>
           </div>
         </div>
-        <ArrowRight className="h-5 w-5 text-blue-600" />
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
       </Link>
 
-      <Link href="/settings/integrations/voice" className="flex items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50/70 p-5 transition hover:border-indigo-400 dark:border-indigo-900/60 dark:bg-indigo-950/20">
+      <Link href="/settings/integrations/voice" className="flex items-center justify-between rounded-lg border border-border bg-card p-4 transition hover:bg-muted/40 shadow-xs">
         <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-indigo-600 text-white"><PhoneCall className="h-5 w-5" /></span>
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-muted text-foreground"><PhoneCall className="h-4 w-4" /></span>
           <div>
-            <h2 className="font-semibold text-slate-950 dark:text-white">AI Telefon Asistanı</h2>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Turkcell 05xx korumalı yönlendirme profili</p>
+            <h2 className="text-sm font-semibold text-foreground">AI Telefon Asistanı</h2>
+            <p className="text-xs text-muted-foreground">Turkcell 05xx korumalı yönlendirme profili</p>
           </div>
         </div>
-        <ArrowRight className="h-5 w-5 text-indigo-600" />
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
       </Link>
 
-      <Link href="/settings/billing" className="flex items-center justify-between rounded-2xl border border-emerald-200 bg-emerald-50/70 p-5 transition hover:border-emerald-400 dark:border-emerald-900/60 dark:bg-emerald-950/20">
+      <Link href="/settings/billing" className="flex items-center justify-between rounded-lg border border-border bg-card p-4 transition hover:bg-muted/40 shadow-xs">
         <div className="flex items-center gap-3">
-          <span className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-600 text-white"><CreditCard className="h-5 w-5" /></span>
+          <span className="grid h-9 w-9 place-items-center rounded-md bg-muted text-foreground"><CreditCard className="h-4 w-4" /></span>
           <div>
-            <h2 className="font-semibold text-slate-950 dark:text-white">Faturalandırma & Ödeme</h2>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Lemon Squeezy abonelik ve plan yönetimi</p>
+            <h2 className="text-sm font-semibold text-foreground">Faturalandırma & Ödeme</h2>
+            <p className="text-xs text-muted-foreground">Lemon Squeezy abonelik ve plan yönetimi</p>
           </div>
         </div>
-        <ArrowRight className="h-5 w-5 text-emerald-600" />
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
       </Link>
     </div>
 
-    <section className="mt-8 rounded-2xl border border-slate-200/80 bg-slate-50/60 p-5 dark:border-white/10 dark:bg-white/5">
+    <section className="mt-8 rounded-lg border border-border bg-card p-5 shadow-xs">
       <div className="flex items-center gap-2">
-        <Radio className="h-4 w-4 text-blue-600" />
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Doğrudan Webhook Uç Noktaları</h3>
+        <Radio className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold text-foreground">Doğrudan Webhook Uç Noktaları</h3>
       </div>
       <div className="mt-3 grid gap-2 text-xs md:grid-cols-2 lg:grid-cols-3">
-        <div className="rounded-xl border border-slate-200/60 bg-white p-3 dark:border-white/5 dark:bg-slate-900">
-          <p className="font-semibold text-slate-800 dark:text-slate-200">Meta & WhatsApp Webhook</p>
-          <code className="mt-1 block font-mono text-[11px] text-slate-600 dark:text-slate-400">/api/webhooks/meta</code>
+        <div className="rounded-md border border-border bg-background p-3">
+          <p className="font-semibold text-foreground">Meta & WhatsApp Webhook</p>
+          <code className="mt-1 block font-mono text-[11px] text-muted-foreground">/api/webhooks/meta</code>
         </div>
-        <div className="rounded-xl border border-slate-200/60 bg-white p-3 dark:border-white/5 dark:bg-slate-900">
-          <p className="font-semibold text-slate-800 dark:text-slate-200">Google Ads Potansiyel Formu</p>
-          <code className="mt-1 block font-mono text-[11px] text-slate-600 dark:text-slate-400">/api/webhooks/google-leads</code>
+        <div className="rounded-md border border-border bg-background p-3">
+          <p className="font-semibold text-foreground">Google Ads Potansiyel Formu</p>
+          <code className="mt-1 block font-mono text-[11px] text-muted-foreground">/api/webhooks/google-leads</code>
         </div>
-        <div className="rounded-xl border border-slate-200/60 bg-white p-3 dark:border-white/5 dark:bg-slate-900">
-          <p className="font-semibold text-slate-800 dark:text-slate-200">Lemon Squeezy Faturalandırma</p>
-          <code className="mt-1 block font-mono text-[11px] text-slate-600 dark:text-slate-400">/api/billing/webhook</code>
+        <div className="rounded-md border border-border bg-background p-3">
+          <p className="font-semibold text-foreground">Lemon Squeezy Faturalandırma</p>
+          <code className="mt-1 block font-mono text-[11px] text-muted-foreground">/api/billing/webhook</code>
         </div>
       </div>
     </section>
 
-    <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-600">WhatsApp, Instagram, and Facebook integrations are powered by the Meta Platform. Google integration uses Google Calendar and Google Business Profile APIs. YouTube integration uses YouTube Data API v3. TikTok integration uses TikTok for Business.</p>
+    <p className="mt-8 text-center text-xs text-muted-foreground">WhatsApp, Instagram, and Facebook integrations are powered by the Meta Platform. Google integration uses Google Calendar and Google Business Profile APIs. YouTube integration uses YouTube Data API v3. TikTok integration uses TikTok for Business.</p>
   </div>;
 }

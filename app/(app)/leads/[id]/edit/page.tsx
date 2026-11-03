@@ -19,9 +19,10 @@ export default async function LeadEditPage({ params, searchParams }: LeadEditPag
   const { id } = await params;
   const rawSearchParams = await searchParams;
   const data = await getLeadDetailData(id);
-  const redirectTo = typeof rawSearchParams.redirect_to === "string" && rawSearchParams.redirect_to.startsWith("/")
-    ? rawSearchParams.redirect_to
-    : `/leads/${id}`;
+  const redirectTo =
+    typeof rawSearchParams.redirect_to === "string" && rawSearchParams.redirect_to.startsWith("/")
+      ? rawSearchParams.redirect_to
+      : `/leads/${id}`;
   const toastMessage = typeof rawSearchParams.toast === "string" ? rawSearchParams.toast : "";
   const toastTone =
     rawSearchParams.tone === "danger" || rawSearchParams.tone === "warning" || rawSearchParams.tone === "info"
@@ -31,10 +32,10 @@ export default async function LeadEditPage({ params, searchParams }: LeadEditPag
   if (!data.lead) {
     return (
       <EmptyState
-        title="Lead not found"
-        description="The requested record does not exist in the current organization."
+        title="Müşteri adayı bulunamadı"
+        description="Talep edilen kayıt mevcut organizasyonda bulunamadı veya silinmiş olabilir."
         actionHref="/leads"
-        actionLabel="Back to leads"
+        actionLabel="Adaylar Listesine Dön"
       />
     );
   }
@@ -43,36 +44,36 @@ export default async function LeadEditPage({ params, searchParams }: LeadEditPag
   const restrictionMessage = getLeadRecordRestrictionMessage(data.lead.recordMode, data.context.role);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
 
       <PageHeader
-        eyebrow="CRM"
-        title={`Edit ${data.lead.full_name}`}
-        description="Update the lead while preserving its organization scope."
+        eyebrow="Satış & Fırsat Yönetimi"
+        title={`${data.lead.full_name} — Düzenle`}
+        description="Organizasyon sınırları korunarak aday verilerini güncelleyin."
         actions={
           <Link
             href={`/leads/${id}`}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to lead
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Detaya Dön
           </Link>
         }
       />
 
-      <SectionCard title="Lead details" description="Validated edits are persisted through a secure server action.">
+      <SectionCard title="Aday Bilgilerini Güncelle" description="Doğrulanmış düzenlemeler sunucu eylemi üzerinden kaydedilir.">
         {canMutate ? (
           <LeadForm
             action={updateLeadAction}
             redirectTo={redirectTo}
             lead={data.lead}
             members={data.context.members}
-            submitLabel="Save changes"
+            submitLabel="Değişiklikleri Kaydet"
             leadId={data.lead.id}
           />
         ) : (
-          <EmptyState title="Read-only lead" description={restrictionMessage} />
+          <EmptyState title="Yalnızca Okuma Erişimi" description={restrictionMessage} />
         )}
       </SectionCard>
     </div>

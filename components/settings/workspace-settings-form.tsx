@@ -49,14 +49,14 @@ function SectionHeading({ title, description }: { title: string; description: st
 function LogoPreview({ url, companyName }: { url: string | null; companyName: string }) {
   if (!url) {
     return (
-      <div className="flex h-24 w-24 items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 text-center text-xs font-medium text-slate-400 dark:border-white/10 dark:bg-white/5">
+      <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
         No logo
       </div>
     );
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={url} alt={`${companyName} logo`} className="h-24 w-24 rounded-3xl border border-slate-200 object-cover shadow-sm dark:border-white/10" />;
+  return <img src={url} alt={`${companyName} logo`} className="h-20 w-20 rounded-lg border border-border object-cover shadow-2xs" />;
 }
 
 export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, removeLogoAction }: WorkspaceSettingsFormProps) {
@@ -82,25 +82,25 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
   return (
     <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
       <form action={updateAction} className="space-y-6">
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <div className="flex items-start justify-between gap-4">
             <SectionHeading title="Workspace branding" description="Company identity and logo used across quotes and customer-facing documents." />
             <Badge variant="secondary">{mode === "demo" ? "Demo workspace" : canEdit ? "Editable" : "Read only"}</Badge>
           </div>
 
           {!canEdit ? (
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
               This workspace is read only. Connect a live Supabase workspace with owner or admin permissions to edit branding.
             </div>
           ) : null}
 
           <div className="mt-6 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-            <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="space-y-4 rounded-lg border border-border bg-muted/30 p-4">
               <div className="flex items-center gap-4">
                 <LogoPreview url={previewUrl} companyName={settings.company_name} />
                 <div className="space-y-2">
-                  <p className="text-sm font-semibold text-slate-950 dark:text-white">{settings.company_name}</p>
-                  <p className="text-sm text-slate-500">{settings.company_slogan ?? "Premium quote branding"}</p>
+                  <p className="text-sm font-semibold text-foreground">{settings.company_name}</p>
+                  <p className="text-xs text-muted-foreground">{settings.company_slogan ?? "Premium quote branding"}</p>
                 </div>
               </div>
 
@@ -111,11 +111,11 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
                   accept="image/png,image/jpeg,image/webp"
                   disabled={!canEdit}
                   onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                  className="file:mr-4 file:rounded-xl file:border-0 file:bg-slate-950 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-white dark:file:bg-white dark:file:text-slate-950"
+                  className="file:mr-4 file:rounded-md file:border-0 file:bg-primary file:px-2.5 file:py-1 file:text-xs file:font-semibold file:text-primary-foreground"
                 />
               </Field>
 
-              <p className="text-xs leading-5 text-slate-500">
+              <p className="text-xs leading-5 text-muted-foreground">
                 Uploaded logos are stored in the dedicated workspace-assets bucket and reused in quote documents.
               </p>
 
@@ -125,10 +125,10 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
                   formAction={removeLogoAction}
                   disabled={!canEdit}
                   className={cn(
-                    "inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10",
+                    "inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50",
                   )}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                   Remove logo
                 </button>
               ) : null}
@@ -157,7 +157,7 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <SectionHeading title="Address and legal details" description="Contact details, registry data, and invoice identity shown on quote documents." />
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <Field label="Address line 1">
@@ -193,7 +193,7 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <SectionHeading title="Banking" description="Store bank details for invoice and payment instructions." />
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <Field label="Bank name">
@@ -211,7 +211,7 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <SectionHeading title="Quote defaults & AI preferences" description="Default values and terms applied to newly created quotes and AI generation." />
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <Field label="Default currency">
@@ -276,7 +276,7 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
             <button
               type="submit"
               disabled={!canEdit}
-              className="inline-flex h-11 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950"
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-xs transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Upload className="h-4 w-4" />
               Save workspace settings
@@ -286,21 +286,21 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
       </form>
 
       <aside className="space-y-6">
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <SectionHeading title="Quote brand preview" description="These values are injected into the printable quote document and PDF." />
           <div className="mt-6 space-y-4">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+            <div className="rounded-lg border border-border bg-muted/30 p-4">
               <div className="flex items-start gap-4">
                 <LogoPreview url={previewUrl} companyName={settings.company_name} />
                 <div className="space-y-1">
-                  <p className="text-sm font-semibold text-slate-950 dark:text-white">{settings.company_name}</p>
-                  <p className="text-sm text-slate-500">{settings.legal_name ?? "Legal name not set"}</p>
-                  <p className="text-sm text-slate-500">{settings.company_slogan ?? "No slogan configured"}</p>
+                  <p className="text-sm font-semibold text-foreground">{settings.company_name}</p>
+                  <p className="text-xs text-muted-foreground">{settings.legal_name ?? "Legal name not set"}</p>
+                  <p className="text-xs text-muted-foreground">{settings.company_slogan ?? "No slogan configured"}</p>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-3 text-sm text-slate-600 dark:text-slate-300">
+            <div className="space-y-2 text-xs text-muted-foreground">
               <Row label="Currency" value={settings.default_currency} />
               <Row label="Tax rate" value={`${settings.default_tax_rate.toFixed(2)}%`} />
               <Row label="Validity" value={`${settings.default_quote_validity_days} days`} />
@@ -313,9 +313,9 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,23,42,0.04)] dark:border-white/10 dark:bg-slate-950/60">
+        <section className="rounded-xl border border-border bg-card p-5 shadow-xs">
           <SectionHeading title="Access rules" description="Only owner and admin roles can change company settings or manage the logo." />
-          <div className="mt-4 space-y-3 text-sm text-slate-600 dark:text-slate-300">
+          <div className="mt-4 space-y-2 text-xs text-muted-foreground">
             <p>Demo workspaces stay read only so sample data is never mutated.</p>
             <p>Viewer roles can inspect the settings page but cannot submit changes.</p>
             <p>Uploaded logos are stored server-side in Supabase Storage and referenced by quote documents.</p>
@@ -328,9 +328,9 @@ export function WorkspaceSettingsForm({ settings, canEdit, mode, updateAction, r
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-white/10 dark:bg-white/5">
-      <span className="text-slate-500 shrink-0">{label}</span>
-      <span className="font-medium text-slate-950 dark:text-white text-right truncate">{value}</span>
+    <div className="flex items-center justify-between gap-4 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className="font-medium text-foreground text-right truncate">{value}</span>
     </div>
   );
 }

@@ -21,14 +21,33 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
+import dynamic from "next/dynamic";
 import { UnifiedSocialComposer } from "@/components/social/unified-social-composer";
 import { SocialHubContainer } from "@/components/social/social-hub-container";
-import { AdsManagementTab } from "@/components/social/ads-management-tab";
-import { CreativePipelineTab } from "@/components/social/creative-pipeline-tab";
-import { MarketingAnalyticsTab } from "@/components/social/marketing-analytics-tab";
 import { getAdCampaigns } from "@/server/services/ads/service";
 import type { AdCampaignRecord } from "@/server/services/ads/domain";
 import { deleteSocialPostAction } from "./actions";
+
+const AdsManagementTab = dynamic(
+  () => import("@/components/social/ads-management-tab").then((m) => m.AdsManagementTab),
+  {
+    loading: () => <div className="h-64 rounded-xl border border-border bg-card animate-pulse shadow-xs" />,
+  },
+);
+
+const CreativePipelineTab = dynamic(
+  () => import("@/components/social/creative-pipeline-tab").then((m) => m.CreativePipelineTab),
+  {
+    loading: () => <div className="h-64 rounded-xl border border-border bg-card animate-pulse shadow-xs" />,
+  },
+);
+
+const MarketingAnalyticsTab = dynamic(
+  () => import("@/components/social/marketing-analytics-tab").then((m) => m.MarketingAnalyticsTab),
+  {
+    loading: () => <div className="h-64 rounded-xl border border-border bg-card animate-pulse shadow-xs" />,
+  },
+);
 
 export const metadata: Metadata = {
   title: "Sosyal Medya Yönetimi | FlowSales AI",
@@ -178,43 +197,43 @@ export default async function SocialMediaPage() {
       {queryWarning ? (
         <div
           role="status"
-          className="flex items-start gap-3 rounded-2xl border border-amber-400/30 bg-amber-500/10 p-4 text-xs text-amber-200"
+          className="flex items-start gap-2.5 rounded-lg border border-amber-200/80 bg-amber-50/70 p-3 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300"
         >
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
           <span>{queryWarning}</span>
         </div>
       ) : null}
 
       {!hasAnyConnectedChannel ? (
-        <div className="rounded-2xl border border-violet-400/25 bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-cyan-500/10 p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-lg border border-border bg-card p-4 shadow-xs">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white">
-                <Plug className="h-4 w-4 text-violet-500 dark:text-violet-300" />
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-foreground">
+                <Plug className="h-4 w-4 text-muted-foreground" />
                 <span>Meta Sosyal Medya Kanallarınızı Bağlayın (Instagram, Facebook, TikTok, YouTube)</span>
               </div>
-              <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                Kanallarınız bağlı olmasa bile 4 platform için içerik taslakları hazırlayabilir, AI metin asistanı ile başlık ve kancalar üretebilir ve takviminizi planlayabilirsiniz; gerçek zamanlı otomatik paylaşım için ilgili kanal entegrasyonlarını tamamlayın.
+              <p className="text-xs text-muted-foreground leading-relaxed max-w-2xl">
+                Kanallarınız bağlı olmasa bile içerik taslakları hazırlayabilir ve planlama yapabilirsiniz. Doğrudan canlı paylaşım için ilgili kanal entegrasyonlarını tamamlayın.
               </p>
             </div>
             <Link
               href="/settings/integrations"
-              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-violet-400/30 bg-violet-600 dark:bg-violet-500/20 px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-violet-700 dark:hover:bg-violet-500/30"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 transition-colors"
             >
               <span>Entegrasyon Ayarlarına Git</span>
-              <ArrowUpRight className="h-4 w-4" />
+              <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>
       ) : null}
 
       {!canMutate ? (
-        <div className="flex items-center gap-2.5 rounded-2xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/[0.03] px-4 py-3 text-xs text-slate-700 dark:text-slate-300">
-          <Lock className="h-4 w-4 shrink-0 text-slate-400" />
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground">
+          <Lock className="h-4 w-4 shrink-0 text-muted-foreground" />
           <span>
             {isDemoWorkspace
-              ? "Demo çalışma alanında sosyal medya modülü salt okunur önizleme modundadır. Gönderi oluşturmak ve zamanlamak için canlı çalışma alanınıza geçiş yapın."
-              : "Mevcut çalışma alanı rolünüz (Görüntüleyici) yalnızca içerik akışını ve kuyruk durumunu inceleme yetkisine sahiptir."}
+              ? "Demo çalışma alanında sosyal medya modülü salt okunur modundadır. Gönderi oluşturmak için canlı çalışma alanına geçiş yapın."
+              : "Mevcut çalışma alanı rolünüz yalnızca içerik akışını ve kuyruk durumunu inceleme yetkisine sahiptir."}
           </span>
         </div>
       ) : null}

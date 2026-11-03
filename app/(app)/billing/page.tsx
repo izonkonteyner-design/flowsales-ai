@@ -47,7 +47,7 @@ export default async function BillingPage() {
         {entitlement?.billing_subscription_id && canManage ? (
           <Link
             href="/api/billing/portal"
-            className="mt-5 inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 dark:border-white/[0.1] dark:bg-transparent dark:text-white dark:hover:bg-white/[0.06]"
+            className="mt-5 inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-xs font-semibold text-foreground transition hover:bg-muted"
           >
             Aboneliği müşteri portalında yönet
           </Link>
@@ -57,17 +57,17 @@ export default async function BillingPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         {plans.map((plan) => (
           <SectionCard key={plan.key} title={plan.name} description={plan.detail}>
-            <div className="space-y-4 text-sm text-slate-600 dark:text-slate-400">
+            <div className="space-y-4 text-sm text-muted-foreground">
               <p>Plan geçişleri checkout → webhook → entitlement zinciriyle doğrulanır.</p>
               {canManage && config.configured ? (
                 <Link
                   href={`/api/billing/checkout?plan=${plan.key}`}
-                  className="inline-flex h-10 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+                  className="inline-flex h-9 w-full items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground shadow-xs transition hover:bg-primary/90"
                 >
                   {entitlement?.plan_key === plan.key ? "Mevcut plan" : `${plan.name} planına geç`}
                 </Link>
               ) : (
-                <p className="rounded-xl border border-amber-400/20 bg-amber-400/5 p-3 text-amber-800 dark:text-amber-200">
+                <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/20 dark:text-amber-300">
                   {workspace.mode === "demo"
                     ? "Demo çalışma alanında satın alma kapalıdır."
                     : !canManage
@@ -85,10 +85,10 @@ export default async function BillingPage() {
 
 function Info({ title, value, icon: Icon }: { title: string; value: string; icon: typeof Crown }) {
   return (
-    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 transition dark:border-white/[0.08] dark:bg-white/[0.035]">
-      <Icon className="h-4 w-4 text-violet-600 dark:text-violet-300" />
-      <p className="mt-3 text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">{title}</p>
-      <p className="mt-1 font-semibold text-slate-900 dark:text-white">{value}</p>
+    <div className="rounded-lg border border-border bg-card p-4 transition shadow-2xs">
+      <Icon className="h-4 w-4 text-primary" />
+      <p className="mt-3 text-xs uppercase tracking-wide text-muted-foreground">{title}</p>
+      <p className="mt-1 font-semibold text-foreground">{value}</p>
     </div>
   );
 }

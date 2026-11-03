@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FolderOpen } from "lucide-react";
 
 type EmptyStateProps = {
   title: string;
@@ -14,12 +15,15 @@ export function EmptyState({
   actionLabel,
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-start gap-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50/80 p-8 dark:border-white/10 dark:bg-white/5">
-      <div className="max-w-lg space-y-2">
-        <h3 className="text-lg font-semibold text-slate-950 dark:text-white">
+    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-card/50 px-6 py-10 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground mb-3">
+        <FolderOpen className="h-5 w-5" />
+      </div>
+      <div className="max-w-md space-y-1">
+        <h3 className="text-sm sm:text-base font-semibold text-foreground">
           {title}
         </h3>
-        <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           {description}
         </p>
       </div>
@@ -27,7 +31,7 @@ export function EmptyState({
       {actionHref && actionLabel ? (
         <Link
           href={actionHref}
-          className="inline-flex h-10 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+          className="mt-4 inline-flex h-8 sm:h-9 items-center justify-center rounded-lg bg-primary px-3 sm:px-4 text-xs sm:text-sm font-medium text-primary-foreground shadow-xs transition hover:bg-primary/90"
         >
           {actionLabel}
         </Link>

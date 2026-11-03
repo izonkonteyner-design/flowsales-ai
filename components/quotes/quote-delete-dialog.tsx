@@ -30,27 +30,27 @@ export function QuoteDeleteDialog({
   const allowed = canDelete(recordMode, role);
 
   return (
-    <form action={deleteQuoteAction}>
+    <form action={deleteQuoteAction} className="inline-flex">
       <input type="hidden" name="quote_id" value={quoteId} />
       <input type="hidden" name="redirect_to" value={redirectTo} />
       <button
         type="submit"
         disabled={!allowed}
-        title={allowed ? `Delete ${quoteNumber}` : restrictionMessage}
+        title={allowed ? `${quoteNumber} numaralı teklifi sil` : restrictionMessage}
         onClick={(event) => {
           if (!allowed) {
             event.preventDefault();
             return;
           }
 
-          if (!window.confirm(`Delete quote ${quoteNumber}? This action cannot be undone.`)) {
+          if (!window.confirm(`${quoteNumber} numaralı teklif kalıcı olarak silinsin mi? Bu işlem geri alınamaz.`)) {
             event.preventDefault();
           }
         }}
-        className="inline-flex h-10 items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+        className="inline-flex h-7 items-center justify-center rounded-md border border-rose-200 bg-rose-50 px-2 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
       >
-        <Trash2 className="mr-2 h-4 w-4" />
-        Delete
+        <Trash2 className="mr-1 h-3 w-3" />
+        Sil
       </button>
     </form>
   );

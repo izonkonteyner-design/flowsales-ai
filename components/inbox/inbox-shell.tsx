@@ -72,7 +72,7 @@ export function InboxShell({ initialConversationId }: InboxShellProps) {
   const isMetaMessagingConversation = activeConversation?.provider === "instagram" || activeConversation?.provider === "facebook";
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] w-full overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/90 shadow-2xl backdrop-blur-xl">
+    <div className="flex h-[calc(100vh-5rem)] w-full overflow-hidden rounded-xl border border-border bg-card shadow-xs">
       <div className="w-full max-w-xs md:max-w-sm shrink-0">
         <ConversationList conversations={conversations} selectedId={selectedId} onSelect={handleSelectConversation}
           statusFilter={statusFilter} onStatusFilterChange={setStatusFilter}

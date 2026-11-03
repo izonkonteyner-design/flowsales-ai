@@ -48,7 +48,7 @@ export default async function MembersPage({ searchParams }: MembersPageProps) {
             </StatusBadge>
             <Link
               href="/settings"
-              className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+              className="inline-flex h-9 items-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground transition hover:bg-muted"
             >
               Workspace settings
             </Link>
@@ -57,7 +57,7 @@ export default async function MembersPage({ searchParams }: MembersPageProps) {
       />
 
       {data.error ? (
-        <div className="rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
           {data.error}
         </div>
       ) : null}
@@ -65,12 +65,12 @@ export default async function MembersPage({ searchParams }: MembersPageProps) {
       <SectionCard title="Search" description="Filter by member name, email, role, or invitation status.">
         <form className="flex flex-col gap-3 sm:flex-row" method="get">
           <label className="relative flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input name="query" defaultValue={data.search} placeholder="Search members and invitations" className="pl-10" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input name="query" defaultValue={data.search} placeholder="Search members and invitations" className="pl-9" />
           </label>
           <button
             type="submit"
-            className="inline-flex h-11 items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow-xs transition hover:bg-primary/90"
           >
             Search
           </button>
@@ -120,10 +120,10 @@ function MembersTable({ members, canManage }: { members: WorkspaceMemberRecord[]
 
   return (
     <div className="space-y-4">
-      <div className="hidden overflow-hidden rounded-3xl border border-slate-200/80 dark:border-white/10 lg:block">
-        <table className="min-w-full divide-y divide-slate-200 dark:divide-white/10">
-          <thead className="bg-slate-50 dark:bg-white/5">
-            <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+      <div className="hidden overflow-hidden rounded-lg border border-border lg:block shadow-2xs">
+        <table className="min-w-full divide-y divide-border">
+          <thead className="bg-muted/50">
+            <tr className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               <th className="px-4 py-3">Member</th>
               <th className="px-4 py-3">Role</th>
               <th className="px-4 py-3">Joined</th>
@@ -131,7 +131,7 @@ function MembersTable({ members, canManage }: { members: WorkspaceMemberRecord[]
               <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200 bg-white dark:divide-white/10 dark:bg-slate-950/30">
+          <tbody className="divide-y divide-border bg-card">
             {members.map((member) => (
               <MemberRow key={member.id} member={member} canManage={canManage} />
             ))}
@@ -152,20 +152,20 @@ function MemberRow({ member, canManage }: { member: WorkspaceMemberRecord; canMa
   const statusTone = member.role === "owner" ? "success" : member.role === "admin" ? "info" : member.role === "viewer" ? "neutral" : "neutral";
 
   return (
-    <tr className="align-top">
+    <tr className="align-top hover:bg-muted/40 transition-colors">
       <td className="px-4 py-4">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-slate-950 dark:text-white">{member.full_name}</p>
+            <p className="font-medium text-foreground text-sm">{member.full_name}</p>
             {member.is_current_user ? <StatusBadge tone="info">You</StatusBadge> : null}
           </div>
-          <p className="text-sm text-slate-500">Joined {member.joined_label}</p>
+          <p className="text-xs text-muted-foreground">Joined {member.joined_label}</p>
         </div>
       </td>
       <td className="px-4 py-4">
         <StatusBadge tone={statusTone}>{member.role}</StatusBadge>
       </td>
-      <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-300">{member.joined_label}</td>
+      <td className="px-4 py-4 text-xs text-muted-foreground">{member.joined_label}</td>
       <td className="px-4 py-4">
         {member.role === "owner" ? (
           <StatusBadge key="protected" tone="success">Protected</StatusBadge>
@@ -179,7 +179,7 @@ function MemberRow({ member, canManage }: { member: WorkspaceMemberRecord; canMa
             <form action={updateMemberRoleAction} className="flex items-center gap-2">
               <input type="hidden" name="member_id" value={member.id} />
               <input type="hidden" name="next" value="/settings/members" />
-              <Select name="role" defaultValue={member.role} disabled={!member.can_edit_role} className="h-10 w-40">
+              <Select name="role" defaultValue={member.role} disabled={!member.can_edit_role} className="h-8 w-36 text-xs">
                 <option value="owner">Çalışma alanı sahibi</option>
                 <option value="admin">Yönetici</option>
                 <option value="manager">Satış yöneticisi</option>
@@ -189,7 +189,7 @@ function MemberRow({ member, canManage }: { member: WorkspaceMemberRecord; canMa
               <button
                 type="submit"
                 disabled={!member.can_edit_role}
-                className="inline-flex h-10 items-center rounded-2xl bg-slate-950 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                className="inline-flex h-8 items-center rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground shadow-xs transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Save role
               </button>
@@ -201,14 +201,14 @@ function MemberRow({ member, canManage }: { member: WorkspaceMemberRecord; canMa
               <ConfirmFormButton
                 confirmMessage="Remove this member from the workspace?"
                 disabled={!member.can_remove}
-                className="inline-flex h-10 items-center rounded-2xl border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+                className="inline-flex h-8 items-center rounded-md border border-rose-200 bg-rose-50 px-2.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
               >
                 Remove
               </ConfirmFormButton>
             </form>
           </div>
         ) : (
-          <p className="text-sm text-slate-500">Read only</p>
+          <p className="text-xs text-muted-foreground">Read only</p>
         )}
       </td>
     </tr>
@@ -217,14 +217,14 @@ function MemberRow({ member, canManage }: { member: WorkspaceMemberRecord; canMa
 
 function MemberCard({ member, canManage }: { member: WorkspaceMemberRecord; canManage: boolean }) {
   return (
-    <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+    <div className="space-y-4 rounded-lg border border-border bg-card p-4 shadow-2xs">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-slate-950 dark:text-white">{member.full_name}</p>
+            <p className="font-medium text-foreground text-sm">{member.full_name}</p>
             {member.is_current_user ? <StatusBadge tone="info">You</StatusBadge> : null}
           </div>
-          <p className="mt-1 text-sm text-slate-500">Joined {member.joined_label}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Joined {member.joined_label}</p>
         </div>
         <StatusBadge tone={member.role === "owner" ? "success" : member.role === "admin" ? "info" : "neutral"}>{member.role}</StatusBadge>
       </div>
@@ -236,7 +236,7 @@ function MemberCard({ member, canManage }: { member: WorkspaceMemberRecord; canM
             <form action={updateMemberRoleAction} className="flex items-center gap-2">
               <input type="hidden" name="member_id" value={member.id} />
               <input type="hidden" name="next" value="/settings/members" />
-              <Select name="role" defaultValue={member.role} disabled={!member.can_edit_role} className="h-10">
+              <Select name="role" defaultValue={member.role} disabled={!member.can_edit_role} className="h-8 text-xs">
                 <option value="owner">Çalışma alanı sahibi</option>
                 <option value="admin">Yönetici</option>
                 <option value="manager">Satış yöneticisi</option>
@@ -246,7 +246,7 @@ function MemberCard({ member, canManage }: { member: WorkspaceMemberRecord; canM
               <button
                 type="submit"
                 disabled={!member.can_edit_role}
-                className="inline-flex h-10 items-center rounded-2xl bg-slate-950 px-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+                className="inline-flex h-8 items-center rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground shadow-xs transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Save
               </button>
@@ -262,7 +262,7 @@ function MemberCard({ member, canManage }: { member: WorkspaceMemberRecord; canM
           <ConfirmFormButton
             confirmMessage="Remove this member from the workspace?"
             disabled={!member.can_remove}
-            className="inline-flex h-10 w-full items-center justify-center rounded-2xl border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+            className="inline-flex h-8 w-full items-center justify-center rounded-md border border-rose-200 bg-rose-50 px-3 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
           >
             Remove member
           </ConfirmFormButton>
@@ -283,14 +283,14 @@ function InvitationRow({ invitation, canManage }: { invitation: WorkspaceInvitat
           : "neutral";
 
   return (
-    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
+    <div className="rounded-lg border border-border bg-card p-4 shadow-2xs">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-medium text-slate-950 dark:text-white">{invitation.email}</p>
+            <p className="font-medium text-foreground text-sm">{invitation.email}</p>
             <StatusBadge tone={tone}>{invitation.computed_status}</StatusBadge>
           </div>
-          <p className="text-sm text-slate-500">Role {invitation.role} · Expires {invitation.expires_label}</p>
+          <p className="text-xs text-muted-foreground">Role {invitation.role} · Expires {invitation.expires_label}</p>
         </div>
 
         {canManage && invitation.computed_status === "pending" ? (
@@ -299,7 +299,7 @@ function InvitationRow({ invitation, canManage }: { invitation: WorkspaceInvitat
               <input type="hidden" name="invitation_id" value={invitation.id} />
               <button
                 type="submit"
-                className="inline-flex h-10 items-center rounded-2xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-slate-950/30 dark:text-slate-300 dark:hover:bg-white/10"
+                className="inline-flex h-8 items-center rounded-md border border-border bg-background px-2.5 text-xs font-medium text-foreground transition hover:bg-muted shadow-2xs"
               >
                 Resend
               </button>
@@ -309,7 +309,7 @@ function InvitationRow({ invitation, canManage }: { invitation: WorkspaceInvitat
               <input type="hidden" name="invitation_id" value={invitation.id} />
               <ConfirmFormButton
                 confirmMessage="Revoke this invitation?"
-                className="inline-flex h-10 items-center rounded-2xl border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+                className="inline-flex h-8 items-center rounded-md border border-rose-200 bg-rose-50 px-2.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
               >
                 Revoke
               </ConfirmFormButton>
@@ -323,9 +323,9 @@ function InvitationRow({ invitation, canManage }: { invitation: WorkspaceInvitat
 
 function EmptyState({ title, description }: { title: string; description: string }) {
   return (
-    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center dark:border-white/10 dark:bg-white/5">
-      <p className="text-sm font-medium text-slate-950 dark:text-white">{title}</p>
-      <p className="mx-auto mt-2 max-w-lg text-sm text-slate-500">{description}</p>
+    <div className="rounded-lg border border-dashed border-border bg-card p-8 text-center">
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="mx-auto mt-1 max-w-lg text-xs text-muted-foreground">{description}</p>
     </div>
   );
 }

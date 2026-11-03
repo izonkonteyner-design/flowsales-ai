@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { hasSupabaseConfig } from "@/lib/supabase/env";
 import { demoOrganization } from "@/server/services/crm-data";
@@ -39,7 +40,7 @@ export function createDemoWorkspaceContext(): WorkspaceContext {
   };
 }
 
-export async function loadWorkspaceContext(): Promise<WorkspaceContext | null> {
+export const loadWorkspaceContext = cache(async (): Promise<WorkspaceContext | null> => {
   if (!hasSupabaseConfig()) {
     return null;
   }
@@ -103,8 +104,8 @@ export async function loadWorkspaceContext(): Promise<WorkspaceContext | null> {
     userId: user.id,
     members,
   };
-}
+});
 
-export async function getWorkspaceContext() {
+export const getWorkspaceContext = cache(async (): Promise<WorkspaceContext> => {
   return (await loadWorkspaceContext()) ?? createDemoWorkspaceContext();
-}
+});

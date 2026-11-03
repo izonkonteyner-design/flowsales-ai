@@ -15,9 +15,10 @@ type LeadNewPageProps = {
 export default async function LeadNewPage({ searchParams }: LeadNewPageProps) {
   const rawSearchParams = await searchParams;
   const data = await getLeadPageData({});
-  const redirectTo = typeof rawSearchParams.redirect_to === "string" && rawSearchParams.redirect_to.startsWith("/")
-    ? rawSearchParams.redirect_to
-    : "/leads";
+  const redirectTo =
+    typeof rawSearchParams.redirect_to === "string" && rawSearchParams.redirect_to.startsWith("/")
+      ? rawSearchParams.redirect_to
+      : "/leads";
   const toastMessage = typeof rawSearchParams.toast === "string" ? rawSearchParams.toast : "";
   const toastTone =
     rawSearchParams.tone === "danger" || rawSearchParams.tone === "warning" || rawSearchParams.tone === "info"
@@ -25,30 +26,33 @@ export default async function LeadNewPage({ searchParams }: LeadNewPageProps) {
       : "success";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
 
       <PageHeader
-        eyebrow="CRM"
-        title="New lead"
-        description="Create a lead that stays scoped to the current organization."
+        eyebrow="Satış & Fırsat Yönetimi"
+        title="Yeni Müşteri Adayı Ekle"
+        description="Mevcut organizasyon kapsamında doğrulanmış yeni bir satış fırsatı oluşturun."
         actions={
           <Link
             href="/leads"
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted transition-colors"
           >
-            <ArrowLeft className="h-4 w-4" />
-            Back to leads
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Adaylar Listesine Dön
           </Link>
         }
       />
 
-      <SectionCard title="Lead details" description="Use the validated form to capture a new opportunity.">
+      <SectionCard
+        title="Aday Bilgileri"
+        description="Formu doldurarak adayı sisteme kaydedin. Değerler sunucuda doğrulanır."
+      >
         <LeadForm
           action={createLeadAction}
           redirectTo={redirectTo}
           members={data.context.members}
-          submitLabel="Create lead"
+          submitLabel="Müşteri Adayını Kaydet"
         />
       </SectionCard>
     </div>

@@ -21,48 +21,48 @@ export function SocialHubContainer({
   const [activeTab, setActiveTab] = useState<"social" | "ads" | "creative" | "analytics">("social");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Top Tab Switcher */}
-      <div className="flex border-b border-slate-200 dark:border-white/10 gap-2 overflow-x-auto">
+      <div className="flex border-b border-border gap-2 overflow-x-auto">
         <button
           type="button"
           onClick={() => setActiveTab("social")}
           className={cn(
-            "flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
+            "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
             activeTab === "social"
-              ? "border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400"
-              : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+              ? "border-primary text-foreground font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          <Share2 className="h-4 w-4" />
-          <span>İçerik Yayını & Kategori Stüdyosu</span>
+          <Share2 className="h-3.5 w-3.5" />
+          <span>İçerik Yayını & Planlama</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("ads")}
           className={cn(
-            "flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
+            "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
             activeTab === "ads"
-              ? "border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400"
-              : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+              ? "border-primary text-foreground font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          <TrendingUp className="h-4 w-4" />
-          <span>Reklam Yönetimi (Google & Meta Ads)</span>
+          <TrendingUp className="h-3.5 w-3.5" />
+          <span>Reklam Yönetimi (Google & Meta)</span>
         </button>
 
         <button
           type="button"
           onClick={() => setActiveTab("creative")}
           className={cn(
-            "flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
+            "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
             activeTab === "creative"
-              ? "border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400"
-              : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+              ? "border-primary text-foreground font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          <Sparkles className="h-4 w-4" />
+          <Sparkles className="h-3.5 w-3.5" />
           <span>Kreatif Prodüksiyon Stüdyosu</span>
         </button>
 
@@ -70,22 +70,24 @@ export function SocialHubContainer({
           type="button"
           onClick={() => setActiveTab("analytics")}
           className={cn(
-            "flex items-center gap-2 px-4 py-3 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
+            "flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition -mb-px cursor-pointer shrink-0",
             activeTab === "analytics"
-              ? "border-violet-600 text-violet-600 dark:border-violet-400 dark:text-violet-400"
-              : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+              ? "border-primary text-foreground font-bold"
+              : "border-transparent text-muted-foreground hover:text-foreground",
           )}
         >
-          <BarChart3 className="h-4 w-4" />
-          <span>Performans & Optimizasyon</span>
+          <BarChart3 className="h-3.5 w-3.5" />
+          <span>Pazarlama Analitiği</span>
         </button>
       </div>
 
       {/* Active Tab Views */}
-      {activeTab === "social" && socialContent}
-      {activeTab === "ads" && adsContent}
-      {activeTab === "creative" && creativeContent}
-      {activeTab === "analytics" && analyticsContent}
+      <div>
+        {activeTab === "social" && socialContent}
+        {activeTab === "ads" && adsContent}
+        {activeTab === "creative" && creativeContent}
+        {activeTab === "analytics" && analyticsContent}
+      </div>
     </div>
   );
 }

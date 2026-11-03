@@ -33,49 +33,54 @@ export function ProductDeleteDialog({
         onClick={disabled ? undefined : () => setOpen(true)}
         disabled={disabled}
         title={disabledReason || undefined}
-        className="inline-flex h-10 items-center gap-2 rounded-2xl border border-rose-200 bg-white px-4 text-sm font-medium text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rose-200 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200 dark:hover:bg-rose-500/20"
+        className="inline-flex h-7 items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2.5 text-xs font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-40 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300"
       >
-        <Trash2 className="h-4 w-4" />
-        Delete
+        <Trash2 className="h-3 w-3" />
+        Sil
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="product-delete-title">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_30px_120px_rgba(15,23,42,0.35)] dark:border-white/10 dark:bg-slate-950">
-            <div className="flex items-start justify-between gap-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4 backdrop-blur-xs"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="product-delete-title"
+        >
+          <div className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-lg">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p id="product-delete-title" className="text-lg font-semibold text-slate-950 dark:text-white">
-                  Delete product
+                <p id="product-delete-title" className="text-base font-semibold text-foreground">
+                  Ürünü Sil
                 </p>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-400">
-                  This will permanently remove <span className="font-medium text-slate-950 dark:text-white">{productName}</span> from the current organization.
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  <span className="font-semibold text-foreground">{productName}</span> ürünü kalıcı olarak silinecektir. Bu işlem geri alınamaz.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-500 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:hover:bg-white/5"
-                aria-label="Close dialog"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-border text-muted-foreground hover:bg-muted"
+                aria-label="Kapat"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <form action={deleteProductAction} className="mt-6 flex flex-wrap gap-3">
+            <form action={deleteProductAction} className="mt-5 flex justify-end gap-2">
               <input type="hidden" name="product_id" value={productId} />
               <input type="hidden" name="redirect_to" value={redirectTo} />
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+                className="inline-flex h-8 items-center justify-center rounded-md border border-border bg-background px-3 text-xs font-medium text-foreground hover:bg-muted transition-colors"
               >
-                Cancel
+                Vazgeç
               </button>
               <button
                 type="submit"
-                className="inline-flex h-11 items-center justify-center rounded-2xl bg-rose-600 px-4 text-sm font-medium text-white transition hover:bg-rose-500"
+                className="inline-flex h-8 items-center justify-center rounded-md bg-rose-600 px-3 text-xs font-semibold text-white shadow-xs hover:bg-rose-700 transition-colors"
               >
-                Confirm delete
+                Silmeyi Onayla
               </button>
             </form>
           </div>

@@ -1,5 +1,4 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { hasSupabaseConfig } from "@/lib/supabase/env";
 import {
   demoActivities,
   demoLeads,
@@ -118,73 +117,17 @@ function mapLeadRow(lead: Lead, members: LeadMemberOption[], recordMode: LeadRec
   };
 }
 
-async function loadLiveContext(): Promise<LeadWorkspaceContext | null> {
-  if (!hasSupabaseConfig()) {
-    return null;
-  }
-
-  const client = await createSupabaseServerClient();
-  if (!client) {
-    return null;
-  }
-
-  const {
-    data: { user },
-  } = await client.auth.getUser();
-
-  if (!user) {
-    return null;
-  }
-
-  const { data: membership, error: membershipError } = await client
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (membershipError || !membership) {
-    return null;
-  }
-
-  const { data: organization, error: orgError } = await client
-    .from("organizations")
-    .select("id, name, slug, currency")
-    .eq("id", membership.organization_id)
-    .maybeSingle();
-
-  if (orgError || !organization) {
-    return null;
-  }
-
-  let members: LeadMemberOption[] = [];
-  try {
-    const { data } = await client.rpc("get_org_member_options", {
-      target_org: organization.id,
-    });
-
-    members = (data ?? []).map((member: { user_id: string; full_name: string; role: LeadRole }) => ({
-      user_id: member.user_id,
-      full_name: member.full_name,
-      role: member.role,
-    }));
-  } catch {
-    members = [];
-  }
-
-  return {
-    mode: "live",
-    organization: organization as Organization,
-    role: membership.role as LeadRole,
-    userId: user.id,
-    members,
-  };
-}
+import { getWorkspaceContext as getSharedWorkspaceContext } from "@/server/services/workspace-context";
 
 async function getWorkspaceContext(): Promise<LeadWorkspaceContext> {
-  const liveContext = await loadLiveContext();
-  return liveContext ?? createDemoContext();
+  const context = await getSharedWorkspaceContext();
+  return {
+    mode: context.mode,
+    organization: context.organization,
+    role: context.role as LeadRole,
+    userId: context.userId,
+    members: context.members as LeadMemberOption[],
+  };
 }
 
 async function loadLiveLeads(context: LeadWorkspaceContext) {

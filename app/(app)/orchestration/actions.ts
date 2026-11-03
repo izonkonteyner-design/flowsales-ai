@@ -10,6 +10,7 @@ import { BusinessMemoryService } from "@/server/services/orchestration/business-
 import { ConnectorFrameworkService } from "@/server/services/orchestration/connector-framework";
 import { getWorkerOperationalMetrics } from "@/server/services/orchestration/worker";
 import type { MemoryCategory, ConnectorProviderKey } from "@/types/orchestration";
+import type { TrustedProduct } from "@/server/services/sales-tools/product-catalog-domain";
 
 async function requireContext() {
   const context = await getWorkspaceContext();
@@ -153,5 +154,126 @@ export async function getWorkerMetricsAction() {
   const { context, supabase } = await requireContext();
   const metrics = await getWorkerOperationalMetrics(supabase, context.organization.id);
   return { success: true, metrics };
+}
+
+export async function runSalesAutopilotAction(formData: FormData) {
+  const { context, supabase } = await requireContext();
+
+  const fullName = String(formData.get("fullName") || "").trim();
+  if (!fullName) throw new Error("Müşteri adı soyadı zorunludur.");
+
+  const company = String(formData.get("company") || "").trim();
+  const phone = String(formData.get("phone") || "").trim();
+  const email = String(formData.get("email") || "").trim();
+  const city = String(formData.get("city") || "İzmir").trim();
+  const budgetTRY = formData.get("budgetTRY") ? Number(formData.get("budgetTRY")) : undefined;
+  const requestedM2 = formData.get("requestedM2") ? Number(formData.get("requestedM2")) : 21;
+  const roomCount = String(formData.get("roomCount") || "1+1").trim();
+  const containerType = (formData.get("containerType") || "ofis") as "ofis" | "yasam" | "santiye" | "ozel";
+  const quantity = formData.get("quantity") ? Number(formData.get("quantity")) : 1;
+  const discountPercent = formData.get("discountPercent") ? Number(formData.get("discountPercent")) : 5;
+  const shippingTRY =
+    formData.get("shippingTRY") !== null && formData.get("shippingTRY") !== ""
+      ? Number(formData.get("shippingTRY"))
+      : undefined;
+  const assemblyTRY =
+    formData.get("assemblyTRY") !== null && formData.get("assemblyTRY") !== ""
+      ? Number(formData.get("assemblyTRY"))
+      : undefined;
+
+  const { data: rawProducts } = await supabase
+    .from("products")
+    .select("*")
+    .eq("organization_id", context.organization.id)
+    .eq("active", true)
+    .limit(50);
+
+  const catalog: TrustedProduct[] = (rawProducts && rawProducts.length > 0)
+    ? rawProducts.map((r: Record<string, unknown>) => ({
+        id: String(r.id),
+        workspaceId: String(r.organization_id || context.organization.id),
+        sku: r.sku ? String(r.sku) : null,
+        name: String(r.name),
+        category: r.category ? String(r.category) : "Konteyner",
+        description: r.description ? String(r.description) : null,
+        model: r.model ? String(r.model) : null,
+        areaM2: r.area_m2 ? Number(r.area_m2) : 21,
+        unitPrice: r.unit_price ? Number(r.unit_price) : 75000,
+        basePrice: r.base_price ? Number(r.base_price) : 75000,
+        currency: r.currency ? String(r.currency) : "TRY",
+        features: Array.isArray(r.features) ? (r.features as string[]) : [],
+        specifications: Array.isArray(r.specifications)
+          ? (r.specifications as Array<{ key: string; value: string }>)
+          : [],
+        active: r.active === true,
+        updatedAt: r.updated_at ? String(r.updated_at) : new Date().toISOString(),
+      }))
+    : [
+        {
+          id: "prod-izon-21",
+          workspaceId: context.organization.id,
+          sku: "IZON-21-STD",
+          name: "21 m² Standart Ofis Konteyneri",
+          category: "Ofis",
+          description: "Yalıtımlı sandviç panel, elektrik ve aydınlatma tesisatlı ofis konteyneri",
+          model: "21 m² Ofis",
+          areaM2: 21,
+          unitPrice: 75000,
+          basePrice: 75000,
+          currency: "TRY",
+          features: ["Sandviç Panel", "PVC Pencere", "Çelik Kapı"],
+          specifications: [{ key: "m2", value: "21" }, { key: "oda", value: "Tek Oda" }],
+          active: true,
+          updatedAt: new Date().toISOString(),
+        },
+        {
+          id: "prod-izon-35",
+          workspaceId: context.organization.id,
+          sku: "IZON-35-YASAM",
+          name: "35 m² 1+1 Yaşam Konteyneri",
+          category: "Yaşam",
+          description: "1+1 WC ve duşlu, mutfak tezgahlı yaşam konteyneri",
+          model: "35 m² 1+1",
+          areaM2: 35,
+          unitPrice: 135000,
+          basePrice: 135000,
+          currency: "TRY",
+          features: ["WC/Duş", "Mutfak Evyesi", "Isı Yalıtımı"],
+          specifications: [{ key: "m2", value: "35" }, { key: "oda", value: "1+1" }],
+          active: true,
+          updatedAt: new Date().toISOString(),
+        },
+      ];
+
+  const { SalesAutopilotService } = await import("@/server/services/orchestration/sales-autopilot");
+  const service = new SalesAutopilotService(supabase);
+
+  const report = await service.executeFullSalesAutopilot({
+    organizationId: context.organization.id,
+    userId: context.userId || "system_user",
+    input: {
+      fullName,
+      company: company || undefined,
+      phone: phone || undefined,
+      email: email || undefined,
+      city,
+      budgetTRY,
+      requestedM2,
+      roomCount,
+      containerType,
+      urgency: "normal",
+    },
+    catalog,
+    customQuantity: quantity,
+    customDiscountPercent: discountPercent,
+    shippingTRY,
+    assemblyTRY,
+    userRole: context.role,
+  });
+
+  revalidatePath("/orchestration");
+  revalidatePath("/leads");
+  revalidatePath("/quotes");
+  return { success: true, report };
 }
 

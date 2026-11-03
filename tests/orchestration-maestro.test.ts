@@ -1,6 +1,16 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createRequire } from "node:module";
+
+const req = createRequire(import.meta.url);
+const serverOnlyPath = req.resolve("server-only");
+req.cache[serverOnlyPath] = {
+  id: serverOnlyPath,
+  filename: serverOnlyPath,
+  loaded: true,
+  exports: {},
+} as NodeModule;
 
 import {
   AgentRegistryService,
@@ -199,12 +209,12 @@ describe("FlowSales AI — Autonomous Multi-Agent Orchestration & Independent Ve
   const orgId = "11111111-2222-3333-4444-555555555555";
   const otherOrgId = "99999999-9999-9999-9999-999999999999";
 
-  test("Agent Registry: Seeds the 9 specialized agents with strict security permissions", async () => {
+  test("Agent Registry: Seeds the 16 specialized agents with strict security permissions", async () => {
     const supabase = createMockSupabase();
     const registry = new AgentRegistryService(supabase);
 
     const agents = await registry.getOrSeedAgents(orgId);
-    assert.equal(agents.length, 9, "Should seed exactly 9 specialized agents");
+    assert.equal(agents.length, 16, "Should seed all 16 specialized agents (9 foundation + 7 sales autopilot)");
 
     const salesAgent = agents.find((a) => a.key === "sales_agent");
     assert.ok(salesAgent, "Sales agent must be present");

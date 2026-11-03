@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { synthesizeCustomerMemoryContext } from "../customer-memory/service";
+import { MAX_REPRESENTATIVE_DISCOUNT_PERCENT } from "../sales-policy/discount-policy";
 import {
   type NegotiationStrategyInput,
   type NegotiationStrategyResult,
@@ -110,7 +111,7 @@ export async function generateQuoteCopilotDraft(
     grandTotal,
     currency: validated.currency,
     estimatedMarginPercent: 28,
-    maxAuthorizedDiscountPercent: 8, // Rep can discount max 8% without approval
+    maxAuthorizedDiscountPercent: MAX_REPRESENTATIVE_DISCOUNT_PERCENT, // Rep can discount max 8% without approval
     deliveryTimelineDays: 14,
     commercialTerms: [
       "Ödeme Koşulları: %50 sipariş onayı ve sözleşme akdinde, %50 sevk öncesi nakit/havale.",
@@ -131,7 +132,7 @@ export async function evaluateNegotiationStrategy(
 ): Promise<NegotiationStrategyResult> {
   const validated = negotiationStrategyInputSchema.parse(input);
   const reqDiscount = validated.requestedDiscountPercent ?? 0;
-  const isHighDiscount = reqDiscount > 8;
+  const isHighDiscount = reqDiscount > MAX_REPRESENTATIVE_DISCOUNT_PERCENT;
 
   let recommendedAction: NegotiationStrategyResult["recommendedAction"] = "hold_price_offer_perk";
   let offeredDiscountPercent = 0;
@@ -144,7 +145,7 @@ export async function evaluateNegotiationStrategy(
     recommendedAction = "require_management_approval";
     offeredDiscountPercent = Math.min(reqDiscount, 10);
     requiresManagerApproval = true;
-  } else if (reqDiscount > 0 && reqDiscount <= 8) {
+  } else if (reqDiscount > 0 && reqDiscount <= MAX_REPRESENTATIVE_DISCOUNT_PERCENT) {
     recommendedAction = "offer_tiered_discount";
     offeredDiscountPercent = reqDiscount;
     valueAdds.push("Peşin tam ödemede geçerli özel iskonto.");
@@ -177,7 +178,7 @@ export async function evaluateNegotiationStrategy(
     quoteId: validated.quoteId,
     originalTotal: validated.currentTotal,
     recommendedAction,
-    maxAllowedDiscountPercent: 8,
+    maxAllowedDiscountPercent: MAX_REPRESENTATIVE_DISCOUNT_PERCENT,
     offeredDiscountPercent,
     revisedTotal,
     valueAddsProposed: valueAdds,

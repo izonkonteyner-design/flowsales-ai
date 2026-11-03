@@ -314,6 +314,80 @@ Lütfen bu hedef için Maestro planını oluştur.`;
       };
     }
 
+    // AI Sales Autopilot / Otonom Satış Operasyonu hedefi
+    if (
+      lower.includes("autopilot") ||
+      lower.includes("otopilot") ||
+      lower.includes("otonom satış") ||
+      lower.includes("uçtan uca satış") ||
+      lower.includes("tam operasyon") ||
+      lower.includes("lead intake")
+    ) {
+      return {
+        summary: "Uçtan uca AI Sales Autopilot: Aday doğrulama, ihtiyaç analizi, ürün eşleştirme, teklif hazırlama, takip planı ve yönetim raporlaması.",
+        needsClarification: false,
+        clarifyingQuestions: [],
+        tasks: [
+          {
+            assignedAgentKey: "lead_intelligence_agent",
+            title: "Aday İstihbarat ve Doğrulama",
+            description: "Yeni müşteri verilerini incele, formatları doğrula, mükerrer kontrolü yap.",
+            priority: "urgent",
+            dependsOnTaskIndices: [],
+            inputPayload: { objective },
+            requiresApproval: false,
+          },
+          {
+            assignedAgentKey: "customer_analysis_agent",
+            title: "Müşteri İhtiyaç ve Potansiyel Analizi",
+            description: "Kurumsal/bireysel ayrımı yap, kullanım amacı, bütçe ve satın alma potansiyelini puanla.",
+            priority: "high",
+            dependsOnTaskIndices: [0],
+            inputPayload: {},
+            requiresApproval: false,
+          },
+          {
+            assignedAgentKey: "product_matching_agent",
+            title: "Konteyner ve Model Eşleştirme",
+            description: "Müşteri ihtiyacını İZON KONTEYNER kataloğuyla (21m²-84m², 1+1, 3+1, ofis, yaşam) eşleştir.",
+            priority: "high",
+            dependsOnTaskIndices: [1],
+            inputPayload: {},
+            requiresApproval: false,
+          },
+          {
+            assignedAgentKey: "quote_intelligence_agent",
+            title: "Deterministik Teklif ve Fiyatlama Taslağı",
+            description: "Quote Math ile brüt, iskonto, KDV ve nakliye/montaj kalemlerini hesaplayıp teklif taslağı oluştur.",
+            priority: "high",
+            dependsOnTaskIndices: [2],
+            inputPayload: {},
+            requiresApproval: true,
+          },
+          {
+            assignedAgentKey: "sales_follow_up_agent",
+            title: "Satış Takip Görevi ve Planı",
+            description: "Teklif takibi için CRM takip görevini ve onay bekleyen hatırlatma planını oluştur.",
+            priority: "medium",
+            dependsOnTaskIndices: [3],
+            inputPayload: {},
+            requiresApproval: false,
+          },
+          {
+            assignedAgentKey: "sales_intelligence_agent",
+            title: "Satış Performansı ve Yönetim Raporu",
+            description: "Satış dönüşüm metriklerini, kaynak performansını ve darboğazları raporla.",
+            priority: "medium",
+            dependsOnTaskIndices: [4],
+            inputPayload: {},
+            requiresApproval: false,
+          },
+        ],
+        estimatedTokens: 6000,
+        estimatedCostUsd: 0.025,
+      };
+    }
+
     // Satış / Teklif hedefi
     if (lower.includes("satış") || lower.includes("teklif") || lower.includes("fiyat") || lower.includes("lead")) {
       return {

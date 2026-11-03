@@ -14,23 +14,23 @@ req.cache[serverOnlyPath] = {
   exports: {},
 } as NodeModule;
 
-import { t, navLabel, normalizeLocale } from "@/lib/i18n";
-import { sanitizeTurkishForPdf } from "@/lib/utils";
-import {
+const { t, navLabel, normalizeLocale } = req("../lib/i18n");
+const { sanitizeTurkishForPdf } = req("../lib/utils");
+const {
   PLATFORM_CAPABILITY_MATRIX,
   validatePlatformCapabilities,
   validateSocialPostInput,
   adaptCaptionForPlatform,
-  type SocialPlatform,
-} from "@/server/services/integrations/social-domain";
-import {
+} = req("../server/services/integrations/social-domain");
+const {
   publishSocialPost,
   publishSocialPostToTikTok,
   publishSocialPostToYouTube,
   generateSocialCaptionSuggestions,
-} from "@/server/services/integrations/social-publisher";
-import { getProviderAdapter, isProviderConfigured } from "@/server/services/integrations/provider-adapter";
-import { renderQuotePdfBuffer } from "@/server/services/quote-pdf";
+} = req("../server/services/integrations/social-publisher");
+const { getProviderAdapter, isProviderConfigured } = req("../server/services/integrations/provider-adapter");
+const { renderQuotePdfBuffer } = req("../server/services/quote-pdf");
+import type { SocialPlatform } from "@/server/services/integrations/social-domain";
 import type { QuoteDocumentModel } from "@/server/services/quote-document";
 
 const testsDir = dirname(fileURLToPath(import.meta.url));

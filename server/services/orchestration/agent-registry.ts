@@ -245,6 +245,175 @@ Görevlerin:
     status: "active",
     version: 1,
   },
+  {
+    key: "lead_intelligence_agent",
+    name: "Aday İstihbarat ve Doğrulama Ajanı",
+    description: "Yeni müşteri kayıtlarını inceler, e-posta/telefon formatlarını doğrular, mükerrer kayıtları tespit eder ve CRM'i zenginleştirir.",
+    department: "sales",
+    systemInstructions: `Sen FlowSales AI Aday İstihbarat ve Doğrulama Ajanısın.
+Görevlerin:
+1. Yeni gelen müşteri adayı verilerini incelemek, telefon ve e-posta biçimlerini doğrulamak.
+2. CRM ve geçmiş konuşmalarda mükerrer (duplicate) müşteri tespiti yapmak.
+3. Eksik alanları işaretlemek ve doğrulanmış müşteri profilini satış hattına iletmek.`,
+    supportedSkills: ["lead_verification", "deduplication", "format_validation", "crm_enrichment"],
+    permittedTools: ["crm_read", "lead_dedup_check", "business_memory_read"],
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    executionLimits: { maxIterations: 6, maxTokens: 6000, timeoutSeconds: 45 },
+    permissionProfile: {
+      canReadCrm: true,
+      canDraftActions: true,
+      requiresApprovalForExternal: false,
+      externalSpendLimitUsd: 0,
+    },
+    status: "active",
+    version: 1,
+  },
+  {
+    key: "customer_analysis_agent",
+    name: "Müşteri İhtiyaç ve Potansiyel Analiz Ajanı",
+    description: "Bireysel ve kurumsal müşteri ayrımı yapar, bütçe, kullanım amacı, satın alma zamanı ve bölgeyi analiz ederek satın alma potansiyelini puanlar.",
+    department: "sales",
+    systemInstructions: `Sen FlowSales AI Müşteri İhtiyaç ve Potansiyel Analiz Ajanısın.
+Görevlerin:
+1. Müşteri ihtiyacını analiz edip B2B (kurumsal) veya B2C (bireysel) sınıflandırması yapmak.
+2. Kullanım amacı (şantiye, ofis, bağ evi, depo vb.), bütçe, satın alma takvimi ve teslimat bölgesini belirlemek.
+3. Doğrulanabilir veriler ışığında 0-100 arasında satın alma potansiyel skoru hesaplamak ve puanın gerekçesini açıklamak.`,
+    supportedSkills: ["b2b_b2c_classification", "intent_analysis", "budget_scoring", "timeline_qualification"],
+    permittedTools: ["crm_read", "business_memory_read"],
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    executionLimits: { maxIterations: 6, maxTokens: 6000, timeoutSeconds: 45 },
+    permissionProfile: {
+      canReadCrm: true,
+      canDraftActions: true,
+      requiresApprovalForExternal: false,
+      externalSpendLimitUsd: 0,
+    },
+    status: "active",
+    version: 1,
+  },
+  {
+    key: "product_matching_agent",
+    name: "Ürün ve Model Eşleştirme Ajanı",
+    description: "Müşteri ihtiyacını İZON KONTEYNER ürün kataloğuyla (21m²-84m², 1+1, 3+1, ofis, yaşam) eşleştirir ve doğrulanmış katalog fiyatlarını derler.",
+    department: "sales",
+    systemInstructions: `Sen FlowSales AI Ürün ve Model Eşleştirme Ajanısın.
+Görevlerin:
+1. Müşterinin ihtiyaç duyduğu metrekare (21m², 35m², 42m², 48m², 84m²), oda sayısı (1+1, 3+1) ve segmenti (Ekonomik, Gold, Premium, Ofis, Yaşam) belirlemek.
+2. Yalnızca sistemde aktif olan gerçek ürün kataloğundan eşleştirme yapmak; asla katalogda olmayan fiyat veya model uydurmamak.
+3. En uygun ana ürünü ve alternatif opsiyonları gerekçeleriyle sunmak.`,
+    supportedSkills: ["catalog_matching", "specification_filter", "modular_container_selection", "pricing_resolution"],
+    permittedTools: ["product_catalog_read", "crm_read"],
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    executionLimits: { maxIterations: 6, maxTokens: 6000, timeoutSeconds: 45 },
+    permissionProfile: {
+      canReadCrm: true,
+      canDraftActions: true,
+      requiresApprovalForExternal: false,
+      externalSpendLimitUsd: 0,
+    },
+    status: "active",
+    version: 1,
+  },
+  {
+    key: "quote_intelligence_agent",
+    name: "Teklif ve Fiyatlama İstihbarat Ajanı",
+    description: "Deterministik Quote Math motoruyla teklif kalemlerini, iskontoyu, KDV'yi ve nakliye/montajı hesaplar, QA onaylı taslak oluşturur.",
+    department: "sales",
+    systemInstructions: `Sen FlowSales AI Teklif ve Fiyatlama İstihbarat Ajanısın.
+Görevlerin:
+1. Eşleştirilen ürün için miktar, birim fiyat, iskonto ve vergi satırlarını oluşturmak.
+2. Nakliye ve montajı ayrı maliyet kalemleri olarak ele almak.
+3. Deterministik Quote Math motorunu kullanarak hatasız ara toplam, KDV ve genel toplam hesaplamak.
+4. İskonto yetki sınırlarını korumak ve teklifi onay bekleyen taslak (draft) olarak oluşturmak.`,
+    supportedSkills: ["deterministic_quote_math", "discount_governance", "quote_drafting", "tax_calculation"],
+    permittedTools: ["quote_draft", "product_catalog_read", "crm_read"],
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    executionLimits: { maxIterations: 6, maxTokens: 8000, timeoutSeconds: 60 },
+    permissionProfile: {
+      canReadCrm: true,
+      canDraftActions: true,
+      requiresApprovalForExternal: true,
+      externalSpendLimitUsd: 0,
+    },
+    status: "active",
+    version: 1,
+  },
+  {
+    key: "sales_follow_up_agent",
+    name: "Satış Takip ve Hatırlatma Ajanı",
+    description: "Müşteri takip planını ve görevlerini oluşturur, bekleyen teklifleri izler. Asla izinsiz mesaj göndermez.",
+    department: "sales",
+    systemInstructions: `Sen FlowSales AI Satış Takip ve Hatırlatma Ajanısın.
+Görevlerin:
+1. Teklif sunulan veya iletişimdeki müşteriler için sonraki takip tarihini ve görevini belirlemek.
+2. Bekleyen teklifleri izlemek ve yanıt gelmediğinde hatırlatma görevleri türetmek.
+3. Asla otomatik olarak müşteriye doğrudan mesaj göndermemek; daima kullanıcı onayına sunulacak taslak ve görevler üretmek.`,
+    supportedSkills: ["follow_up_scheduling", "task_creation", "pipeline_monitoring", "follow_up_drafting"],
+    permittedTools: ["crm_task_create", "crm_read", "inbox_draft"],
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    executionLimits: { maxIterations: 6, maxTokens: 6000, timeoutSeconds: 45 },
+    permissionProfile: {
+      canReadCrm: true,
+      canDraftActions: true,
+      requiresApprovalForExternal: true,
+      externalSpendLimitUsd: 0,
+    },
+    status: "active",
+    version: 1,
+  },
+  {
+    key: "sales_intelligence_agent",
+    name: "Satış İstihbaratı ve Raporlama Ajanı",
+    description: "Dönüşüm oranlarını, lead kaynak performansını ve satış darboğazlarını analiz eder, yönetime stratejik rapor sunar.",
+    department: "operations",
+    systemInstructions: `Sen FlowSales AI Satış İstihbaratı ve Raporlama Ajanısın.
+Görevlerin:
+1. Lead kaynaklarının dönüşüm performansını, tekliften satışa geçiş oranlarını ve kayıp nedenlerini analiz etmek.
+2. Satış hunisindeki darboğazları tespit etmek ve Action Center için aksiyon önerileri hazırlamak.
+3. Yönetim için günlük ve haftalık özet metrikleri raporlamak.`,
+    supportedSkills: ["conversion_analytics", "pipeline_diagnostics", "executive_reporting", "action_center_insights"],
+    permittedTools: ["crm_read", "analytics_read"],
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    executionLimits: { maxIterations: 8, maxTokens: 8000, timeoutSeconds: 60 },
+    permissionProfile: {
+      canReadCrm: true,
+      canDraftActions: true,
+      requiresApprovalForExternal: false,
+      externalSpendLimitUsd: 0,
+    },
+    status: "active",
+    version: 1,
+  },
+  {
+    key: "maestro_sales_supervisor",
+    name: "Maestro Satış Operasyon Süpervizörü",
+    description: "Tüm satış sürecini DAG bağımlılıklarıyla uçtan uca koordine eder, kalite kontrol ve hata kurtarma sağlar.",
+    department: "executive",
+    systemInstructions: `Sen FlowSales AI Maestro Satış Operasyon Süpervizörüsün.
+Görevlerin:
+1. Yeni müşteri girişinden teklif oluşturmaya ve takibe kadar tüm süreci satış ajanları arasında koordine etmek.
+2. Görev bağımlılıklarını ve veri aktarımlarını (Handoff) eksiksiz yönetmek.
+3. Çıktıların kalitesini denetlemek, başarısız adımları kurtarmak ve süreci başarıyla tamamlamak.`,
+    supportedSkills: ["dag_orchestration", "sales_supervision", "qa_enforcement", "resilience_recovery"],
+    permittedTools: ["crm_read", "quote_draft", "task_dispatch"],
+    provider: "gemini",
+    model: "gemini-3.5-flash-lite",
+    executionLimits: { maxIterations: 10, maxTokens: 10000, timeoutSeconds: 90 },
+    permissionProfile: {
+      canReadCrm: true,
+      canDraftActions: true,
+      requiresApprovalForExternal: true,
+      externalSpendLimitUsd: 0,
+    },
+    status: "active",
+    version: 1,
+  },
 ];
 
 export class AgentRegistryService {
@@ -264,13 +433,16 @@ export class AgentRegistryService {
       throw new Error(`Failed to fetch agents: ${error.message}`);
     }
 
-    const existing = rawExisting as DbAgentRow[] | null;
-    if (existing && existing.length > 0) {
+    const existing = (rawExisting || []) as DbAgentRow[];
+    const existingKeys = new Set(existing.map((r) => r.key));
+    const missingTemplates = DEFAULT_AGENT_TEMPLATES.filter((tpl) => !existingKeys.has(tpl.key));
+
+    if (existing.length > 0 && missingTemplates.length === 0) {
       return existing.map((r) => this.mapRowToAgent(r));
     }
 
-    // Seed defaults
-    const toInsert = DEFAULT_AGENT_TEMPLATES.map((tpl) => ({
+    // Seed defaults or missing templates
+    const toInsert = (existing.length === 0 ? DEFAULT_AGENT_TEMPLATES : missingTemplates).map((tpl) => ({
       organization_id: organizationId,
       key: tpl.key,
       name: tpl.name,
@@ -303,6 +475,15 @@ export class AgentRegistryService {
         return refetched.map((r) => this.mapRowToAgent(r));
       }
       throw new Error(`Failed to seed default agents: ${insertError.message}`);
+    }
+
+    if (existing.length > 0) {
+      const { data: rawFull } = await this.supabase
+        .from("agent_definitions")
+        .select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: true });
+      return ((rawFull || existing) as DbAgentRow[]).map((r) => this.mapRowToAgent(r));
     }
 
     const inserted = rawInserted as DbAgentRow[] | null;

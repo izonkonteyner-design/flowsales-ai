@@ -10,6 +10,10 @@ export const metadata = {
   description: "Autonomous Multi-Agent Orchestration & Operations Platform",
 };
 
+const DEMO_NOW_ISO = "2026-11-01T12:00:00.000Z";
+const DEMO_PAST_ISO = "2026-11-01T11:00:00.000Z";
+const DEMO_FUTURE_ISO = "2026-11-02T12:00:00.000Z";
+
 interface DbPlanRow {
   id: string;
   organization_id: string;
@@ -71,8 +75,8 @@ export default async function OrchestrationPage() {
         clarifications: [],
         budgetLimits: { maxSubtasks: 10, maxTokens: 40000, maxUsd: 0.8 },
         metrics: { totalTokens: 12400, estimatedCostUsd: 0.08, durationMs: 3800 },
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        createdAt: DEMO_NOW_ISO,
+        updatedAt: DEMO_NOW_ISO,
       },
     ];
 
@@ -89,7 +93,7 @@ export default async function OrchestrationPage() {
         outputPayload: { summary: "Pazar verileri incelendi, fırsatlar belirlendi." },
         retryCount: 0,
         maxRetries: 3,
-        createdAt: new Date().toISOString(),
+        createdAt: DEMO_NOW_ISO,
       },
       {
         id: "demo-task-2",
@@ -103,9 +107,63 @@ export default async function OrchestrationPage() {
         outputPayload: { summary: "Kurumsal teklif şablonu hazırlandı." },
         retryCount: 0,
         maxRetries: 3,
-        createdAt: new Date().toISOString(),
+        createdAt: DEMO_NOW_ISO,
       },
     ];
+
+    const demoLeads = [
+      {
+        id: "demo-lead-1",
+        full_name: "Borusan Lojistik",
+        company: "Borusan Lojistik Dağıtım A.Ş.",
+        phone: "+905321234567",
+        email: "satin_alma@borusan.com",
+        status: "qualified",
+        city: "İzmir",
+        created_at: DEMO_NOW_ISO,
+      },
+      {
+        id: "demo-lead-2",
+        full_name: "Ahmet Yılmaz",
+        company: "Yılmaz İnşaat",
+        phone: "+905429876543",
+        email: "ahmet@yilmazinsaat.com.tr",
+        status: "new",
+        city: "Manisa",
+        created_at: DEMO_PAST_ISO,
+      },
+    ];
+
+    const demoQuotesList = [
+      {
+        id: "demo-quote-1",
+        lead_id: "demo-lead-1",
+        total_amount: 171000,
+        currency: "TRY",
+        status: "draft",
+        created_at: DEMO_NOW_ISO,
+        metadata: { itemsCount: 2, model: "21 m² Ofis Konteyneri" },
+      },
+    ];
+
+    const demoFollowUpTasks = [
+      {
+        id: "demo-task-followup-1",
+        lead_id: "demo-lead-1",
+        title: "Borusan Lojistik Teklif Takip Araması",
+        due_at: DEMO_FUTURE_ISO,
+        priority: "high",
+        status: "open",
+        created_at: DEMO_NOW_ISO,
+      },
+    ];
+
+    const demoKpiMetrics = {
+      totalLeads: 24,
+      totalQuotes: 18,
+      pendingTasks: 7,
+      draftQuotes: 5,
+    };
 
     return (
       <OrchestrationClient
@@ -115,6 +173,10 @@ export default async function OrchestrationPage() {
         memories={[]}
         connectors={[]}
         canManage={false}
+        recentLeads={demoLeads}
+        recentQuotes={demoQuotesList}
+        pendingTasks={demoFollowUpTasks}
+        kpiMetrics={demoKpiMetrics}
       />
     );
   }
@@ -199,6 +261,62 @@ export default async function OrchestrationPage() {
     .select("*")
     .eq("organization_id", organizationId);
 
+  // 6. Satış Otopilotu Kokpiti için Lead, Teklif ve Takip Görevlerini Çek
+  const { data: recentLeads } = await supabase
+    .from("leads")
+    .select("id, full_name, company, phone, email, status, city, created_at")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const { data: recentQuotes } = await supabase
+    .from("quotes")
+    .select("id, lead_id, total_amount, currency, status, created_at, metadata")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+
+  const { data: pendingTasks } = await supabase
+    .from("tasks")
+    .select("id, lead_id, title, due_at, priority, status, created_at")
+    .eq("organization_id", organizationId)
+    .order("due_at", { ascending: true })
+    .limit(10);
+
+  // 7. Gerçek KPI Toplamları (Son 10 kayıt sınırı olmadan veritabanı sayımları)
+  const [
+    { count: totalLeadsCount },
+    { count: totalQuotesCount },
+    { count: pendingTasksCount },
+    { count: draftQuotesCount },
+  ] = await Promise.all([
+    supabase
+      .from("leads")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId),
+    supabase
+      .from("quotes")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId),
+    supabase
+      .from("tasks")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("status", "open"),
+    supabase
+      .from("quotes")
+      .select("*", { count: "exact", head: true })
+      .eq("organization_id", organizationId)
+      .eq("status", "draft"),
+  ]);
+
+  const kpiMetrics = {
+    totalLeads: typeof totalLeadsCount === "number" ? totalLeadsCount : (recentLeads?.length || 0),
+    totalQuotes: typeof totalQuotesCount === "number" ? totalQuotesCount : (recentQuotes?.length || 0),
+    pendingTasks: typeof pendingTasksCount === "number" ? pendingTasksCount : (pendingTasks?.length || 0),
+    draftQuotes: typeof draftQuotesCount === "number" ? draftQuotesCount : (recentQuotes?.filter(q => q.status === "draft").length || 0),
+  };
+
   return (
     <OrchestrationClient
       initialAgents={initialAgents}
@@ -207,6 +325,10 @@ export default async function OrchestrationPage() {
       memories={memories}
       connectors={connectors || []}
       canManage={context.role !== "viewer"}
+      recentLeads={recentLeads || []}
+      recentQuotes={recentQuotes || []}
+      pendingTasks={pendingTasks || []}
+      kpiMetrics={kpiMetrics}
     />
   );
 }

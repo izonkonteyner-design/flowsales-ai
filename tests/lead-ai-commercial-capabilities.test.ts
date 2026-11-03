@@ -5,8 +5,8 @@ import test from "node:test";
 const servicesPath = new URL("../server/services/ai-sales-agent/services.ts", import.meta.url);
 const orchestratorPath = new URL("../server/services/ai-sales-agent/orchestrator.ts", import.meta.url);
 const runtimePath = new URL("../server/repositories/supabase/ai-sales-agent.ts", import.meta.url);
-const actionPath = new URL("../app/leads/[leadId]/ai/actions.ts", import.meta.url);
-const pagePath = new URL("../app/leads/[leadId]/ai/page.tsx", import.meta.url);
+const actionPath = new URL("../app/leads/[id]/ai/actions.ts", import.meta.url);
+const pagePath = new URL("../app/leads/[id]/ai/page.tsx", import.meta.url);
 
 test("commercial AI capability services include follow-up, product and quote recommendations", async () => {
   const source = await readFile(servicesPath, "utf8");

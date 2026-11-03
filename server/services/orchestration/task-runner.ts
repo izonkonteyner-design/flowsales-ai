@@ -170,7 +170,7 @@ export class DurableTaskRunner {
       })
       .eq("id", taskRow.id)
       .eq("organization_id", organizationId)
-      .in("status", ["pending", "queued", "retrying"])
+      .in("status", ["pending", "queued", "waiting_for_dependency", "retrying"])
       .select("*")
       .maybeSingle();
 

@@ -143,7 +143,7 @@ export async function evaluateNegotiationStrategy(
 
   if (isHighDiscount || objectionLower.includes("çok yüksek indirim") || reqDiscount >= 15) {
     recommendedAction = "require_management_approval";
-    offeredDiscountPercent = Math.min(reqDiscount, 10);
+    offeredDiscountPercent = Math.min(reqDiscount, MAX_REPRESENTATIVE_DISCOUNT_PERCENT);
     requiresManagerApproval = true;
   } else if (reqDiscount > 0 && reqDiscount <= MAX_REPRESENTATIVE_DISCOUNT_PERCENT) {
     recommendedAction = "offer_tiered_discount";

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BarChart3, LineChart, PieChart, TrendingUp } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
@@ -6,11 +7,12 @@ import { MetricCard } from "@/components/shared/metric-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency } from "@/lib/utils";
 import { getDashboardReportData } from "@/server/services/dashboard-reporting";
+import { getWorkspaceContext } from "@/server/services/workspace-context";
 
 type Props = { searchParams: Promise<Record<string, string | string[] | undefined>> };
 
 export default async function ReportsPage({ searchParams }: Props) {
-  const result = await getDashboardReportData(await searchParams);
+  const [result, context] = await Promise.all([getDashboardReportData(await searchParams), getWorkspaceContext()]);
   if (!result.ok) {
     return (
       <EmptyState
@@ -22,6 +24,7 @@ export default async function ReportsPage({ searchParams }: Props) {
     );
   }
   const report = result.report;
+  const canViewActivation = ["owner", "admin"].includes(context.role);
 
   return (
     <div className="space-y-5">
@@ -29,6 +32,16 @@ export default async function ReportsPage({ searchParams }: Props) {
         eyebrow="Analitik & Performans"
         title="Satış ve Finansal Raporlar"
         description={`${report.period.label} dönemi için CRM ve teklif verilerinden derlenen kurumsal satış raporu.`}
+        actions={
+          canViewActivation ? (
+            <Link
+              href="/reports/activation"
+              className="inline-flex h-8 items-center justify-center rounded-lg border border-border bg-card px-3 text-xs font-semibold text-foreground shadow-xs transition hover:bg-muted"
+            >
+              Activation report
+            </Link>
+          ) : null
+        }
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

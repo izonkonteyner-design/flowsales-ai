@@ -9,6 +9,7 @@ import {
   createLeadRecord,
   createLeadTaskRecord,
   deleteLeadRecord,
+  mergeLeadDuplicateRecords,
   scheduleLeadFollowUpRecord,
   updateLeadRecord,
 } from "@/server/services/leads";
@@ -213,6 +214,36 @@ export async function scheduleLeadFollowUpAction(formData: FormData) {
   } catch (error) {
     const redirectTo = safeRedirectTarget(formData.get("redirect_to"), "/leads");
     redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to schedule follow-up."), "danger"));
+  }
+}
+
+export async function mergeLeadDuplicatesAction(formData: FormData) {
+  const redirectTo = safeRedirectTarget(formData.get("redirect_to"), "/leads");
+  try {
+    const canonicalId = String(formData.get("canonical_id") ?? "").trim();
+    const duplicateIds = formData
+      .getAll("duplicate_id")
+      .map((value) => String(value).trim())
+      .filter(Boolean);
+
+    if (!canonicalId) {
+      throw new Error("Select a canonical lead to keep.");
+    }
+
+    const result = await mergeLeadDuplicateRecords(canonicalId, duplicateIds);
+
+    revalidatePath("/dashboard");
+    revalidatePath("/leads");
+    revalidatePath(`/leads/${canonicalId}`);
+
+    redirect(
+      redirectWithToast(
+        redirectTo,
+        `Merged ${result.mergedCount} duplicate lead${result.mergedCount === 1 ? "" : "s"} into one record.`,
+      ),
+    );
+  } catch (error) {
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to merge duplicate leads."), "danger"));
   }
 }
 

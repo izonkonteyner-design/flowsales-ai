@@ -13,6 +13,7 @@ import {
   loadRelatedQuotesByLead,
   type RelatedQuoteSummary,
 } from "@/server/services/crm-integration";
+import { canMergeDuplicateRecords, findDuplicateGroups, type DuplicateGroup } from "@/server/services/duplicate-detection";
 import { demoTeam } from "@/server/services/workspace-data";
 import {
   buildLeadDashboardMetrics,
@@ -58,6 +59,7 @@ export type LeadPageData = {
   leads: LeadRow[];
   allLeads: LeadRow[];
   summary: LeadDashboardMetrics;
+  duplicateGroups: DuplicateGroup<LeadRow>[];
 };
 
 export type LeadDetailData = {
@@ -170,6 +172,10 @@ function buildPageData(
     leads: page.items,
     allLeads: filtered,
     summary,
+    // Detect duplicates across the whole org (not just the current
+    // filtered/paginated view), so active search/status filters never hide
+    // a possible duplicate group from the user.
+    duplicateGroups: findDuplicateGroups(leads),
   };
 }
 
@@ -663,6 +669,44 @@ export async function deleteLeadRecord(leadId: string) {
   if (error) {
     throw new Error(error.message ?? "Unable to delete lead.");
   }
+}
+
+export async function mergeLeadDuplicateRecords(canonicalId: string, duplicateIds: string[]) {
+  const mutation = await getMutationContext();
+  if (!mutation) {
+    throw new Error("Lead merge requires a live Supabase session.");
+  }
+
+  if (!canMergeDuplicateRecords(mutation.context.role)) {
+    throw new Error("You do not have permission to merge leads.");
+  }
+
+  const uniqueDuplicateIds = Array.from(new Set(duplicateIds)).filter((id) => id && id !== canonicalId);
+  if (uniqueDuplicateIds.length === 0) {
+    throw new Error("Select at least one duplicate lead to merge.");
+  }
+
+  await getLeadForMutation(mutation.client, mutation.context, canonicalId);
+
+  let mergedCount = 0;
+  for (const duplicateId of uniqueDuplicateIds) {
+    await getLeadForMutation(mutation.client, mutation.context, duplicateId);
+    const { error } = await mutation.client.rpc("merge_duplicate_records", {
+      p_organization_id: mutation.context.organization.id,
+      p_entity_type: "lead",
+      p_canonical_id: canonicalId,
+      p_duplicate_id: duplicateId,
+      p_note: null,
+    });
+
+    if (error) {
+      throw new Error(error.message ?? "Unable to merge lead duplicates.");
+    }
+
+    mergedCount += 1;
+  }
+
+  return { canonicalId, mergedCount };
 }
 
 export async function getLeadDashboardData(): Promise<LeadDashboardData> {

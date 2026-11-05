@@ -21,12 +21,6 @@ import {
 } from "@/server/services/ads/service";
 import type { AdPlatform, AdCampaignInput, CampaignObjective } from "@/server/services/ads/domain";
 import {
-  generateCreativeProductionBrief,
-  saveCreativeBrief,
-  type CreativeFormat,
-  type ShotListItem,
-} from "@/server/services/creative/pipeline";
-import {
   uploadMarketingMediaAsset,
   reanalyzeMarketingMediaAsset,
 } from "@/server/services/media/service";
@@ -80,7 +74,7 @@ export async function createSocialPostAction(formData: FormData): Promise<{ succ
     }
   }
 
-  const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube", "google"];
+  const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube"];
   const platforms = rawPlatforms.filter((p): p is SocialPlatform => validPlatforms.includes(p as SocialPlatform));
 
   if (platforms.length === 0) {
@@ -127,14 +121,23 @@ export async function createSocialPostAction(formData: FormData): Promise<{ succ
   }
 
   if (status === "scheduled" && scheduledAt) {
+    const failedPlatforms: string[] = [];
     for (const platform of platforms) {
-      await admin.from("social_publishing_queue").insert({
+      const { error: queueError } = await admin.from("social_publishing_queue").insert({
         organization_id: ctx.organization.id,
         post_id: post.id,
         platform,
         status: "pending",
         scheduled_for: new Date(scheduledAt).toISOString(),
       });
+      if (queueError) failedPlatforms.push(platform);
+    }
+    if (failedPlatforms.length > 0) {
+      revalidatePath("/social");
+      return {
+        success: false,
+        error: `Gönderi kaydedildi ama şu platformlar yayın kuyruğuna eklenemedi: ${failedPlatforms.join(", ")}.`,
+      };
     }
   }
 
@@ -178,17 +181,24 @@ export async function generateCaptionSuggestionsAction(params: {
   }
 }
 
-export async function deleteSocialPostAction(postId: string): Promise<void> {
+export async function deleteSocialPostAction(postId: string): Promise<{ success: boolean; error?: string }> {
   const ctx = await loadWorkspaceContext();
-  if (!canManageSocialPosts(ctx)) return;
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yazma yetkisi olan canlı bir çalışma alanı gereklidir." };
+  }
 
   const admin = createSupabaseAdminClient();
-  await admin.from("social_posts")
+  const { error } = await admin.from("social_posts")
     .delete()
     .eq("id", postId)
     .eq("organization_id", ctx.organization.id);
 
+  if (error) {
+    return { success: false, error: error.message || "Gönderi silinemedi." };
+  }
+
   revalidatePath("/social");
+  return { success: true };
 }
 
 export async function checkAdsDiagnosticsAction(platform: AdPlatform) {
@@ -229,46 +239,6 @@ export async function submitCampaignForApprovalAction(campaignId: string) {
     campaignId,
     organizationId: ctx.organization.id,
     userId: ctx.userId ?? "system",
-  });
-
-  if (result.success) {
-    revalidatePath("/social");
-  }
-  return result;
-}
-
-export async function generateCreativeBriefAction(params: {
-  topic: string;
-  productOrService?: string;
-  targetAudience?: string;
-  format?: CreativeFormat;
-  language?: "tr" | "en";
-}) {
-  return generateCreativeProductionBrief(params);
-}
-
-export async function saveCreativeBriefAction(params: {
-  title: string;
-  concept: string;
-  format: CreativeFormat;
-  dimensions: string;
-  visualPrompt: string;
-  shotList: ShotListItem[];
-  voiceoverScript?: string | null;
-  overlayTexts?: string[];
-  thumbnailConcept?: string | null;
-  mappedCampaignId?: string | null;
-  mappedSocialPostId?: string | null;
-}) {
-  const ctx = await loadWorkspaceContext();
-  if (!canManageSocialPosts(ctx)) {
-    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
-  }
-
-  const result = await saveCreativeBrief({
-    organizationId: ctx.organization.id,
-    userId: ctx.userId ?? "system",
-    brief: params,
   });
 
   if (result.success) {
@@ -435,7 +405,7 @@ export async function generateCategorySocialDraftAction(params: {
   websiteUrl?: string;
   targetCity?: string;
   language?: "tr" | "en";
-  platforms?: ("instagram" | "facebook" | "youtube" | "google" | "tiktok")[];
+  platforms?: ("instagram" | "facebook" | "youtube" | "tiktok")[];
 }) {
   const ctx = await loadWorkspaceContext();
   if (!ctx?.organization?.id) {

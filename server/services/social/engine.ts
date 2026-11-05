@@ -21,7 +21,7 @@ export type PlatformDraftPlacement = z.infer<typeof platformDraftPlacementSchema
 
 export const socialPlatformDraftSchema = z.object({
   id: z.string().default(() => crypto.randomUUID()),
-  platform: z.enum(["instagram", "facebook", "youtube", "google", "tiktok"]),
+  platform: z.enum(["instagram", "facebook", "youtube", "tiktok"]),
   placement: platformDraftPlacementSchema,
   headline: z.string(),
   caption: z.string(),
@@ -59,13 +59,12 @@ export const multiplatformSocialCampaignDraftSchema = z.object({
 });
 export type MultiplatformSocialCampaignDraft = z.infer<typeof multiplatformSocialCampaignDraftSchema>;
 
-function normalizePlatform(p: unknown): "instagram" | "facebook" | "youtube" | "google" | "tiktok" {
+function normalizePlatform(p: unknown): "instagram" | "facebook" | "youtube" | "tiktok" {
   const str = String(p || "").toLowerCase();
   if (str.includes("insta")) return "instagram";
   if (str.includes("face") || str.includes("meta")) return "facebook";
   if (str.includes("you") || str.includes("yt")) return "youtube";
   if (str.includes("tik")) return "tiktok";
-  if (str.includes("goog") || str.includes("gbp") || str.includes("gmb") || str.includes("business")) return "google";
   return "instagram";
 }
 
@@ -277,62 +276,18 @@ function buildFallbackDrafts(
       qualityPassed: true,
       qualityNotes: [],
     },
-    {
-      id: crypto.randomUUID(),
-      platform: "google",
-      placement: "update",
-      headline: `Yeni Teslimat: ${subject}`,
-      hook: `${companyName} tesislerimizden yeni modüler teslimatlar devam ediyor.`,
-      caption: `${subject} modellerimiz yüksek yalıtım ve dayanıklı şase yapısıyla ${targetCity} ve tüm bölgedeki müşterilerimize sevk ediliyor. Showroom alanımızı ziyaret edebilir veya hemen arayabilirsiniz.`,
-      cta: "Hemen Ara / Yol Tarifi Al",
-      hashtags: [],
-      targetUrl,
-      mediaUrl,
-      scheduledAt: null,
-      primaryKeyword: `${targetCity} konteyner satışı`.toLowerCase(),
-      secondaryKeywords: ["yakınımdaki konteyner firması", "yerel konteyner üreticisi", "hazır ofis kabini"],
-      searchIntent: "transactional",
-      alternativeHooks: [
-        `${targetCity} bölgesinde hızlı teslim modüler konteynerler.`,
-        "Showroom alanımıza gelerek modellerimizi yerinde inceleyin.",
-        "Fabrika çıkış avantajıyla doğrudan üreticiden tedarik edin.",
-      ],
-      targetRegions: defaultRegions,
-      unverifiedClaimsWarning: null,
-      qualityPassed: true,
-      qualityNotes: [],
-    },
-    {
-      id: crypto.randomUUID(),
-      platform: "google",
-      placement: "offer",
-      headline: `${subject} İçin Özel Sezon Avantajı`,
-      hook: "Bu ay geçerli özel fabrika doğrudan alım fırsatı!",
-      caption: `Seçili ${subject} siparişlerinizde hızlı termin ve nakliye planlama desteği. Showroom ve üretim tesisimizde yerinde inceleme imkânı.`,
-      cta: "Teklifi Gör ve İletişime Geç",
-      hashtags: [],
-      targetUrl,
-      mediaUrl,
-      scheduledAt: null,
-      primaryKeyword: "konteyner kampanya teklif",
-      secondaryKeywords: ["toptan konteyner indirimi", "şantiye konteyner teklifi"],
-      searchIntent: "transactional",
-      alternativeHooks: [
-        "Bu ay teslim edilecek modellerde cazip üretim koşulları.",
-        "Toplu şantiye alımlarında özel fiyat teklifi alın.",
-        "Fabrikadan doğrudan satış garantisi ile tasarruf edin.",
-      ],
-      targetRegions: defaultRegions,
-      unverifiedClaimsWarning: null,
-      qualityPassed: true,
-      qualityNotes: [],
-    },
   ];
 }
 
 /**
- * Generates tailored drafts for Instagram, Facebook, YouTube, and Google Business Profile
- * combining real visual analysis, company profile, verified locations, and SEO/GEO keywords.
+ * Generates tailored drafts for Instagram, Facebook, and YouTube combining real
+ * visual analysis, company profile, verified locations, and SEO/GEO keywords.
+ * Google Business Profile is intentionally not supported: the composer never
+ * resolved a real posting location (account/location discovery was never
+ * built) and the Business Profile local-posts API additionally requires
+ * Google to allowlist the OAuth client, so it was a guaranteed dead end for
+ * every user — removed consistently across engine, quality gate, domain
+ * validation, and the composer rather than fixed with placeholder support.
  */
 export async function generateMultiplatformSocialDrafts(params: {
   analysis: MediaAnalysisResult | z.input<typeof mediaAnalysisResultSchema>;
@@ -395,10 +350,9 @@ RULES:
 1. Instagram: Hook first sentence, friendly visual lifestyle/business tone, max 5 relevant hashtags.
 2. Facebook: Emphasize business utility, problem solving, durability, link to website/quote.
 3. YouTube: High-search-intent title with primary keyword, structured description with chapters concept.
-4. Google Business Profile: Local SEO emphasis, target regions, direct Call / Directions CTA.
-5. Provide primaryKeyword, 3-5 secondaryKeywords, searchIntent ("commercial"|"transactional"|"informational"), 3 alternativeHooks, and targetRegions for EACH draft.
-6. Strictly max 5 hashtags per draft.
-7. No keyword stuffing. Do not claim rank guarantees.
+4. Provide primaryKeyword, 3-5 secondaryKeywords, searchIntent ("commercial"|"transactional"|"informational"), 3 alternativeHooks, and targetRegions for EACH draft.
+5. Strictly max 5 hashtags per draft.
+6. No keyword stuffing. Do not claim rank guarantees.
 
 Return STRICT JSON:
 {
@@ -440,10 +394,9 @@ PLATFORM KALİTE KURALLARI:
 1. Instagram (Feed, Story, Reel): İlk satırda güçlü merak uyandıran kanca (hook), doğal görsel ton, en fazla 5 alakalı hashtag.
 2. Facebook (Feed, Video): Şantiye ve işletmelerin ihtiyacına çözüm, dayanıklılık, teslimat hızı ve web sitesine net yönlendirme.
 3. YouTube (Shorts, Video): Arama odaklı başlık (içinde ana anahtar kelime geçen), açıklamada video bölümleri/zaman damgası konsepti ve abone/teklif CTA.
-4. Google Business Profile (Update, Offer): Yerel müşteri ihtiyacına uygun, ${targetCity} ve çevre illere odaklı yerel SEO, doğrudan 'Hemen Ara' veya 'Yol Tarifi Al' eyleme çağrısı.
-5. Her taslak için: primaryKeyword, 3-5 adet secondaryKeywords, searchIntent ("commercial" | "transactional" | "informational"), 3 farklı alternativeHooks ve targetRegions üret.
-6. KESİNLİKLE en fazla 5 hashtag kullan.
-7. Anahtar kelime doldurma (keyword stuffing) yapma; metin akıcı ve doğal olsun. Sıralama garantisi verme.
+4. Her taslak için: primaryKeyword, 3-5 adet secondaryKeywords, searchIntent ("commercial" | "transactional" | "informational"), 3 farklı alternativeHooks ve targetRegions üret.
+5. KESİNLİKLE en fazla 5 hashtag kullan.
+6. Anahtar kelime doldurma (keyword stuffing) yapma; metin akıcı ve doğal olsun. Sıralama garantisi verme.
 
 SADECE geçerli JSON çıktısı üret:
 {
@@ -584,7 +537,7 @@ export type CategoryDraftGenerationParams = {
   websiteUrl?: string;
   targetCity?: string;
   language?: "tr" | "en";
-  platforms?: ("instagram" | "facebook" | "youtube" | "google" | "tiktok")[];
+  platforms?: ("instagram" | "facebook" | "youtube" | "tiktok")[];
   verifiedCatalog?: string[];
 };
 
@@ -639,12 +592,11 @@ export async function generateCategorySpecificDrafts(
   const primaryMediaUrl = mediaUrls[0] || "";
 
   // 1. Build deterministic category-specific fallbacks
-  let fallbackPlacements: { platform: "instagram" | "facebook" | "youtube" | "google" | "tiktok"; placement: PlatformDraftPlacement }[] = [];
+  let fallbackPlacements: { platform: "instagram" | "facebook" | "youtube" | "tiktok"; placement: PlatformDraftPlacement }[] = [];
   if (category === "post") {
     fallbackPlacements = [
       { platform: "instagram", placement: "feed" },
       { platform: "facebook", placement: "feed" },
-      { platform: "google", placement: "update" },
     ];
   } else if (category === "reel") {
     fallbackPlacements = [
@@ -697,14 +649,6 @@ export async function generateCategorySpecificDrafts(
       tags = ["#KonteynerRehberi", "#IzonKonteyner", "#KonteynerFiyatlari"];
       primaryKw = `${subject.toLowerCase()} teknik özellikleri`;
       intent = "informational";
-    } else if (platform === "google") {
-      headline = `${targetCity} Konteyner Üretimi: ${subject}`;
-      hook = `${companyName} tesislerimizden doğrudan fabrika teslimi.`;
-      caption = `${subject} yüksek mukavemetli şasesi ve fabrika garantisiyle ${targetCity} ve tüm bölgedeki müşterilerimiz için hazır. Showroom alanımızı ziyaret edebilir veya hemen teklif alabilirsiniz.`;
-      cta = "Hemen Ara / Yol Tarifi Al";
-      tags = [];
-      primaryKw = `${targetCity} konteyner satışı`;
-      intent = "transactional";
     }
 
     return {
@@ -750,11 +694,10 @@ KULLANILABİLİR KATALOG ÜRÜNLERİ: ${verifiedCatalog.join(", ") || "Standart 
 
 KATEGORİ KURALLARI:
 ${category === "post" ? `
-- Instagram Feed, Facebook Feed ve Google Business Update için 3 ayrı taslak hazırla.
+- Instagram Feed ve Facebook Feed için 2 ayrı taslak hazırla.
 - Görseldeki gerçek özellikleri temel al. Görselde olmayan uydurma iddia yazma.
 - Dosya adını ASLA metinde veya başlıkta kullanma.
-- Her taslak için EN FAZLA 5 adet hashtag koy (Instagram/Facebook). Google Business için hashtag koyma (boş liste).
-- Google Business Profile için yerel SEO (${targetCity}) ve eylem çağrısı ("Hemen Ara", "Teklif Al") ekle.
+- Her taslak için EN FAZLA 5 adet hashtag koy.
 ` : category === "reel" ? `
 - Instagram Reel ve YouTube Shorts için 2 ayrı taslak hazırla.
 - İlk 3 saniyede izleyiciyi yakalayacak vurucu HOOK üret.

@@ -31,7 +31,6 @@ const {
 
 const {
   PLATFORM_CAPABILITY_MATRIX,
-  adaptCaptionForPlatform,
 } = req("../server/services/integrations/social-domain") as typeof import("../server/services/integrations/social-domain");
 
 const {
@@ -134,24 +133,19 @@ test("Creative Pipeline: Formats and dimensions match technical specifications",
   }
 });
 
-test("Social Multiplatform: Google Business Profile supported in schema and matrix", () => {
-  assert.equal(socialPlatformSchema.safeParse("google").success, true);
+test("Social Multiplatform: Google Business Profile is intentionally unsupported", () => {
+  // Google Business was removed consistently across the domain matrix, the AI
+  // engine, the quality gate, and the composer: there was no real posting
+  // location (account/location discovery was never built) and the Business
+  // Profile local-posts API additionally requires a Google allowlist, so it
+  // was a guaranteed dead end. instagram/facebook/tiktok/youtube remain fully
+  // supported.
   assert.equal(socialPlatformSchema.safeParse("instagram").success, true);
   assert.equal(socialPlatformSchema.safeParse("facebook").success, true);
   assert.equal(socialPlatformSchema.safeParse("tiktok").success, true);
   assert.equal(socialPlatformSchema.safeParse("youtube").success, true);
 
-  const googleCap = PLATFORM_CAPABILITY_MATRIX.google;
-  assert.ok(googleCap, "Google capability must exist");
-  assert.equal(googleCap.name, "Google Business Profile");
-  assert.ok(googleCap.maxCaptionLength > 0);
-
-  // Platform adaptation
-  const baseCaption = "İzon Konteyner ile şantiye ve yaşam alanlarınız güvende.";
-  const adapted = adaptCaptionForPlatform(baseCaption, "google", {
-    google: { title: "Özel Google Başlığı", caption: "Google Özel Açıklama", cta: "Arayın" },
-  });
-  assert.equal(adapted, "Google Özel Açıklama");
+  assert.equal((PLATFORM_CAPABILITY_MATRIX as Record<string, unknown>).google, undefined);
 });
 
 test("Turkish Fonts: TrueType Roboto fonts bundled and verified for PDFKit", () => {

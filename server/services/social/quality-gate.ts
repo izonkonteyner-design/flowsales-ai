@@ -111,11 +111,6 @@ export function evaluateDraftQuality(
       warnings.push("Instagram için dikkat çekici ilk cümle (hook) eksik veya çok kısa.");
       score -= 10;
     }
-  } else if (draft.platform === "google") {
-    if (!draft.cta || !/ara|yol tarifi|ziyaret|teklif|ulaş/i.test(draft.cta)) {
-      warnings.push("Google Business Profile için yerel eyleme çağrı (Ara/Yol Tarifi) bulunamadı.");
-      score -= 5;
-    }
   } else if (draft.platform === "youtube") {
     if (!draft.headline || !draft.headline.toLowerCase().includes(draft.primaryKeyword?.toLowerCase() || "")) {
       // Small note, not a blocker

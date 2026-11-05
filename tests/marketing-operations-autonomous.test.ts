@@ -30,7 +30,11 @@ const {
 } = req("../server/services/analytics/service") as typeof import("../server/services/analytics/service");
 
 describe("Autonomous Marketing Operations & Safety Test Suite", () => {
-  it("Loop 2: Generates customized multiplatform social drafts across Instagram, Facebook, YouTube, Google Business", async () => {
+  it("Loop 2: Generates customized multiplatform social drafts across Instagram, Facebook, YouTube", async () => {
+    // Google Business was removed as a supported platform: there was no real
+    // posting location (account/location discovery was never built) and the
+    // Business Profile local-posts API additionally requires a Google
+    // allowlist, so it was a guaranteed dead end for every user.
     const analysis = {
       productOrService: "3x7 Metre Konteyner Ofis",
       primarySubject: "Şantiye Çözümleri",
@@ -39,7 +43,7 @@ describe("Autonomous Marketing Operations & Safety Test Suite", () => {
       keyFeatures: ["Isıcam", "Çelik Şase", "Sandviç Panel"],
       visualTone: "Kurumsal ve Sağlam",
       marketingAngle: "Aynı Gün Teslimat ve Dayanıklılık",
-      suitablePlatforms: ["instagram", "facebook", "youtube", "google"],
+      suitablePlatforms: ["instagram", "facebook", "youtube"],
       summary: "Modern şantiye ofis konteyneri görseli.",
       isFallback: true,
       fallbackReason: null,
@@ -54,7 +58,7 @@ describe("Autonomous Marketing Operations & Safety Test Suite", () => {
     const validatedCampaign = multiplatformSocialCampaignDraftSchema.parse(campaign);
     assert.ok(validatedCampaign.campaignTitle.length > 0);
     assert.ok(campaign.campaignTitle.length > 0);
-    assert.ok(campaign.drafts.length >= 8, "Must generate at least 8 drafts across placements");
+    assert.ok(campaign.drafts.length >= 6, "Must generate at least 6 drafts across placements");
 
     // Verify placements present
     const placements = campaign.drafts.map((d) => `${d.platform}:${d.placement}`);
@@ -64,8 +68,7 @@ describe("Autonomous Marketing Operations & Safety Test Suite", () => {
     assert.ok(placements.includes("facebook:feed"), "Facebook Feed must exist");
     assert.ok(placements.includes("youtube:shorts"), "YouTube Shorts must exist");
     assert.ok(placements.includes("youtube:video"), "YouTube Video must exist");
-    assert.ok(placements.includes("google:update"), "Google Business Update must exist");
-    assert.ok(placements.includes("google:offer"), "Google Business Offer must exist");
+    assert.ok(!placements.some((p) => p.startsWith("google:")), "Google Business must not be generated");
 
     // Validate schema on all drafts
     for (const draft of campaign.drafts) {

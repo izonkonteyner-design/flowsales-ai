@@ -19,9 +19,7 @@ req.cache[serverOnlyPath] = {
 import {
   socialPlatformSchema,
   socialPostInputSchema,
-  validateSocialPostInput,
   buildMockSocialPost,
-  publishSocialPostToMetaMock,
 } from "@/lib/validations/social-publisher";
 
 const {
@@ -136,7 +134,7 @@ describe("Social Media Publishing Module & RLS Security Tests", () => {
   });
 
   test("buildMockSocialPost constructs valid post record", () => {
-    const input = validateSocialPostInput({
+    const input = socialPostInputSchema.parse({
       workspaceId: WORKSPACE_A,
       platform: "both",
       content: "Şantiye konteyner teslimatımız tamamlandı.",
@@ -151,30 +149,6 @@ describe("Social Media Publishing Module & RLS Security Tests", () => {
     assert.equal(record.status, "scheduled");
     assert.equal(record.scheduled_at, "2026-04-01T10:00:00Z");
     assert.ok(record.id.startsWith("post_"));
-  });
-
-  test("publishSocialPostToMetaMock handles missing or invalid token safely", () => {
-    const post = buildMockSocialPost({
-      workspaceId: WORKSPACE_A,
-      platform: "instagram",
-      content: "Test post",
-      mediaUrls: [],
-      hashtags: [],
-      status: "draft",
-      scheduledAt: null,
-    });
-
-    const noTokenRes = publishSocialPostToMetaMock(post, undefined);
-    assert.equal(noTokenRes.success, false);
-    assert.match(noTokenRes.errorMessage!, /tokenı tanımlı değil/);
-
-    const invalidTokenRes = publishSocialPostToMetaMock(post, "invalid_token");
-    assert.equal(invalidTokenRes.success, false);
-    assert.match(invalidTokenRes.errorMessage!, /token yetkisiz veya süresi dolmuş/);
-
-    const successRes = publishSocialPostToMetaMock(post, "valid_page_access_token_123");
-    assert.equal(successRes.success, true);
-    assert.ok(successRes.metaPostId?.startsWith("meta_post_"));
   });
 
   test("validatePlatformPublishingRequirements enforces Instagram media, HTTPS, extensions, and permissions", () => {

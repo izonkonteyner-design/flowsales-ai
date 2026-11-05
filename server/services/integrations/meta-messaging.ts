@@ -97,6 +97,9 @@ async function persistInbound(params: {
     .select("id").single();
   if (contactError || !contact) throw new Error("Failed to persist Meta channel contact.");
 
+  const attachments = params.event.message?.attachments ?? [];
+  const lastMessageSnippet = params.event.message?.text ?? (attachments.length > 0 ? "[Medya]" : null);
+
   const { data: conversation, error: convError } = await admin.from("conversations").upsert({
     organization_id: params.organizationId,
     connection_id: params.connectionId,
@@ -105,12 +108,12 @@ async function persistInbound(params: {
     status: "open",
     channel_contact_id: contact.id,
     last_message_at: new Date(params.event.timestamp || Date.now()).toISOString(),
+    last_message_snippet: lastMessageSnippet,
     metadata: { account_external_id: params.accountExternalId },
     updated_at: new Date().toISOString(),
   }, { onConflict: "organization_id,provider,external_id" }).select("id,unread_count").single();
   if (convError || !conversation) throw new Error("Failed to persist Meta conversation.");
 
-  const attachments = params.event.message?.attachments ?? [];
   const messageType = attachments.length > 0
     ? (["image", "video", "audio"].includes(attachments[0]?.type || "") ? attachments[0]!.type! : "document")
     : "text";
@@ -147,6 +150,7 @@ async function persistInbound(params: {
   await admin.from("conversations").update({
     unread_count: Number(conversation.unread_count ?? 0) + 1,
     last_message_at: sentAt,
+    last_message_snippet: lastMessageSnippet,
     updated_at: new Date().toISOString(),
   }).eq("id", conversation.id).eq("organization_id", params.organizationId);
   await audit({ organizationId: params.organizationId, provider: params.provider, conversationId: conversation.id, messageId: message.id, eventType: "message_received" });
@@ -312,7 +316,7 @@ export async function sendMetaMessagingReply(params: {
     metadata: { client_idempotency_key: params.clientIdempotencyKey, account_external_id: connection.external_account_id },
   }).select("id").single();
   if (error || !message) return { success: false as const, errorCode: "persistence_failed", message: "Message was accepted by Meta but local persistence failed." };
-  await admin.from("conversations").update({ last_message_at: now, updated_at: now }).eq("id", params.conversationId).eq("organization_id", params.organizationId);
+  await admin.from("conversations").update({ last_message_at: now, last_message_snippet: text, updated_at: now }).eq("id", params.conversationId).eq("organization_id", params.organizationId);
   await audit({ organizationId: params.organizationId, provider, conversationId: params.conversationId, messageId: message.id, actorUserId: params.userId, eventType: "message_sent", metadata: { externalMessageId: result.message_id } });
   return { success: true as const, data: { messageId: message.id, externalMessageId: result.message_id, status: "sent", duplicate: false } };
 }

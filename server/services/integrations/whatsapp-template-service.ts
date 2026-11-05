@@ -320,6 +320,7 @@ export class WhatsAppTemplateService {
         .from("conversations")
         .update({
           last_message_at: nowIso,
+          last_message_snippet: renderedBody,
           updated_at: nowIso,
         })
         .eq("id", conversationId);

@@ -54,9 +54,9 @@ export function FlashToast({ message, tone = "info" }: FlashToastProps) {
           type="button"
           onClick={() => setVisible(false)}
           className="ml-2 rounded-full px-2 py-1 text-xs font-medium opacity-70 transition hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-slate-300"
-          aria-label="Dismiss notification"
+          aria-label="Bildirimi kapat"
         >
-          Close
+          Kapat
         </button>
       </div>
     </div>

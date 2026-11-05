@@ -143,7 +143,7 @@ async function loadLiveDashboardReport(filters: DashboardFilters): Promise<Dashb
 
   const client = await createSupabaseServerClient();
   if (!client) {
-    return { ok: false, status: 500, message: "Unable to load dashboard data right now." };
+    return { ok: false, status: 500, message: "Kontrol paneli verileri şu anda yüklenemiyor." };
   }
 
   const period = buildDashboardPeriod(filters);
@@ -161,7 +161,7 @@ async function loadLiveDashboardReport(filters: DashboardFilters): Promise<Dashb
 
   const [leadsResponse, productsResponse, quotesResponse] = await Promise.all([leadQuery, productQuery, quoteQuery]);
   if (leadsResponse.error || productsResponse.error || quotesResponse.error) {
-    return { ok: false, status: 500, message: "Unable to load dashboard data right now." };
+    return { ok: false, status: 500, message: "Kontrol paneli verileri şu anda yüklenemiyor." };
   }
 
   const quoteRows = (quotesResponse.data ?? []) as LiveQuoteRow[];
@@ -178,7 +178,7 @@ async function loadLiveDashboardReport(filters: DashboardFilters): Promise<Dashb
   ]);
 
   if (itemResponse.error || leadRecipientsResponse.error || customerRecipientsResponse.error) {
-    return { ok: false, status: 500, message: "Unable to load dashboard data right now." };
+    return { ok: false, status: 500, message: "Kontrol paneli verileri şu anda yüklenemiyor." };
   }
 
   const leadMap = new Map<string, { full_name: string; company: string | null }>();

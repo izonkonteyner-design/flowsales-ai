@@ -40,7 +40,7 @@ export async function importLeadsAction(formData: FormData) {
     csv: formData.get("csv"),
     mapping: formData.get("mapping"),
   });
-  if (!parsed.success) importRedirect("Invalid CSV or column mapping request.", "danger");
+  if (!parsed.success) importRedirect("Geçersiz CSV veya sütun eşleştirme isteği.", "danger");
 
   const client = await createSupabaseServerClient();
   if (!client) redirect("/login");
@@ -51,16 +51,16 @@ export async function importLeadsAction(formData: FormData) {
     p_organization_id: parsed.data.organizationId,
     p_permission: "import_data",
   });
-  if (permissionError || allowed !== true) importRedirect("Import permission required.", "danger");
+  if (permissionError || allowed !== true) importRedirect("İçe aktarma izni gerekiyor.", "danger");
 
   const { data: isDemo } = await client.rpc("is_demo_organization", { p_organization_id: parsed.data.organizationId });
-  if (isDemo === true) importRedirect("Demo workspace is read-only.", "danger");
+  if (isDemo === true) importRedirect("Demo çalışma alanı salt okunurdur.", "danger");
 
   let result: ReturnType<typeof parseLeadCsv>;
   try {
     result = parseLeadCsv(parsed.data.csv, parsed.data.mapping);
   } catch (error) {
-    importRedirect(error instanceof Error ? error.message : "CSV validation failed.", "danger");
+    importRedirect(error instanceof Error ? error.message : "CSV doğrulaması başarısız oldu.", "danger");
   }
 
   const { data: job, error: jobError } = await client.from("import_jobs").insert({
@@ -80,7 +80,7 @@ export async function importLeadsAction(formData: FormData) {
     email: row.email || null,
     phone: row.phone || null,
     company: row.company || null,
-    source: row.source || "CSV Import",
+    source: row.source || "CSV İçe Aktarma",
     status: row.status || "new",
   }));
   const { error: insertError } = rows.length ? await client.from("leads").insert(rows) : { error: null };
@@ -93,6 +93,6 @@ export async function importLeadsAction(formData: FormData) {
       : result.rejected,
   }).eq("id", job.id).eq("organization_id", parsed.data.organizationId);
 
-  if (insertError) importRedirect("Import failed. Download the error report for details.", "danger", job.id);
-  importRedirect(`${rows.length} leads imported; ${result.rejected.length} rejected.`, "success", job.id);
+  if (insertError) importRedirect("İçe aktarma başarısız oldu. Ayrıntılar için hata raporunu indirin.", "danger", job.id);
+  importRedirect(`${rows.length} aday içe aktarıldı; ${result.rejected.length} satır reddedildi.`, "success", job.id);
 }

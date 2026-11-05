@@ -287,7 +287,7 @@ export default async function QuotesPage({ searchParams }: QuotesPageProps) {
               </thead>
               <tbody className="divide-y divide-border">
                 {data.quotes.map((quote) => {
-                  const restriction = getQuoteRecordRestrictionMessage(quote.recordMode, data.context.role);
+                  const restriction = getQuoteRecordRestrictionMessage(quote.recordMode, data.context.role, locale);
                   const canEdit = canManageQuotes(data.context.role) && quote.recordMode === "live";
                   const partyLabel = quote.lead_name ?? quote.customer_name ?? c.unassigned;
                   const partySub = quote.lead_company ?? quote.customer_company ?? c.noCompany;

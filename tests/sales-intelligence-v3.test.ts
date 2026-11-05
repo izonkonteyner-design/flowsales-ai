@@ -10,7 +10,7 @@ test("lead score history keeps tenant isolation and computes score deltas", asyn
   assert.match(service, /\.eq\("organization_id", organizationId\)/);
   assert.match(service, /\.eq\("lead_id", leadId\)/);
   assert.match(service, /row\.score - previous/);
-  assert.match(page, /Lead Score geçmişi/);
+  assert.match(page, /Aday Skor Geçmişi/);
   assert.match(page, /Skor zaman çizelgesi/);
   assert.match(page, /Toplam skor değişimi/);
 });
@@ -38,7 +38,7 @@ test("pipeline intelligence aggregates quality risk priority and estimated value
   assert.match(service, /staleCount/);
   assert.match(service, /estimatedValue/);
   assert.match(component, /Pipeline Intelligence/);
-  assert.match(component, /Ortalama Lead Score/);
+  assert.match(component, /Ortalama Aday Skoru/);
   assert.match(component, /Riskli fırsat/);
   assert.match(dashboard, /<PipelineIntelligence \/>/);
 });

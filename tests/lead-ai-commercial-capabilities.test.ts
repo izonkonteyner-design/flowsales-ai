@@ -56,7 +56,7 @@ test("lead AI panel exposes tasks 5 through 8 and displays structured history", 
   ]) {
     assert.match(source, new RegExp(capability));
   }
-  assert.match(source, /Demo Safe Mode/);
-  assert.match(source, /Recent AI results/);
-  assert.match(source, /Confidence:/);
+  assert.match(source, /Güvenli Demo Modu/);
+  assert.match(source, /Son YZ sonuçları/);
+  assert.match(source, /Güven:/);
 });

@@ -5,12 +5,12 @@ import { useMemo, useState } from "react";
 import { importLeadsAction } from "./actions";
 
 const targets = [
-  ["full_name", "Full name *"],
-  ["email", "Email"],
-  ["phone", "Phone"],
-  ["company", "Company"],
-  ["source", "Source"],
-  ["status", "Status"],
+  ["full_name", "Ad Soyad *"],
+  ["email", "E-posta"],
+  ["phone", "Telefon"],
+  ["company", "Şirket"],
+  ["source", "Kaynak"],
+  ["status", "Durum"],
 ] as const;
 
 const aliasMap: Record<string, string[]> = {
@@ -66,20 +66,20 @@ export function ImportMapper({ organizationId }: { organizationId: string }) {
       <input type="hidden" name="organizationId" value={organizationId} />
       <input type="hidden" name="mapping" value={JSON.stringify(mapping)} />
       <div>
-        <label className="block text-sm font-semibold text-slate-800" htmlFor="csv">1. Paste CSV content</label>
+        <label className="block text-sm font-semibold text-slate-800" htmlFor="csv">1. CSV içeriğini yapıştırın</label>
         <textarea id="csv" name="csv" required rows={12} value={csv} onChange={(event) => setCsv(event.target.value)} className="mt-2 w-full rounded-xl border border-slate-300 p-3 font-mono text-sm" placeholder={'Ad Soyad,E-posta,Firma\nJane Doe,jane@example.com,Acme'} />
       </div>
 
       {headers.length > 0 ? (
         <div>
-          <h2 className="text-sm font-semibold text-slate-800">2. Match your columns</h2>
-          <p className="mt-1 text-sm text-slate-500">We suggested matches from your header row. Change any incorrect match.</p>
+          <h2 className="text-sm font-semibold text-slate-800">2. Sütunlarınızı eşleştirin</h2>
+          <p className="mt-1 text-sm text-slate-500">Başlık satırınıza göre eşleşmeler önerdik. Hatalı olan eşleşmeleri değiştirebilirsiniz.</p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {targets.map(([field, label]) => (
               <label key={field} className="text-sm font-medium text-slate-700">
                 {label}
                 <select value={mapping[field]} onChange={(event) => setOverrides((current) => ({ ...current, [field]: event.target.value }))} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-                  <option value="">Do not import</option>
+                  <option value="">İçe aktarma</option>
                   {headers.map((header) => <option key={header} value={header}>{header}</option>)}
                 </select>
               </label>
@@ -88,12 +88,12 @@ export function ImportMapper({ organizationId }: { organizationId: string }) {
         </div>
       ) : null}
 
-      {!fullNameMapped && headers.length > 0 ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Choose the column containing the lead&apos;s full name.</p> : null}
-      {duplicate ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-800">Each CSV column can only be used once.</p> : null}
+      {!fullNameMapped && headers.length > 0 ? <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Adayın ad soyad bilgisini içeren sütunu seçin.</p> : null}
+      {duplicate ? <p className="rounded-lg bg-red-50 p-3 text-sm text-red-800">Her CSV sütunu yalnızca bir kez kullanılabilir.</p> : null}
 
       <div className="flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={!fullNameMapped || duplicate} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">3. Validate and import</button>
-        <span className="text-xs text-slate-500">Maximum 5,000 rows. Invalid rows are skipped and included in a downloadable report.</span>
+        <button type="submit" disabled={!fullNameMapped || duplicate} className="rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">3. Doğrula ve içe aktar</button>
+        <span className="text-xs text-slate-500">En fazla 5.000 satır. Geçersiz satırlar atlanır ve indirilebilir bir raporda listelenir.</span>
       </div>
     </form>
   );

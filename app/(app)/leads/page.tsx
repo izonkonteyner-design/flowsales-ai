@@ -12,6 +12,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { LeadDeleteDialog } from "@/components/leads/lead-delete-dialog";
+import { LeadDuplicatesCard } from "@/components/leads/lead-duplicates-card";
 import { LeadStatusMenu } from "@/components/leads/lead-status-menu";
 import { LOCALE_COOKIE, normalizeLocale } from "@/lib/i18n";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
@@ -340,6 +341,13 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
         </form>
       </SectionCard>
 
+      <LeadDuplicatesCard
+        groups={data.duplicateGroups}
+        redirectTo={currentHref}
+        role={data.context.role}
+        locale={locale}
+      />
+
       {data.leads.length ? (
         data.filters.view === "table" ? (
           <LeadTableView
@@ -413,9 +421,9 @@ function LeadTableView({
           <tbody className="divide-y divide-border">
             {leads.map((lead) => {
               const followState = formatLeadFollowUpState(lead.next_follow_up_at);
-              const badge = getLeadRecordBadge(lead.recordMode);
+              const badge = getLeadRecordBadge(lead.recordMode, locale);
               const canEdit = canMutateLeadRecord(lead.recordMode, role);
-              const restriction = getLeadRecordRestrictionMessage(lead.recordMode, role);
+              const restriction = getLeadRecordRestrictionMessage(lead.recordMode, role, locale);
 
               return (
                 <tr key={lead.id} className="hover:bg-muted/30 transition-colors">

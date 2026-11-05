@@ -347,7 +347,7 @@ async function loadLiveQuotePageData(context: QuoteWorkspaceContext, filters: Qu
       page: 1,
       totalPages: 1,
       quotes: [],
-      error: "Unable to load quotes from Supabase.",
+      error: "Teklifler Supabase üzerinden yüklenemedi.",
     };
   }
 
@@ -688,7 +688,7 @@ export async function getQuoteFormData(id?: string, hints: QuoteRecipientHints =
       recipientType: "none",
       recipientMessage: "Select a lead or customer before saving the quote.",
       canMutate,
-      error: "Unable to load quote form options.",
+      error: "Teklif formu seçenekleri yüklenemedi.",
     };
   }
 

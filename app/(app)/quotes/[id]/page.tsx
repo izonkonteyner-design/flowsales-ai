@@ -11,7 +11,7 @@ import { duplicateQuoteAction, updateQuoteStatusAction } from "@/app/(app)/quote
 import { QUOTE_STATUSES } from "@/lib/constants";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
-import { canManageQuotes, getQuoteRecordRestrictionMessage } from "@/server/services/quote-domain";
+import { canManageQuotes, getQuoteRecordRestrictionMessage, getQuoteStatusLabelTr } from "@/server/services/quote-domain";
 import { getQuoteDetailData } from "@/server/services/quotes";
 
 type QuoteDetailPageProps = {
@@ -31,10 +31,10 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
   if (!data.quote) {
     return (
       <EmptyState
-        title="Quote not found"
-        description={data.error ?? "The requested quote cannot be located in this workspace."}
+        title="Teklif bulunamadı"
+        description={data.error ?? "Talep edilen teklif bu çalışma alanında bulunamadı veya silinmiş olabilir."}
         actionHref="/quotes"
-        actionLabel="Back to quotes"
+        actionLabel="Tekliflere Dön"
       />
     );
   }
@@ -50,9 +50,9 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
 
       <PageHeader
-        eyebrow="Quote detail"
+        eyebrow="Teklif Detayı"
         title={quote.quote_number}
-        description={`${quote.lead_name ?? quote.customer_name ?? "Unassigned"} · ${quote.lead_company ?? quote.customer_company ?? "No company"}`}
+        description={`${quote.lead_name ?? quote.customer_name ?? "Atanmadı"} · ${quote.lead_company ?? quote.customer_company ?? "Şirket Yok"}`}
         actions={
           <>
             <Link
@@ -60,14 +60,14 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
               className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back
+              Geri
             </Link>
             <Link
               href={`/quotes/${quote.id}/print`}
               className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
             >
               <Send className="h-4 w-4" />
-              Print / Preview
+              Yazdır / Önizle
             </Link>
             <a
               href={`/api/quotes/${quote.id}/pdf`}
@@ -76,18 +76,18 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
               className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
             >
               <Copy className="h-4 w-4" />
-              Download PDF
+              PDF İndir
             </a>
             <form action={duplicateQuoteAction}>
               <input type="hidden" name="quote_id" value={quote.id} />
               <button
                 type="submit"
                 disabled={!canMutate}
-                title={canMutate ? "Duplicate quote" : restriction}
+                title={canMutate ? "Teklifi çoğalt" : restriction}
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
               >
                 <Copy className="h-4 w-4" />
-                Duplicate
+                Çoğalt
               </button>
             </form>
             {canMutate ? (
@@ -96,7 +96,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
               >
                 <Pencil className="h-4 w-4" />
-                Edit
+                Düzenle
               </Link>
             ) : (
               <span
@@ -104,7 +104,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
                 className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
               >
                 <Pencil className="h-4 w-4" />
-                Edit
+                Düzenle
               </span>
             )}
           </>
@@ -112,46 +112,46 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
       />
 
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.8fr]">
-        <SectionCard title="Quote preview" description="A clean client-ready summary with live line totals and terms.">
+        <SectionCard title="Teklif Önizleme" description="Güncel kalem toplamları ve koşullarıyla, müşteriye gönderime hazır özet.">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-slate-950">
             <div className="flex items-start justify-between gap-6">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">FlowSales AI</p>
-                <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">Commercial Proposal</h2>
-                <p className="mt-2 text-sm text-slate-500">Premium quote record with safe mutation rules.</p>
+                <h2 className="mt-2 text-2xl font-semibold text-slate-950 dark:text-white">Ticari Teklif</h2>
+                <p className="mt-2 text-sm text-slate-500">Güvenli değişiklik kurallarına sahip profesyonel teklif kaydı.</p>
               </div>
               <div className="flex flex-col items-end gap-2">
                 <StatusBadge tone={quote.record_badge.tone} title={quote.record_badge.title}>
                   {quote.record_badge.label}
                 </StatusBadge>
-                <StatusBadge tone={quote.status_tone}>{quote.status_label}</StatusBadge>
+                <StatusBadge tone={quote.status_tone}>{getQuoteStatusLabelTr(quote.status)}</StatusBadge>
               </div>
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
-              <Info label="Lead" value={quote.lead_name ?? "Unassigned"} />
-              <Info label="Customer" value={quote.customer_name ?? "No customer"} />
-              <Info label="Issue date" value={formatDate(quote.issue_date)} />
-              <Info label="Valid until" value={formatDate(quote.valid_until ?? quote.expiry_date ?? quote.issue_date)} />
-              <Info label="Currency" value={quote.currency} />
-              <Info label="Created" value={formatDateTime(quote.created_at)} />
+              <Info label="Aday" value={quote.lead_name ?? "Atanmadı"} />
+              <Info label="Müşteri" value={quote.customer_name ?? "Müşteri Yok"} />
+              <Info label="Tanzim Tarihi" value={formatDate(quote.issue_date)} />
+              <Info label="Geçerlilik Tarihi" value={formatDate(quote.valid_until ?? quote.expiry_date ?? quote.issue_date)} />
+              <Info label="Para Birimi" value={quote.currency} />
+              <Info label="Oluşturulma Tarihi" value={formatDateTime(quote.created_at)} />
             </div>
 
             <div className="mt-8 overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10">
               <div className="grid grid-cols-[1.5fr_0.6fr_0.8fr_0.8fr_0.8fr] gap-4 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:bg-white/5">
-                <span>Line item</span>
-                <span>Qty</span>
-                <span>Price</span>
-                <span>Tax</span>
-                <span>Total</span>
+                <span>Kalem</span>
+                <span>Adet</span>
+                <span>Fiyat</span>
+                <span>Vergi</span>
+                <span>Toplam</span>
               </div>
               <div className="divide-y divide-slate-200 dark:divide-white/10">
                 {quote.items.map((item) => (
                   <div key={item.id} className="grid grid-cols-[1.5fr_0.6fr_0.8fr_0.8fr_0.8fr] gap-4 px-4 py-4 text-sm">
                     <div>
                       <p className="font-medium text-slate-950 dark:text-white">{item.name || item.description}</p>
-                      <p className="mt-1 text-xs text-slate-500">{item.description || "Manual line"}</p>
-                      <p className="mt-1 text-xs text-slate-500">{item.sku || item.product_id || "No SKU"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{item.description || "Manuel kalem"}</p>
+                      <p className="mt-1 text-xs text-slate-500">{item.sku || item.product_id || "SKU Yok"}</p>
                     </div>
                     <span className="text-slate-600 dark:text-slate-400">{item.quantity}</span>
                     <span className="text-slate-600 dark:text-slate-400">{formatCurrency(item.unit_price ?? 0, quote.currency)}</span>
@@ -164,51 +164,51 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                <p className="text-sm text-slate-500">Payment terms</p>
-                <p className="mt-2 text-sm text-slate-950 dark:text-white">{quote.payment_terms || "Not specified"}</p>
+                <p className="text-sm text-slate-500">Ödeme Koşulları</p>
+                <p className="mt-2 text-sm text-slate-950 dark:text-white">{quote.payment_terms || "Belirtilmedi"}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/5">
-                <p className="text-sm text-slate-500">Delivery terms</p>
-                <p className="mt-2 text-sm text-slate-950 dark:text-white">{quote.delivery_terms || "Not specified"}</p>
+                <p className="text-sm text-slate-500">Teslim Koşulları</p>
+                <p className="mt-2 text-sm text-slate-950 dark:text-white">{quote.delivery_terms || "Belirtilmedi"}</p>
               </div>
             </div>
 
             <div className="mt-6 flex items-center justify-between border-t border-slate-200 pt-4 text-sm dark:border-white/10">
-              <span className="text-slate-500">Snapshot currency and values are locked to the quote.</span>
+              <span className="text-slate-500">Para birimi ve tutarlar bu teklif anlık görüntüsüne kilitlenmiştir.</span>
               <div className="flex items-center gap-2">
                 <Send className="h-4 w-4 text-slate-400" />
-                <span className="text-slate-500">Client-ready preview</span>
+                <span className="text-slate-500">Müşteriye gönderime hazır önizleme</span>
               </div>
             </div>
           </div>
         </SectionCard>
 
         <div className="space-y-6">
-          <SectionCard title="Summary" description="Live totals from the stored commercial snapshot.">
+          <SectionCard title="Özet" description="Kayıtlı ticari anlık görüntüden güncel toplamlar.">
             <div className="space-y-3 text-sm">
-              <Row label="Subtotal" value={formatCurrency(quote.subtotal, quote.currency)} />
-              <Row label="Line discounts" value={formatCurrency(quote.line_discount_total ?? 0, quote.currency)} />
-              <Row label="Order discount" value={formatCurrency(quote.order_discount_total ?? 0, quote.currency)} />
-              <Row label="Shipping" value={formatCurrency(quote.shipping_total ?? 0, quote.currency)} />
-              <Row label="Tax" value={formatCurrency(quote.tax_total, quote.currency)} />
+              <Row label="Ara Toplam" value={formatCurrency(quote.subtotal, quote.currency)} />
+              <Row label="Kalem İskontoları" value={formatCurrency(quote.line_discount_total ?? 0, quote.currency)} />
+              <Row label="Sipariş İskontosu" value={formatCurrency(quote.order_discount_total ?? 0, quote.currency)} />
+              <Row label="Kargo / Nakliye" value={formatCurrency(quote.shipping_total ?? 0, quote.currency)} />
+              <Row label="Vergi" value={formatCurrency(quote.tax_total, quote.currency)} />
               <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-semibold text-slate-950 dark:border-white/10 dark:text-white">
-                <span>Grand total</span>
+                <span>Genel Toplam</span>
                 <span>{formatCurrency(quote.grand_total ?? quote.total ?? 0, quote.currency)}</span>
               </div>
             </div>
           </SectionCard>
 
-          <SectionCard title="Recipient" description="Source lead and customer links for this quote.">
+          <SectionCard title="Alıcı" description="Bu teklife bağlı aday ve müşteri kayıtları.">
             <div className="space-y-3 text-sm">
-              <Row label="Recipient type" value={recipientType === "customer" ? "Customer" : recipientType === "lead" ? "Lead" : "None"} />
+              <Row label="Alıcı Türü" value={recipientType === "customer" ? "Müşteri" : recipientType === "lead" ? "Aday" : "Yok"} />
               {quote.customer_id ? (
                 <Link
                   href={`/customers/${quote.customer_id}`}
                   className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
                 >
                   <div>
-                    <p className="font-medium text-slate-950 dark:text-white">{quote.customer_name ?? "Customer"}</p>
-                    <p className="mt-1 text-xs text-slate-500">{quote.customer_company ?? "No company"}</p>
+                    <p className="font-medium text-slate-950 dark:text-white">{quote.customer_name ?? "Müşteri"}</p>
+                    <p className="mt-1 text-xs text-slate-500">{quote.customer_company ?? "Şirket Yok"}</p>
                   </div>
                   <ExternalLink className="h-4 w-4 text-slate-400" />
                 </Link>
@@ -219,8 +219,8 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
                   className="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
                 >
                   <div>
-                    <p className="font-medium text-slate-950 dark:text-white">{quote.lead_name ?? "Lead"}</p>
-                    <p className="mt-1 text-xs text-slate-500">{quote.lead_company ?? "No company"}</p>
+                    <p className="font-medium text-slate-950 dark:text-white">{quote.lead_name ?? "Aday"}</p>
+                    <p className="mt-1 text-xs text-slate-500">{quote.lead_company ?? "Şirket Yok"}</p>
                   </div>
                   <ExternalLink className="h-4 w-4 text-slate-400" />
                 </Link>
@@ -228,14 +228,14 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
             </div>
           </SectionCard>
 
-          <SectionCard title="Status" description="Use the secure server action to change quote state.">
+          <SectionCard title="Durum" description="Teklif durumunu güvenli sunucu işlemiyle değiştirin.">
             {canMutate ? (
               <form action={updateQuoteStatusAction} className="space-y-3">
                 <input type="hidden" name="quote_id" value={quote.id} />
                 <Select name="status" defaultValue={quote.status}>
                   {QUOTE_STATUSES.map((status) => (
                     <option key={status.value} value={status.value}>
-                      {status.label}
+                      {getQuoteStatusLabelTr(status.value)}
                     </option>
                   ))}
                 </Select>
@@ -243,7 +243,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
                   type="submit"
                   className="inline-flex h-11 w-full items-center justify-center rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-950"
                 >
-                  Save status
+                  Durumu Kaydet
                 </button>
               </form>
             ) : (
@@ -253,7 +253,7 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
             )}
           </SectionCard>
 
-          <SectionCard title="Actions" description="Safe mutations are disabled for demo records and viewer roles.">
+          <SectionCard title="İşlemler" description="Demo kayıtları ve görüntüleyici roller için değişiklik işlemleri devre dışıdır.">
             <div className="space-y-3">
               <QuoteDeleteDialog
                 quoteId={quote.id}

@@ -53,13 +53,13 @@ export async function createQuoteAction(formData: FormData) {
     const input = readQuoteFormInput(formData);
     result = await createQuoteRecord(input);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to create quote.";
+    const message = error instanceof Error ? error.message : "Teklif oluşturulamadı.";
     redirect(`/quotes/new?toast=${encodeURIComponent(message)}&tone=danger&redirect_to=${encodeURIComponent(redirectTo)}`);
   }
 
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
-  redirect(`/quotes/${result.quote.id}?toast=Quote%20created&tone=success&redirect_to=${encodeURIComponent(redirectTo)}`);
+  redirect(`/quotes/${result.quote.id}?toast=${encodeURIComponent("Teklif oluşturuldu")}&tone=success&redirect_to=${encodeURIComponent(redirectTo)}`);
 }
 
 export async function updateQuoteAction(formData: FormData) {
@@ -74,14 +74,14 @@ export async function updateQuoteAction(formData: FormData) {
     const input = readQuoteFormInput(formData);
     result = await updateQuoteRecord(quoteId, input);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to update quote.";
+    const message = error instanceof Error ? error.message : "Teklif güncellenemedi.";
     redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger&redirect_to=${encodeURIComponent(redirectTo)}`);
   }
 
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
   revalidatePath(`/quotes/${quoteId}`);
-  redirect(`/quotes/${result.quote.id}?toast=Quote%20updated&tone=success&redirect_to=${encodeURIComponent(redirectTo)}`);
+  redirect(`/quotes/${result.quote.id}?toast=${encodeURIComponent("Teklif güncellendi")}&tone=success&redirect_to=${encodeURIComponent(redirectTo)}`);
 }
 
 export async function updateQuoteStatusAction(formData: FormData) {
@@ -98,14 +98,14 @@ export async function updateQuoteStatusAction(formData: FormData) {
   try {
     await updateQuoteStatusRecord(quoteId, status);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to update quote status.";
+    const message = error instanceof Error ? error.message : "Teklif durumu güncellenemedi.";
     redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger`);
   }
 
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
   revalidatePath(`/quotes/${quoteId}`);
-  redirect(`/quotes/${quoteId}?toast=Quote%20status%20updated&tone=success`);
+  redirect(`/quotes/${quoteId}?toast=${encodeURIComponent("Teklif durumu güncellendi")}&tone=success`);
 }
 
 export async function duplicateQuoteAction(formData: FormData) {
@@ -118,13 +118,13 @@ export async function duplicateQuoteAction(formData: FormData) {
   try {
     result = await duplicateQuoteRecord(quoteId);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to duplicate quote.";
+    const message = error instanceof Error ? error.message : "Teklif çoğaltılamadı.";
     redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger`);
   }
 
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
-  redirect(`/quotes/${result.quote.id}?toast=Quote%20duplicated&tone=success`);
+  redirect(`/quotes/${result.quote.id}?toast=${encodeURIComponent("Teklif çoğaltıldı")}&tone=success`);
 }
 
 export async function deleteQuoteAction(formData: FormData) {
@@ -137,11 +137,11 @@ export async function deleteQuoteAction(formData: FormData) {
   try {
     await deleteQuoteRecord(quoteId);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to delete quote.";
+    const message = error instanceof Error ? error.message : "Teklif silinemedi.";
     redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger`);
   }
 
   revalidatePath("/quotes");
   revalidatePath("/dashboard");
-  redirect(`${redirectTo}?toast=Quote%20deleted&tone=success`);
+  redirect(`${redirectTo}?toast=${encodeURIComponent("Teklif silindi")}&tone=success`);
 }

@@ -13,6 +13,7 @@ import {
   loadRelatedQuotesByLead,
   type RelatedQuoteSummary,
 } from "@/server/services/crm-integration";
+import { canMergeDuplicateRecords, findDuplicateGroups, type DuplicateGroup } from "@/server/services/duplicate-detection";
 import { demoTeam } from "@/server/services/workspace-data";
 import {
   buildLeadDashboardMetrics,
@@ -58,6 +59,7 @@ export type LeadPageData = {
   leads: LeadRow[];
   allLeads: LeadRow[];
   summary: LeadDashboardMetrics;
+  duplicateGroups: DuplicateGroup<LeadRow>[];
 };
 
 export type LeadDetailData = {
@@ -170,6 +172,10 @@ function buildPageData(
     leads: page.items,
     allLeads: filtered,
     summary,
+    // Detect duplicates across the whole org (not just the current
+    // filtered/paginated view), so active search/status filters never hide
+    // a possible duplicate group from the user.
+    duplicateGroups: findDuplicateGroups(leads),
   };
 }
 
@@ -417,8 +423,8 @@ export async function createLeadRecord(input: {
     organization_id: mutation.context.organization.id,
     lead_id: lead.id,
     type: "lead_created",
-    title: "Lead created",
-    detail: `Lead ${input.full_name} was created.`,
+    title: "Aday oluşturuldu",
+    detail: `${input.full_name} adayı oluşturuldu.`,
     created_by: mutation.context.userId,
   });
 
@@ -475,8 +481,8 @@ export async function updateLeadRecord(
     organization_id: mutation.context.organization.id,
     lead_id: leadId,
     type: statusActivity?.type ?? "lead_updated",
-    title: statusActivity?.title ?? "Lead updated",
-    detail: statusActivity?.detail ?? `Lead ${input.full_name} was updated.`,
+    title: statusActivity?.title ?? "Aday güncellendi",
+    detail: statusActivity?.detail ?? `${input.full_name} adayının bilgileri güncellendi.`,
     created_by: mutation.context.userId,
   });
 
@@ -517,8 +523,8 @@ export async function changeLeadStatusRecord(leadId: string, status: string) {
       organization_id: mutation.context.organization.id,
       lead_id: leadId,
       type: statusActivity?.type ?? "status_changed",
-      title: statusActivity?.title ?? "Status changed",
-      detail: statusActivity?.detail ?? `${currentLead.full_name} status changed.`,
+      title: statusActivity?.title ?? "Durum güncellendi",
+      detail: statusActivity?.detail ?? `${currentLead.full_name} adayının durumu güncellendi.`,
       created_by: mutation.context.userId,
     });
   }
@@ -555,7 +561,7 @@ export async function addLeadNoteRecord(leadId: string, note: string) {
     organization_id: mutation.context.organization.id,
     lead_id: leadId,
     type: "note_added",
-    title: "Note added",
+    title: "Not eklendi",
     detail: note.trim(),
     created_by: mutation.context.userId,
   });
@@ -591,8 +597,8 @@ export async function scheduleLeadFollowUpRecord(leadId: string, next_follow_up_
     organization_id: mutation.context.organization.id,
     lead_id: leadId,
     type: "follow_up_scheduled",
-    title: "Follow-up scheduled",
-    detail: `${currentLead.full_name} next follow-up set for ${new Date(next_follow_up_at).toLocaleString("en-US")}.`,
+    title: "Takip planlandı",
+    detail: `${currentLead.full_name} için yeni takip tarihi ${new Date(next_follow_up_at).toLocaleString("tr-TR")} olarak belirlendi.`,
     created_by: mutation.context.userId,
   });
 
@@ -637,8 +643,8 @@ export async function createLeadTaskRecord(input: {
     organization_id: mutation.context.organization.id,
     lead_id: input.leadId,
     type: "task_created",
-    title: "Task created",
-    detail: `${currentLead.full_name} received task ${input.title}.`,
+    title: "Görev oluşturuldu",
+    detail: `${currentLead.full_name} adayı için "${input.title}" görevi oluşturuldu.`,
     created_by: mutation.context.userId,
   });
 
@@ -663,6 +669,44 @@ export async function deleteLeadRecord(leadId: string) {
   if (error) {
     throw new Error(error.message ?? "Unable to delete lead.");
   }
+}
+
+export async function mergeLeadDuplicateRecords(canonicalId: string, duplicateIds: string[]) {
+  const mutation = await getMutationContext();
+  if (!mutation) {
+    throw new Error("Lead merge requires a live Supabase session.");
+  }
+
+  if (!canMergeDuplicateRecords(mutation.context.role)) {
+    throw new Error("You do not have permission to merge leads.");
+  }
+
+  const uniqueDuplicateIds = Array.from(new Set(duplicateIds)).filter((id) => id && id !== canonicalId);
+  if (uniqueDuplicateIds.length === 0) {
+    throw new Error("Select at least one duplicate lead to merge.");
+  }
+
+  await getLeadForMutation(mutation.client, mutation.context, canonicalId);
+
+  let mergedCount = 0;
+  for (const duplicateId of uniqueDuplicateIds) {
+    await getLeadForMutation(mutation.client, mutation.context, duplicateId);
+    const { error } = await mutation.client.rpc("merge_duplicate_records", {
+      p_organization_id: mutation.context.organization.id,
+      p_entity_type: "lead",
+      p_canonical_id: canonicalId,
+      p_duplicate_id: duplicateId,
+      p_note: null,
+    });
+
+    if (error) {
+      throw new Error(error.message ?? "Unable to merge lead duplicates.");
+    }
+
+    mergedCount += 1;
+  }
+
+  return { canonicalId, mergedCount };
 }
 
 export async function getLeadDashboardData(): Promise<LeadDashboardData> {

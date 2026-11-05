@@ -28,10 +28,10 @@ export default async function EditQuotePage({ params, searchParams }: EditQuoteP
   if (!data.quote) {
     return (
       <EmptyState
-        title="Quote not found"
-        description={data.error ?? "The requested quote cannot be loaded for editing."}
+        title="Teklif bulunamadı"
+        description={data.error ?? "Talep edilen teklif düzenleme için yüklenemedi."}
         actionHref="/quotes"
-        actionLabel="Back to quotes"
+        actionLabel="Tekliflere Dön"
       />
     );
   }
@@ -41,16 +41,16 @@ export default async function EditQuotePage({ params, searchParams }: EditQuoteP
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
 
       <PageHeader
-        eyebrow="Commercial"
-        title={`Edit ${data.quote.quote_number}`}
-        description="Update the stored snapshot while keeping organization-level permissions intact."
+        eyebrow="Ticari İşlemler"
+        title={`${data.quote.quote_number} Teklifini Düzenle`}
+        description="Organizasyon düzeyindeki yetkileri koruyarak kayıtlı anlık görüntüyü güncelleyin."
         actions={
           <Link
             href={`/quotes/${id}`}
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to quote
+            Teklife Dön
           </Link>
         }
       />
@@ -70,7 +70,7 @@ export default async function EditQuotePage({ params, searchParams }: EditQuoteP
         recipientMessage={data.recipientMessage}
         canMutate={data.canMutate}
         redirectTo={redirectTo}
-        readOnlyMessage={data.error ?? "Connect live Supabase data or create a real quote to edit this record."}
+        readOnlyMessage={data.error ?? "Bu kaydı düzenlemek için canlı Supabase verisine bağlanın veya gerçek bir teklif oluşturun."}
       />
     </div>
   );

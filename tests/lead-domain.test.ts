@@ -116,7 +116,7 @@ test("status transitions produce the right activity copy", () => {
 
   assert.ok(activity);
   assert.equal(activity?.type, "status_changed");
-  assert.match(activity?.detail ?? "", /Qualified/i);
+  assert.match(activity?.detail ?? "", /Nitelikli/i);
 });
 
 test("dashboard lead metrics use live lead data", () => {

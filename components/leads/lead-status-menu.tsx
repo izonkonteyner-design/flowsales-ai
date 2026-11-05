@@ -2,7 +2,7 @@ import { CheckCircle2 } from "lucide-react";
 
 import { changeLeadStatusAction } from "@/app/(app)/leads/actions";
 import { LEAD_STATUSES } from "@/lib/constants";
-import { getLeadRecordRestrictionMessage } from "@/server/services/lead-domain";
+import { getLeadRecordRestrictionMessage, getLeadStatusLabelTr } from "@/server/services/lead-domain";
 import { Select } from "@/components/ui/select";
 import type { WorkspaceRole } from "@/lib/workspace-roles";
 
@@ -40,7 +40,7 @@ export function LeadStatusMenu({
           <Select id={`status-${leadId}`} name="status" defaultValue={currentStatus} disabled className="h-8 text-xs">
             {LEAD_STATUSES.map((status) => (
               <option key={status.value} value={status.value}>
-                {status.label}
+                {getLeadStatusLabelTr(status.value)}
               </option>
             ))}
           </Select>
@@ -72,7 +72,7 @@ export function LeadStatusMenu({
         <Select id={`status-${leadId}`} name="status" defaultValue={currentStatus} disabled={disabled} className="h-8 text-xs">
           {LEAD_STATUSES.map((status) => (
             <option key={status.value} value={status.value}>
-              {status.label}
+              {getLeadStatusLabelTr(status.value)}
             </option>
           ))}
         </Select>

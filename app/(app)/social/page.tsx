@@ -35,13 +35,6 @@ const AdsManagementTab = dynamic(
   },
 );
 
-const CreativePipelineTab = dynamic(
-  () => import("@/components/social/creative-pipeline-tab").then((m) => m.CreativePipelineTab),
-  {
-    loading: () => <div className="h-64 rounded-xl border border-border bg-card animate-pulse shadow-xs" />,
-  },
-);
-
 const MarketingAnalyticsTab = dynamic(
   () => import("@/components/social/marketing-analytics-tab").then((m) => m.MarketingAnalyticsTab),
   {
@@ -97,18 +90,10 @@ export default async function SocialMediaPage() {
   }> = [];
   let queryWarning: string | null = null;
   let adCampaigns: AdCampaignRecord[] = [];
-  let creativeBriefs: Array<{
-    id: string;
-    title: string;
-    format: string;
-    dimensions: string;
-    visual_prompt: string;
-    created_at: string;
-  }> = [];
 
   try {
     const admin = createSupabaseAdminClient();
-    const [postsResult, queueResult, connectionsResult, campaignsList, briefsResult] = await Promise.all([
+    const [postsResult, queueResult, connectionsResult, campaignsList] = await Promise.all([
       admin
         .from("social_posts")
         .select("*")
@@ -127,23 +112,12 @@ export default async function SocialMediaPage() {
         .eq("organization_id", ctx.organization.id)
         .in("provider", ["instagram", "facebook", "tiktok", "youtube", "google"]),
       getAdCampaigns(ctx.organization.id).catch(() => []),
-      Promise.resolve(
-        admin
-          .from("creative_briefs")
-          .select("id, title, format, dimensions, visual_prompt, created_at")
-          .eq("organization_id", ctx.organization.id)
-          .order("created_at", { ascending: false })
-          .limit(20),
-      )
-        .then((r) => r.data ?? [])
-        .catch(() => []),
     ]);
 
     posts = postsResult.data ?? [];
     queue = queueResult.data ?? [];
     connections = connectionsResult.data ?? [];
     adCampaigns = campaignsList ?? [];
-    creativeBriefs = briefsResult ?? [];
 
     if (postsResult.error || queueResult.error || connectionsResult.error) {
       queryWarning = "Bazı sosyal medya verileri yüklenirken geçici bir gecikme oluştu. Mevcut kayıtlar aşağıda listelenmektedir.";
@@ -409,12 +383,6 @@ export default async function SocialMediaPage() {
           <AdsManagementTab
             canMutate={canMutate}
             initialCampaigns={adCampaigns}
-          />
-        }
-        creativeContent={
-          <CreativePipelineTab
-            canMutate={canMutate}
-            initialBriefs={creativeBriefs}
           />
         }
         analyticsContent={<MarketingAnalyticsTab />}

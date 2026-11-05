@@ -21,12 +21,6 @@ import {
 } from "@/server/services/ads/service";
 import type { AdPlatform, AdCampaignInput, CampaignObjective } from "@/server/services/ads/domain";
 import {
-  generateCreativeProductionBrief,
-  saveCreativeBrief,
-  type CreativeFormat,
-  type ShotListItem,
-} from "@/server/services/creative/pipeline";
-import {
   uploadMarketingMediaAsset,
   reanalyzeMarketingMediaAsset,
 } from "@/server/services/media/service";
@@ -229,46 +223,6 @@ export async function submitCampaignForApprovalAction(campaignId: string) {
     campaignId,
     organizationId: ctx.organization.id,
     userId: ctx.userId ?? "system",
-  });
-
-  if (result.success) {
-    revalidatePath("/social");
-  }
-  return result;
-}
-
-export async function generateCreativeBriefAction(params: {
-  topic: string;
-  productOrService?: string;
-  targetAudience?: string;
-  format?: CreativeFormat;
-  language?: "tr" | "en";
-}) {
-  return generateCreativeProductionBrief(params);
-}
-
-export async function saveCreativeBriefAction(params: {
-  title: string;
-  concept: string;
-  format: CreativeFormat;
-  dimensions: string;
-  visualPrompt: string;
-  shotList: ShotListItem[];
-  voiceoverScript?: string | null;
-  overlayTexts?: string[];
-  thumbnailConcept?: string | null;
-  mappedCampaignId?: string | null;
-  mappedSocialPostId?: string | null;
-}) {
-  const ctx = await loadWorkspaceContext();
-  if (!canManageSocialPosts(ctx)) {
-    return { success: false, error: "Bu işlem için yetkiniz bulunmamaktadır." };
-  }
-
-  const result = await saveCreativeBrief({
-    organizationId: ctx.organization.id,
-    userId: ctx.userId ?? "system",
-    brief: params,
   });
 
   if (result.success) {

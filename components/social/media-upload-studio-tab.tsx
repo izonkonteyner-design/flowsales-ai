@@ -170,12 +170,16 @@ export function MediaUploadStudioTab() {
       const fd = new FormData();
       fd.set("title", draft.headline);
       fd.set("caption", draft.caption);
-      fd.set("contentType", draft.placement === "story" ? "story" : draft.placement === "reel" ? "reel" : "post");
+      fd.set("contentType", draft.placement === "story" ? "story" : draft.placement === "reel" ? "reel_short" : "post");
       fd.set("platforms", draft.platform);
       fd.set("mediaUrl", draft.mediaUrl);
       fd.set("status", "draft");
 
-      await createSocialPostAction(fd);
+      const result = await createSocialPostAction(fd);
+      if (!result.success) {
+        setErrorMsg(result.error || "Gönderi kaydedilemedi.");
+        return;
+      }
       setSavedDraftIds((prev) => new Set(prev).add(draft.id));
     });
   };

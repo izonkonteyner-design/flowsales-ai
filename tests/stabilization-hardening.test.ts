@@ -48,6 +48,7 @@ describe("FLOWSALES AI — Production Stabilization & Hardening Tests", () => {
         "emailConnectAnother",
         "emailConnectAccount",
         "emailProviderKeysRequired",
+        "emailProviderKeysSetupDoc",
         "emailAdminOnly",
         "emailConnected",
         "openEmailCenter",

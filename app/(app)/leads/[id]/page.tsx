@@ -38,7 +38,7 @@ import {
   canMutateLeadRecord,
   getLeadRecordBadge,
   getLeadRecordRestrictionMessage,
-  getLeadStatusLabel,
+  getLeadStatusLabelTr,
   getLeadStatusTone,
 } from "@/server/services/lead-domain";
 import type { Task } from "@/types/crm";
@@ -165,7 +165,7 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
       <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
         <SectionCard title="Aday Özeti & Bilgileri" description="Temel CRM verileri ve operasyonel aksiyonlar.">
           <div className="flex flex-wrap items-center gap-2">
-            <StatusBadge tone={getLeadStatusTone(lead.status)}>{getLeadStatusLabel(lead.status)}</StatusBadge>
+            <StatusBadge tone={getLeadStatusTone(lead.status)}>{getLeadStatusLabelTr(lead.status)}</StatusBadge>
             <StatusBadge tone="neutral">{lead.source}</StatusBadge>
             <StatusBadge tone="neutral">{lead.assigned_to_label}</StatusBadge>
             <StatusBadge tone={followUpState.tone}>{followUpState.label}</StatusBadge>
@@ -366,7 +366,7 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
                     <p className="mt-0.5 text-xs text-muted-foreground">{activity.detail}</p>
                     <p className="mt-1 text-[10px] text-muted-foreground">{formatDateTime(activity.created_at)}</p>
                   </div>
-                  <StatusBadge tone="info">{activity.type.replace("_", " ")}</StatusBadge>
+                  <StatusBadge tone="info">{activityTypeLabel(activity.type)}</StatusBadge>
                 </article>
               ))}
             </div>
@@ -393,7 +393,7 @@ export default async function LeadDetailPage({ params, searchParams }: LeadDetai
                   <StatusBadge
                     tone={task.priority === "high" ? "danger" : task.priority === "medium" ? "warning" : "info"}
                   >
-                    {task.priority}
+                    {taskPriorityLabel(task.priority)}
                   </StatusBadge>
                 </article>
               ))}
@@ -472,6 +472,32 @@ function ContactItem({
       <p className="mt-1 text-xs font-semibold text-foreground truncate">{value}</p>
     </div>
   );
+}
+
+const activityTypeLabelsTr: Record<string, string> = {
+  lead_created: "Aday oluşturuldu",
+  lead_updated: "Aday güncellendi",
+  status_changed: "Durum değişti",
+  note_added: "Not eklendi",
+  follow_up_scheduled: "Takip planlandı",
+  task_created: "Görev oluşturuldu",
+  quote_sent: "Teklif gönderildi",
+  quote_viewed: "Teklif görüntülendi",
+  note: "Not",
+};
+
+function activityTypeLabel(type: string) {
+  return activityTypeLabelsTr[type] ?? type.replace(/_/g, " ");
+}
+
+const taskPriorityLabelsTr: Record<string, string> = {
+  high: "Yüksek",
+  medium: "Orta",
+  low: "Düşük",
+};
+
+function taskPriorityLabel(priority: string) {
+  return taskPriorityLabelsTr[priority] ?? priority;
 }
 
 function MiniDetail({ label, value }: { label: string; value: string }) {

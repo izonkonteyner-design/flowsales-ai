@@ -90,14 +90,14 @@ export async function convertLeadToCustomerAction(formData: FormData) {
 
     const message =
       result.state === "existing"
-        ? "Lead was already converted. Opened the linked customer."
+        ? "Bu aday zaten dönüştürülmüştü. Bağlı müşteri kaydı açıldı."
         : result.state === "linked"
-          ? "Lead matched an existing customer."
-          : "Lead converted to customer.";
+          ? "Aday mevcut bir müşteriyle eşleştirildi."
+          : "Aday müşteriye dönüştürüldü.";
 
     redirect(redirectWithToast(`/customers/${result.customer.id}`, message));
   } catch (error) {
-    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to convert lead."), "danger"));
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Aday dönüştürülemedi."), "danger"));
   }
 }
 
@@ -111,9 +111,9 @@ export async function createLeadAction(formData: FormData) {
     revalidatePath("/leads");
     revalidatePath(`/leads/${result.lead.id}`);
 
-    redirect(redirectWithToast(redirectTo, "Lead created successfully."));
+    redirect(redirectWithToast(redirectTo, "Aday başarıyla oluşturuldu."));
   } catch (error) {
-    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to create lead."), "danger"));
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Aday oluşturulamadı."), "danger"));
   }
 }
 
@@ -128,9 +128,9 @@ export async function updateLeadAction(formData: FormData) {
     revalidatePath("/leads");
     revalidatePath(`/leads/${result.lead.id}`);
 
-    redirect(redirectWithToast(redirectTo, "Lead updated successfully."));
+    redirect(redirectWithToast(redirectTo, "Aday başarıyla güncellendi."));
   } catch (error) {
-    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to update lead."), "danger"));
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Aday güncellenemedi."), "danger"));
   }
 }
 
@@ -144,9 +144,9 @@ export async function deleteLeadAction(formData: FormData) {
     revalidatePath("/leads");
     revalidatePath(`/leads/${leadId}`);
 
-    redirect(redirectWithToast(redirectTo, "Lead deleted successfully."));
+    redirect(redirectWithToast(redirectTo, "Aday başarıyla silindi."));
   } catch (error) {
-    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to delete lead."), "danger"));
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Aday silinemedi."), "danger"));
   }
 }
 
@@ -165,9 +165,9 @@ export async function changeLeadStatusAction(formData: FormData) {
     revalidatePath("/leads");
     revalidatePath(`/leads/${result.lead.id}`);
 
-    redirect(redirectWithToast(redirectTo, "Lead status updated."));
+    redirect(redirectWithToast(redirectTo, "Aday durumu güncellendi."));
   } catch (error) {
-    const fallback = "Unable to update lead status.";
+    const fallback = "Aday durumu güncellenemedi.";
     const redirectTo = safeRedirectTarget(formData.get("redirect_to"), "/leads");
     redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, fallback), "danger"));
   }
@@ -188,10 +188,10 @@ export async function addLeadNoteAction(formData: FormData) {
     revalidatePath("/leads");
     revalidatePath(`/leads/${result.lead.id}`);
 
-    redirect(redirectWithToast(redirectTo, "Note added."));
+    redirect(redirectWithToast(redirectTo, "Not eklendi."));
   } catch (error) {
     const redirectTo = safeRedirectTarget(formData.get("redirect_to"), "/leads");
-    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to add note."), "danger"));
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Not eklenemedi."), "danger"));
   }
 }
 
@@ -210,10 +210,10 @@ export async function scheduleLeadFollowUpAction(formData: FormData) {
     revalidatePath("/leads");
     revalidatePath(`/leads/${result.lead.id}`);
 
-    redirect(redirectWithToast(redirectTo, "Follow-up scheduled."));
+    redirect(redirectWithToast(redirectTo, "Takip planlandı."));
   } catch (error) {
     const redirectTo = safeRedirectTarget(formData.get("redirect_to"), "/leads");
-    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to schedule follow-up."), "danger"));
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Takip planlanamadı."), "danger"));
   }
 }
 
@@ -272,9 +272,9 @@ export async function createLeadTaskAction(formData: FormData) {
     revalidatePath(`/leads/${parsed.lead_id}`);
     revalidatePath("/tasks");
 
-    redirect(redirectWithToast(redirectTo, `Task created: ${result.task.title}.`));
+    redirect(redirectWithToast(redirectTo, `Görev oluşturuldu: ${result.task.title}.`));
   } catch (error) {
     const redirectTo = safeRedirectTarget(formData.get("redirect_to"), "/leads");
-    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Unable to create task."), "danger"));
+    redirect(redirectWithToast(redirectTo, getActionErrorMessage(error, "Görev oluşturulamadı."), "danger"));
   }
 }

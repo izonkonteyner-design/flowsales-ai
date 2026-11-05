@@ -97,7 +97,7 @@ test("user-facing surfaces expose sales operations, command shortcut, analyst, g
     source("app/(app)/leads/[id]/intelligence/page.tsx"),
   ]);
   const joined = files.join("\n");
-  for (const token of ["Satış Operasyon Merkezi","Komuta Merkezi","AI Satış Analisti","Büyüme Kontrol Merkezi","Teklif Yönetişimi","Forecast Güveni","Lead Intelligence"]) assert.match(joined, new RegExp(token));
+  for (const token of ["Satış Operasyon Merkezi","Komuta Merkezi","AI Satış Analisti","Büyüme Kontrol Merkezi","Teklif Yönetişimi","Forecast Güveni","Aday Zekâsı"]) assert.match(joined, new RegExp(token));
   assert.match(joined, /ctrlKey|metaKey/);
 });
 

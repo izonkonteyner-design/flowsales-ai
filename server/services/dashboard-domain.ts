@@ -1,6 +1,6 @@
 import { CURRENCY_CODES, QUOTE_STATUSES } from "@/lib/constants";
-import { getLeadStatusLabel } from "@/server/services/lead-domain";
-import { getQuoteStatusLabel, getQuoteStatusTone } from "@/server/services/quote-domain";
+import { getLeadStatusLabelTr } from "@/server/services/lead-domain";
+import { getQuoteStatusLabelTr, getQuoteStatusTone } from "@/server/services/quote-domain";
 import type {
   DashboardBucketSize,
   DashboardComparison,
@@ -422,7 +422,7 @@ function buildPipeline(currentCurrencyQuotes: DashboardQuote[]): QuotePipelineMe
 
   return QUOTE_STATUSES.map((status) => ({
     status: status.value,
-    label: status.label,
+    label: getQuoteStatusLabelTr(status.value),
     count: countByStatus.get(status.value) ?? 0,
     value: valueByStatus.get(status.value) ?? 0,
     share: totalQuotes ? Math.round(((countByStatus.get(status.value) ?? 0) / totalQuotes) * 1000) / 10 : 0,
@@ -537,7 +537,7 @@ function buildRecentQuotes(quotes: DashboardQuote[]) {
       quoteNumber: quote.quote_number,
       recipient: getRecipientLabel(quote),
       status: quote.status,
-      statusLabel: getQuoteStatusLabel(quote.status),
+      statusLabel: getQuoteStatusLabelTr(quote.status),
       grandTotal: safeNumber(quote.grand_total ?? quote.total ?? 0),
       currency: quote.currency as CurrencyCode,
       updatedAt: quote.updated_at,
@@ -554,7 +554,7 @@ function buildRecentLeads(leads: DashboardLead[]) {
       fullName: lead.full_name,
       company: lead.company ?? null,
       status: lead.status,
-      statusLabel: getLeadStatusLabel(lead.status),
+      statusLabel: getLeadStatusLabelTr(lead.status),
       updatedAt: lead.updated_at,
       href: `/leads/${lead.id}`,
     }));

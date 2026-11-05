@@ -59,29 +59,49 @@ export function canMutateLeadRecord(recordMode: LeadRecordMode, role: LeadRole |
   return recordMode === "live" && canManageLeads(role);
 }
 
-export function getLeadRecordBadge(recordMode: LeadRecordMode) {
+export function getLeadRecordBadge(recordMode: LeadRecordMode, locale: "tr" | "en" = "tr") {
   if (recordMode === "demo") {
-    return {
-      label: "Demo data",
-      tone: "neutral" as const,
-      title: "Connect live Supabase data or create a real lead to edit this record.",
-    };
+    return locale === "en"
+      ? {
+          label: "Demo data",
+          tone: "neutral" as const,
+          title: "Connect live Supabase data or create a real lead to edit this record.",
+        }
+      : {
+          label: "Demo Veri",
+          tone: "neutral" as const,
+          title: "Bu kaydı düzenlemek için canlı Supabase verisine bağlanın veya gerçek bir aday oluşturun.",
+        };
   }
 
-  return {
-    label: "Live data",
-    tone: "success" as const,
-    title: "This record is stored in live Supabase data.",
-  };
+  return locale === "en"
+    ? {
+        label: "Live data",
+        tone: "success" as const,
+        title: "This record is stored in live Supabase data.",
+      }
+    : {
+        label: "Canlı Veri",
+        tone: "success" as const,
+        title: "Bu kayıt canlı Supabase verisinde saklanıyor.",
+      };
 }
 
-export function getLeadRecordRestrictionMessage(recordMode: LeadRecordMode, role: LeadRole | null | undefined) {
+export function getLeadRecordRestrictionMessage(
+  recordMode: LeadRecordMode,
+  role: LeadRole | null | undefined,
+  locale: "tr" | "en" = "tr",
+) {
   if (recordMode === "demo") {
-    return "Connect live Supabase data or create a real lead to edit this record.";
+    return locale === "en"
+      ? "Connect live Supabase data or create a real lead to edit this record."
+      : "Bu kaydı düzenlemek için canlı Supabase verisine bağlanın veya gerçek bir aday oluşturun.";
   }
 
   if (!canManageLeads(role)) {
-    return "Viewer permissions can inspect leads but cannot create, edit, delete, or change stage.";
+    return locale === "en"
+      ? "Viewer permissions can inspect leads but cannot create, edit, delete, or change stage."
+      : "Görüntüleyici yetkisiyle adayları inceleyebilirsiniz; oluşturma, düzenleme, silme veya aşama değiştirme işlemi yapamazsınız.";
   }
 
   return "";
@@ -95,6 +115,21 @@ export function getLeadStatusLabel(status: LeadStatus) {
   return statusLabels.get(status) ?? status.replace("_", " ");
 }
 
+const leadStatusLabelsTr: Record<LeadStatus, string> = {
+  new: "Yeni",
+  contacted: "İletişim Kuruldu",
+  qualified: "Nitelikli",
+  quote_sent: "Teklif İletildi",
+  negotiation: "Pazarlık",
+  won: "Kazanıldı",
+  lost: "Kaybedildi",
+};
+
+/** Turkish-localized lead status label, used by pages/components that are not locale-switchable (always Turkish). */
+export function getLeadStatusLabelTr(status: LeadStatus) {
+  return leadStatusLabelsTr[status] ?? getLeadStatusLabel(status);
+}
+
 export function buildLeadStatusActivity(
   previousStatus: LeadStatus,
   nextStatus: LeadStatus,
@@ -106,8 +141,8 @@ export function buildLeadStatusActivity(
 
   return {
     type: "status_changed" as const,
-    title: "Status changed",
-    detail: `${leadName} moved from ${getLeadStatusLabel(previousStatus)} to ${getLeadStatusLabel(nextStatus)}.`,
+    title: "Durum güncellendi",
+    detail: `${leadName} kaydı ${getLeadStatusLabelTr(previousStatus)} aşamasından ${getLeadStatusLabelTr(nextStatus)} aşamasına taşındı.`,
   };
 }
 

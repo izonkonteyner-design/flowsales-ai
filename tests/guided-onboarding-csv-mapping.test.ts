@@ -39,9 +39,9 @@ test("guided onboarding UI exposes mapping, checklist and downloadable report", 
   const mapper = await source("app/onboarding/import/import-mapper.tsx");
   const action = await source("app/onboarding/import/actions.ts");
   const report = await source("app/onboarding/import/[jobId]/errors/route.ts");
-  assert.match(page, /Setup checklist/);
-  assert.match(page, /Download rejected rows report/);
-  assert.match(mapper, /Match your columns/);
+  assert.match(page, /Kurulum Kontrol Listesi/);
+  assert.match(page, /Reddedilen Satırlar Raporunu İndir/);
+  assert.match(mapper, /Sütunlarınızı eşleştirin/);
   assert.match(mapper, /importLeadsAction/);
   assert.match(action, /mapping/);
   assert.match(action, /jobId/);

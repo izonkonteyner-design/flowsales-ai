@@ -92,8 +92,10 @@ test("quote permissions keep demo records and viewers read only", () => {
   assert.equal(canMutateQuoteRecord("demo", "admin"), false);
   assert.equal(canMutateQuoteRecord("live", "sales"), true);
   assert.equal(canMutateQuoteRecord("live", "viewer"), false);
-  assert.match(getQuoteRecordRestrictionMessage("demo", "admin"), /Connect live Supabase data/);
-  assert.match(getQuoteRecordRestrictionMessage("live", "viewer"), /Viewer permissions/);
+  assert.match(getQuoteRecordRestrictionMessage("demo", "admin"), /canlı Supabase verisine/);
+  assert.match(getQuoteRecordRestrictionMessage("live", "viewer"), /Görüntüleyici yetkisiyle/);
+  assert.match(getQuoteRecordRestrictionMessage("demo", "admin", "en"), /Connect live Supabase data/);
+  assert.match(getQuoteRecordRestrictionMessage("live", "viewer", "en"), /Viewer permissions/);
 });
 
 test("quote number generation increments the current year sequence", () => {

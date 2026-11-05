@@ -5,15 +5,29 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency } from "@/lib/utils";
+import { getLeadStatusLabelTr } from "@/server/services/lead-domain";
 import type { LeadMemberOption } from "@/server/services/lead-domain";
 
-const leadSources = ["Website", "WhatsApp", "Instagram", "Referral", "LinkedIn", "Event", "Cold call"];
+const leadSources = ["Website", "WhatsApp", "Instagram", "Referans", "LinkedIn", "Etkinlik", "Soğuk Arama"];
 const currencies = ["TRY", "USD", "EUR"];
 const currencyLabels: Record<string, string> = {
   TRY: "TL",
   USD: "USD",
   EUR: "EUR",
 };
+
+const roleLabels: Record<string, string> = {
+  owner: "Çalışma alanı sahibi",
+  admin: "Yönetici",
+  manager: "Satış yöneticisi",
+  sales: "Satış temsilcisi",
+  sales_rep: "Satış temsilcisi",
+  viewer: "Görüntüleyici",
+};
+
+function roleLabel(role: string) {
+  return roleLabels[role] ?? role;
+}
 
 type LeadFormProps = {
   action: (formData: FormData) => Promise<void>;
@@ -65,7 +79,7 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
           <Select name="status" defaultValue={lead?.status ?? "new"}>
             {LEAD_STATUSES.map((status) => (
               <option key={status.value} value={status.value}>
-                {status.label}
+                {getLeadStatusLabelTr(status.value)}
               </option>
             ))}
           </Select>
@@ -84,7 +98,7 @@ export function LeadForm({ action, redirectTo, lead, members, submitLabel, leadI
             <option value="">Atanmamış</option>
             {members.map((member) => (
               <option key={member.user_id} value={member.user_id}>
-                {member.full_name} ({member.role})
+                {member.full_name} ({roleLabel(member.role)})
               </option>
             ))}
           </Select>

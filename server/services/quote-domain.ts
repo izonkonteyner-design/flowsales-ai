@@ -54,29 +54,49 @@ export function canMutateQuoteRecord(recordMode: QuoteRecordMode, role: Workspac
   return recordMode === "live" && canManageQuotes(role);
 }
 
-export function getQuoteRecordBadge(recordMode: QuoteRecordMode) {
+export function getQuoteRecordBadge(recordMode: QuoteRecordMode, locale: "tr" | "en" = "tr") {
   if (recordMode === "demo") {
-    return {
-      label: "Demo data",
-      tone: "neutral" as const,
-      title: "Connect live Supabase data or create a real quote to edit this record.",
-    };
+    return locale === "en"
+      ? {
+          label: "Demo data",
+          tone: "neutral" as const,
+          title: "Connect live Supabase data or create a real quote to edit this record.",
+        }
+      : {
+          label: "Demo Veri",
+          tone: "neutral" as const,
+          title: "Bu kaydı düzenlemek için canlı Supabase verisine bağlanın veya gerçek bir teklif oluşturun.",
+        };
   }
 
-  return {
-    label: "Live data",
-    tone: "success" as const,
-    title: "This quote is stored in live Supabase data.",
-  };
+  return locale === "en"
+    ? {
+        label: "Live data",
+        tone: "success" as const,
+        title: "This quote is stored in live Supabase data.",
+      }
+    : {
+        label: "Canlı Veri",
+        tone: "success" as const,
+        title: "Bu teklif canlı Supabase verisinde saklanıyor.",
+      };
 }
 
-export function getQuoteRecordRestrictionMessage(recordMode: QuoteRecordMode, role: WorkspaceRole | null | undefined) {
+export function getQuoteRecordRestrictionMessage(
+  recordMode: QuoteRecordMode,
+  role: WorkspaceRole | null | undefined,
+  locale: "tr" | "en" = "tr",
+) {
   if (recordMode === "demo") {
-    return "Connect live Supabase data or create a real quote to edit this record.";
+    return locale === "en"
+      ? "Connect live Supabase data or create a real quote to edit this record."
+      : "Bu kaydı düzenlemek için canlı Supabase verisine bağlanın veya gerçek bir teklif oluşturun.";
   }
 
   if (!canManageQuotes(role)) {
-    return "Viewer permissions can inspect quotes but cannot create, edit, delete, or change status.";
+    return locale === "en"
+      ? "Viewer permissions can inspect quotes but cannot create, edit, delete, or change status."
+      : "Görüntüleyici yetkisiyle teklifleri inceleyebilirsiniz; oluşturma, düzenleme, silme veya durum değiştirme işlemi yapamazsınız.";
   }
 
   return "";
@@ -184,6 +204,21 @@ export function getQuoteStatusLabel(status: QuoteStatus) {
   return statusLabels.get(status) ?? status.replace("_", " ");
 }
 
+const quoteStatusLabelsTr: Record<QuoteStatus, string> = {
+  draft: "Taslak",
+  sent: "Gönderildi",
+  viewed: "Görüntülendi",
+  accepted: "Kabul Edildi",
+  rejected: "Reddedildi",
+  expired: "Süresi Doldu",
+  cancelled: "İptal Edildi",
+};
+
+/** Turkish-localized quote status label, used by pages/components that are not locale-switchable (always Turkish). */
+export function getQuoteStatusLabelTr(status: QuoteStatus) {
+  return quoteStatusLabelsTr[status] ?? getQuoteStatusLabel(status);
+}
+
 export function getQuoteStatusTone(status: QuoteStatus): "neutral" | "info" | "warning" | "success" | "danger" {
   if (status === "accepted") {
     return "success";
@@ -221,20 +256,24 @@ export function isQuoteExpiringSoon(validUntil: string | null | undefined, now =
   return expiresAt >= now.getTime() && expiresAt <= now.getTime() + 1000 * 60 * 60 * 24 * 7;
 }
 
-export function formatQuoteFollowUpState(validUntil: string | null | undefined, now = new Date()) {
+export function formatQuoteFollowUpState(
+  validUntil: string | null | undefined,
+  now = new Date(),
+  locale: "tr" | "en" = "tr",
+) {
   if (!validUntil) {
-    return { label: "Not set", tone: "neutral" as const };
+    return { label: locale === "en" ? "Not set" : "Belirtilmedi", tone: "neutral" as const };
   }
 
   if (isQuoteOverdue(validUntil, now)) {
-    return { label: "Expired", tone: "danger" as const };
+    return { label: locale === "en" ? "Expired" : "Süresi Doldu", tone: "danger" as const };
   }
 
   if (isQuoteExpiringSoon(validUntil, now)) {
-    return { label: "Expiring soon", tone: "warning" as const };
+    return { label: locale === "en" ? "Expiring soon" : "Yakında Sona Erecek", tone: "warning" as const };
   }
 
-  return { label: "Scheduled", tone: "info" as const };
+  return { label: locale === "en" ? "Scheduled" : "Planlandı", tone: "info" as const };
 }
 
 export function sortQuotes<T extends QuoteSearchable>(quotes: T[], sort: QuoteSortMode) {

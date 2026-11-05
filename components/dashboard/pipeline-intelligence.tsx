@@ -38,7 +38,7 @@ export async function PipelineIntelligence() {
     >
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Metric icon={BarChart3} label="Açık Fırsat" value={String(data.totalOpen)} />
-        <Metric icon={Gauge} label="Ortalama Lead Score" value={String(data.weightedScore)} />
+        <Metric icon={Gauge} label="Ortalama Aday Skoru" value={String(data.weightedScore)} />
         <Metric icon={Flame} label="Yüksek Öncelik" value={String(data.highPriorityCount)} />
         <Metric
           icon={AlertTriangle}

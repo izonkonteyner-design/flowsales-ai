@@ -423,8 +423,8 @@ export async function createLeadRecord(input: {
     organization_id: mutation.context.organization.id,
     lead_id: lead.id,
     type: "lead_created",
-    title: "Lead created",
-    detail: `Lead ${input.full_name} was created.`,
+    title: "Aday oluşturuldu",
+    detail: `${input.full_name} adayı oluşturuldu.`,
     created_by: mutation.context.userId,
   });
 
@@ -481,8 +481,8 @@ export async function updateLeadRecord(
     organization_id: mutation.context.organization.id,
     lead_id: leadId,
     type: statusActivity?.type ?? "lead_updated",
-    title: statusActivity?.title ?? "Lead updated",
-    detail: statusActivity?.detail ?? `Lead ${input.full_name} was updated.`,
+    title: statusActivity?.title ?? "Aday güncellendi",
+    detail: statusActivity?.detail ?? `${input.full_name} adayının bilgileri güncellendi.`,
     created_by: mutation.context.userId,
   });
 
@@ -523,8 +523,8 @@ export async function changeLeadStatusRecord(leadId: string, status: string) {
       organization_id: mutation.context.organization.id,
       lead_id: leadId,
       type: statusActivity?.type ?? "status_changed",
-      title: statusActivity?.title ?? "Status changed",
-      detail: statusActivity?.detail ?? `${currentLead.full_name} status changed.`,
+      title: statusActivity?.title ?? "Durum güncellendi",
+      detail: statusActivity?.detail ?? `${currentLead.full_name} adayının durumu güncellendi.`,
       created_by: mutation.context.userId,
     });
   }
@@ -561,7 +561,7 @@ export async function addLeadNoteRecord(leadId: string, note: string) {
     organization_id: mutation.context.organization.id,
     lead_id: leadId,
     type: "note_added",
-    title: "Note added",
+    title: "Not eklendi",
     detail: note.trim(),
     created_by: mutation.context.userId,
   });
@@ -597,8 +597,8 @@ export async function scheduleLeadFollowUpRecord(leadId: string, next_follow_up_
     organization_id: mutation.context.organization.id,
     lead_id: leadId,
     type: "follow_up_scheduled",
-    title: "Follow-up scheduled",
-    detail: `${currentLead.full_name} next follow-up set for ${new Date(next_follow_up_at).toLocaleString("en-US")}.`,
+    title: "Takip planlandı",
+    detail: `${currentLead.full_name} için yeni takip tarihi ${new Date(next_follow_up_at).toLocaleString("tr-TR")} olarak belirlendi.`,
     created_by: mutation.context.userId,
   });
 
@@ -643,8 +643,8 @@ export async function createLeadTaskRecord(input: {
     organization_id: mutation.context.organization.id,
     lead_id: input.leadId,
     type: "task_created",
-    title: "Task created",
-    detail: `${currentLead.full_name} received task ${input.title}.`,
+    title: "Görev oluşturuldu",
+    detail: `${currentLead.full_name} adayı için "${input.title}" görevi oluşturuldu.`,
     created_by: mutation.context.userId,
   });
 

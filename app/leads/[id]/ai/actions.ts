@@ -24,7 +24,7 @@ export async function runLeadAiAction(formData: FormData) {
     leadId: formData.get("leadId"),
     capability: formData.get("capability"),
   });
-  if (!parsed.success) redirect("/leads?toast=Invalid+AI+request&tone=danger");
+  if (!parsed.success) redirect(`/leads?toast=${encodeURIComponent("Geçersiz YZ isteği")}&tone=danger`);
 
   const client = await createSupabaseServerClient();
   if (!client) redirect("/login");
@@ -56,11 +56,11 @@ export async function runLeadAiAction(formData: FormData) {
 
     revalidatePath(path);
     const message = result.approval
-      ? "AI recommendation created and sent to Approval Queue"
-      : "AI analysis completed";
+      ? "YZ önerisi oluşturuldu ve Onay Kuyruğuna gönderildi"
+      : "YZ analizi tamamlandı";
     redirect(`${path}?toast=${encodeURIComponent(message)}&tone=success`);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "AI analysis failed";
+    const message = error instanceof Error ? error.message : "YZ analizi başarısız oldu";
     redirect(`${path}?toast=${encodeURIComponent(message)}&tone=danger`);
   }
 }

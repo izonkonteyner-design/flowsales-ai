@@ -29,10 +29,10 @@ export default async function NewQuotePage({ searchParams }: NewQuotePageProps) 
   if (data.error) {
     return (
       <EmptyState
-        title="Unable to open quote form"
+        title="Teklif formu açılamadı"
         description={data.error}
         actionHref="/quotes"
-        actionLabel="Back to quotes"
+        actionLabel="Tekliflere Dön"
       />
     );
   }
@@ -42,16 +42,16 @@ export default async function NewQuotePage({ searchParams }: NewQuotePageProps) 
       {toastMessage ? <FlashToast message={toastMessage} tone={toastTone} /> : null}
 
       <PageHeader
-        eyebrow="Commercial"
-        title="New quote"
-        description="Create a secure commercial proposal with live pricing and manual line items."
+        eyebrow="Ticari İşlemler"
+        title="Yeni Teklif"
+        description="Güncel fiyatlandırma ve manuel kalemlerle güvenli bir ticari teklif oluşturun."
         actions={
           <Link
             href="/quotes"
             className="inline-flex h-10 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to quotes
+            Tekliflere Dön
           </Link>
         }
       />
@@ -71,7 +71,7 @@ export default async function NewQuotePage({ searchParams }: NewQuotePageProps) 
         recipientMessage={data.recipientMessage}
         canMutate={data.canMutate}
         redirectTo={redirectTo}
-        readOnlyMessage={data.error ?? "Connect live Supabase data or create a real quote to edit this record."}
+        readOnlyMessage={data.error ?? "Bu kaydı düzenlemek için canlı Supabase verisine bağlanın veya gerçek bir teklif oluşturun."}
       />
     </div>
   );

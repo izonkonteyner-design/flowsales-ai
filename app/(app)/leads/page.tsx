@@ -421,9 +421,9 @@ function LeadTableView({
           <tbody className="divide-y divide-border">
             {leads.map((lead) => {
               const followState = formatLeadFollowUpState(lead.next_follow_up_at);
-              const badge = getLeadRecordBadge(lead.recordMode);
+              const badge = getLeadRecordBadge(lead.recordMode, locale);
               const canEdit = canMutateLeadRecord(lead.recordMode, role);
-              const restriction = getLeadRecordRestrictionMessage(lead.recordMode, role);
+              const restriction = getLeadRecordRestrictionMessage(lead.recordMode, role, locale);
 
               return (
                 <tr key={lead.id} className="hover:bg-muted/30 transition-colors">

@@ -114,7 +114,13 @@ export function EmailConnections({
                   </a>
                 ) : (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-                    {t(activeLocale, "emailProviderKeysRequired")}
+                    <p>{t(activeLocale, "emailProviderKeysRequired")}</p>
+                    <p className="mt-1.5 font-mono text-[11px] leading-relaxed">
+                      {card.provider === "microsoft"
+                        ? "MICROSOFT_EMAIL_CLIENT_ID, MICROSOFT_EMAIL_CLIENT_SECRET, NEXT_PUBLIC_SITE_URL, TOKEN_ENCRYPTION_KEY"
+                        : "GOOGLE_EMAIL_CLIENT_ID, GOOGLE_EMAIL_CLIENT_SECRET, NEXT_PUBLIC_SITE_URL, TOKEN_ENCRYPTION_KEY"}
+                    </p>
+                    <p className="mt-1.5">{t(activeLocale, "emailProviderKeysSetupDoc")}</p>
                   </div>
                 )
               ) : (

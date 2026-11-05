@@ -303,6 +303,7 @@ export class WhatsAppOutboundService {
         .from("conversations")
         .update({
           last_message_at: nowIso,
+          last_message_snippet: trimmedText,
           updated_at: nowIso,
         })
         .eq("id", conversationId);

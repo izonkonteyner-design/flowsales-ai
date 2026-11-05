@@ -53,9 +53,11 @@ function canManageSocialPosts(ctx: WorkspaceContext | null): ctx is WorkspaceCon
   return canWriteSalesRecords(ctx.role);
 }
 
-export async function createSocialPostAction(formData: FormData): Promise<void> {
+export async function createSocialPostAction(formData: FormData): Promise<{ success: boolean; error?: string }> {
   const ctx = await loadWorkspaceContext();
-  if (!canManageSocialPosts(ctx)) return;
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yazma yetkisi olan canlı bir çalışma alanı gereklidir." };
+  }
 
   const caption = formData.get("caption")?.toString() ?? "";
   const title = formData.get("title")?.toString() ?? "";
@@ -81,7 +83,9 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
   const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube", "google"];
   const platforms = rawPlatforms.filter((p): p is SocialPlatform => validPlatforms.includes(p as SocialPlatform));
 
-  if (platforms.length === 0) return;
+  if (platforms.length === 0) {
+    return { success: false, error: "En az bir paylaşım platformu seçilmelidir." };
+  }
 
   const validation = validateSocialPostInput({
     caption,
@@ -94,7 +98,9 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
     scheduledAt,
   });
 
-  if (!validation.ok) return;
+  if (!validation.ok) {
+    return { success: false, error: validation.error };
+  }
 
   const admin = createSupabaseAdminClient();
   const status = statusInput === "scheduled" && scheduledAt ? "scheduled" : "draft";
@@ -116,7 +122,9 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
     created_by: ctx.userId,
   }).select("id").single();
 
-  if (error || !post) return;
+  if (error || !post) {
+    return { success: false, error: error?.message || "Gönderi kaydedilemedi." };
+  }
 
   if (status === "scheduled" && scheduledAt) {
     for (const platform of platforms) {
@@ -131,6 +139,7 @@ export async function createSocialPostAction(formData: FormData): Promise<void> 
   }
 
   revalidatePath("/social");
+  return { success: true };
 }
 
 export async function generateCaptionSuggestionsAction(params: {

@@ -37,8 +37,6 @@ export const TASK_PRIORITIES: Array<{ value: TaskPriority; label: string }> = [
 export const APP_NAVIGATION = [
   { label: "Dashboard", href: "/dashboard", icon: "layout-dashboard" },
   { label: "Inbox", href: "/inbox", icon: "inbox" },
-  { label: "Phone Inbox", href: "/inbox/phone", icon: "inbox" },
-  { label: "E-posta", href: "/inbox/email", icon: "inbox" },
   { label: "Leads", href: "/leads", icon: "users" },
   { label: "Customers", href: "/customers", icon: "user-group" },
   { label: "Products", href: "/products", icon: "package" },

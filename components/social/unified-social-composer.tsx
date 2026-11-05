@@ -86,7 +86,7 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
       setSelectedPlatforms(["instagram", "facebook"]);
       setActivePlatformTab("instagram");
     } else if (newCat === "reel") {
-      setSelectedPlatforms(["instagram", "youtube"]);
+      setSelectedPlatforms(["instagram", "facebook", "youtube"]);
       setActivePlatformTab("instagram");
     } else if (newCat === "story") {
       setSelectedPlatforms(["instagram", "facebook"]);
@@ -109,6 +109,7 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
     if (category === "reel") {
       return [
         { platform: "instagram", label: "Instagram Reels" },
+        { platform: "facebook", label: "Facebook Reels" },
         { platform: "youtube", label: "YouTube Shorts" },
         { platform: "tiktok", label: "TikTok" },
       ];
@@ -303,7 +304,7 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
     const formData = new FormData();
     formData.append("title", title);
     formData.append("caption", caption);
-    formData.append("contentType", category === "post" ? "post" : category === "reel" ? "reel" : category === "story" ? "story" : "video");
+    formData.append("contentType", category === "post" ? "post" : category === "reel" ? "reel_short" : category === "story" ? "story" : "video");
     formData.append("status", status);
     formData.append("mediaUrl", resolvedMediaUrl);
     if (scheduledAt) {
@@ -317,7 +318,11 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
 
     startSubmitTransition(async () => {
       try {
-        await createSocialPostAction(formData);
+        const result = await createSocialPostAction(formData);
+        if (!result.success) {
+          setErrorMsg(result.error || "Gönderi kaydedilirken hata oluştu.");
+          return;
+        }
         setSuccessMsg(
           status === "scheduled"
             ? "Gönderi başarıyla planlandı ve yayın kuyruğuna eklendi!"

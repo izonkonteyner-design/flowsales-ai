@@ -103,7 +103,6 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
       return [
         { platform: "instagram", label: "Instagram" },
         { platform: "facebook", label: "Facebook" },
-        { platform: "google", label: "Google Business" },
       ];
     }
     if (category === "reel") {
@@ -606,7 +605,7 @@ export function UnifiedSocialComposer({ canMutate, connectedProviders }: Unified
               </div>
             </div>
 
-            {/* Title / Headline (for YouTube, Google Business, Facebook) */}
+            {/* Title / Headline (for YouTube, Facebook) */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
                 Başlık ({activePlatformTab.toUpperCase()})

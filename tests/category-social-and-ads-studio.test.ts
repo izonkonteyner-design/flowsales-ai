@@ -53,7 +53,7 @@ test("Category Studio: Generates tailored drafts for 'post' category", async () 
       keyFeatures: ["Yüksek ısı yalıtımı", "Galvaniz çelik şase"],
       visualTone: "Profesyonel",
       marketingAngle: "Hızlı fabrika teslim",
-      suitablePlatforms: ["instagram", "facebook", "google"],
+      suitablePlatforms: ["instagram", "facebook"],
       summary: "21m2 galvaniz konteyner",
       isFallback: false,
       fallbackReason: null,
@@ -63,11 +63,10 @@ test("Category Studio: Generates tailored drafts for 'post' category", async () 
   assert.equal(result.category, "post");
   assert.ok(result.drafts.length >= 2, "Should produce drafts for multiple platforms");
   
-  // Post platforms: instagram, facebook, google
+  // Post platforms: instagram, facebook (Google Business is intentionally unsupported)
   const platforms = result.drafts.map((d) => d.platform);
   assert.ok(platforms.includes("instagram"), "Instagram post must be generated");
   assert.ok(platforms.includes("facebook"), "Facebook post must be generated");
-  assert.ok(platforms.includes("google"), "Google Business post must be generated");
 
   for (const draft of result.drafts) {
     assert.ok(draft.hashtags.length <= 5, "Hashtags must not exceed 5");

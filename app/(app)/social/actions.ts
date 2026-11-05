@@ -74,7 +74,7 @@ export async function createSocialPostAction(formData: FormData): Promise<{ succ
     }
   }
 
-  const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube", "google"];
+  const validPlatforms: SocialPlatform[] = ["instagram", "facebook", "tiktok", "youtube"];
   const platforms = rawPlatforms.filter((p): p is SocialPlatform => validPlatforms.includes(p as SocialPlatform));
 
   if (platforms.length === 0) {
@@ -405,7 +405,7 @@ export async function generateCategorySocialDraftAction(params: {
   websiteUrl?: string;
   targetCity?: string;
   language?: "tr" | "en";
-  platforms?: ("instagram" | "facebook" | "youtube" | "google" | "tiktok")[];
+  platforms?: ("instagram" | "facebook" | "youtube" | "tiktok")[];
 }) {
   const ctx = await loadWorkspaceContext();
   if (!ctx?.organization?.id) {

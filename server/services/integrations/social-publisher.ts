@@ -770,6 +770,169 @@ async function resolveMetaChannelCredentials(params: {
   };
 }
 
+/**
+ * Resolves a usable access token for TikTok/YouTube publishing, reusing the same
+ * channel_connections + integration_tokens OAuth storage/refresh pattern as
+ * resolveMetaChannelCredentials. These providers don't need an explicit
+ * external-account-id discovery step (the API call operates on the authenticated
+ * identity directly), so this is a trimmed-down version of that function.
+ */
+async function resolveChannelAccessToken(params: {
+  organizationId?: string;
+  provider: "tiktok" | "youtube";
+  explicitToken?: string;
+  envFallback?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dbClient?: any;
+}): Promise<
+  | { ok: true; accessToken: string; externalAccountId: string; scopes?: string[] }
+  | { ok: false; errorCode: MetaPublishErrorCode; errorMessage: string }
+> {
+  const orgId = params.organizationId?.trim();
+  const providerLabel = params.provider === "tiktok" ? "TikTok" : "YouTube";
+
+  if (orgId === DEMO_ORGANIZATION_ID) {
+    return {
+      ok: false,
+      errorCode: "demo_blocked",
+      errorMessage: `Demo çalışma alanında ${providerLabel} yayını simülasyon korumasındadır.`,
+    };
+  }
+
+  if (params.explicitToken !== undefined) {
+    const token = params.explicitToken.trim();
+    if (!token) {
+      return {
+        ok: false,
+        errorCode: "missing_token",
+        errorMessage: `${providerLabel} erişim tokenı tanımlı değil.`,
+      };
+    }
+    return { ok: true, accessToken: token, externalAccountId: "explicit" };
+  }
+
+  if (orgId) {
+    let db: ReturnType<typeof createSupabaseAdminClient> | null = null;
+    try {
+      db = params.dbClient ?? createSupabaseAdminClient();
+    } catch {
+      db = null;
+    }
+
+    if (db) {
+      const { data: connection } = await db
+        .from("channel_connections")
+        .select("id, organization_id, provider, status, external_account_id, scopes")
+        .eq("organization_id", orgId)
+        .eq("provider", params.provider)
+        .maybeSingle();
+
+      if (
+        connection &&
+        connection.organization_id === orgId &&
+        connection.status !== "not_connected" &&
+        connection.status !== "revoked"
+      ) {
+        const { data: tokenRow } = await db
+          .from("integration_tokens")
+          .select("connection_id, organization_id, access_token_cipher, refresh_token_cipher, expires_at, scopes")
+          .eq("organization_id", orgId)
+          .eq("connection_id", connection.id)
+          .maybeSingle();
+
+        if (
+          tokenRow &&
+          tokenRow.organization_id === orgId &&
+          tokenRow.access_token_cipher &&
+          isTokenEncryptionConfigured()
+        ) {
+          let accessToken: string;
+          try {
+            accessToken = decryptToken(tokenRow.access_token_cipher);
+          } catch {
+            return {
+              ok: false,
+              errorCode: "invalid_token",
+              errorMessage: `${providerLabel} OAuth erişim tokenı çözülemedi.`,
+            };
+          }
+
+          const isExpired =
+            connection.status === "expired" ||
+            (tokenRow.expires_at
+              ? new Date(tokenRow.expires_at).getTime() <= Date.now() + TOKEN_EXPIRY_BUFFER_MS
+              : false);
+
+          if (isExpired) {
+            const refreshCipher = tokenRow.refresh_token_cipher || tokenRow.access_token_cipher;
+            try {
+              const adapter = getProviderAdapter(params.provider);
+              const refreshed = await adapter.refreshAccessToken({
+                refreshTokenCipher: refreshCipher,
+                organizationId: orgId,
+                connectionId: connection.id,
+              });
+              accessToken = decryptToken(refreshed.accessTokenCipher);
+              await db
+                .from("integration_tokens")
+                .update({
+                  access_token_cipher: refreshed.accessTokenCipher,
+                  refresh_token_cipher: refreshed.refreshTokenCipher,
+                  expires_at: refreshed.expiresAt ? refreshed.expiresAt.toISOString() : null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("connection_id", connection.id)
+                .eq("organization_id", orgId);
+              await db
+                .from("channel_connections")
+                .update({
+                  status: "connected",
+                  error_message: null,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", connection.id)
+                .eq("organization_id", orgId);
+            } catch {
+              return {
+                ok: false,
+                errorCode: "token_expired",
+                errorMessage: `${providerLabel} erişim tokenının süresi dolmuş ve yenilenemedi. Lütfen hesabı yeniden bağlayın.`,
+              };
+            }
+          }
+
+          const scopes =
+            Array.isArray(connection.scopes) && connection.scopes.length > 0
+              ? connection.scopes
+              : Array.isArray(tokenRow.scopes)
+                ? tokenRow.scopes
+                : undefined;
+
+          return {
+            ok: true,
+            accessToken,
+            externalAccountId: connection.external_account_id || "connected",
+            scopes,
+          };
+        }
+      }
+    }
+  }
+
+  const envToken = (params.envFallback ?? [])
+    .map((name) => process.env[name]?.trim())
+    .find((value): value is string => Boolean(value));
+  if (envToken) {
+    return { ok: true, accessToken: envToken, externalAccountId: "env" };
+  }
+
+  return {
+    ok: false,
+    errorCode: "missing_token",
+    errorMessage: `${providerLabel} hesabı bağlı değil veya erişim tokenı yapılandırılmamış.`,
+  };
+}
+
 async function sleepMs(ms: number): Promise<void> {
   if (ms <= 0) return;
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -1324,42 +1487,6 @@ export async function publishSocialPostToTikTok(
   token?: string,
   options: MetaPublishOptions = {},
 ): Promise<MetaPublishResult> {
-  const orgId = options.organizationId || post.organizationId || post.workspaceId;
-  if (orgId === DEMO_ORGANIZATION_ID) {
-    return {
-      success: false,
-      errorCode: "demo_blocked",
-      errorMessage: "Demo çalışma alanında TikTok yayını simülasyon korumasındadır.",
-      retryable: false,
-    };
-  }
-
-  const clientKey = (process.env.TIKTOK_CLIENT_KEY || process.env.TIKTOK_CLIENT_ID || process.env.TIKTOK_APP_ID)?.trim();
-  void clientKey;
-  const clientSecret = (process.env.TIKTOK_CLIENT_SECRET || process.env.TIKTOK_APP_SECRET)?.trim();
-  void clientSecret;
-  const accessToken = token?.trim() || process.env.TIKTOK_ACCESS_TOKEN?.trim();
-
-  const mediaUrls = post.mediaUrls || post.media_urls || [];
-  if (mediaUrls.length === 0) {
-    return {
-      success: false,
-      errorCode: "media_required",
-      errorMessage: "TikTok yayını için video dosyası zorunludur.",
-      retryable: false,
-    };
-  }
-
-  if (!accessToken) {
-    return {
-      success: false,
-      errorCode: "missing_token",
-      errorMessage: "TikTok for Business API bağlantısı veya erişim tokenı yapılandırılmamış.",
-      retryable: false,
-    };
-  }
-
-  // Idempotency: if alreadyPublishedExternalId provided, acknowledge deduplicated
   if (post.alreadyPublishedExternalId) {
     return {
       success: true,
@@ -1368,11 +1495,103 @@ export async function publishSocialPostToTikTok(
     };
   }
 
-  // Simulated / API-executed TikTok publish ID
-  const publishedId = `tiktok_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const orgId = options.organizationId || post.organizationId || post.workspaceId;
+  const caption = String(post.caption ?? post.content ?? "").trim();
+  const rawMediaUrls = post.mediaUrls || post.media_urls || [];
+  const mediaUrls = rawMediaUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0);
+  const hashtags = Array.isArray(post.hashtags)
+    ? post.hashtags.filter((h): h is string => typeof h === "string" && h.trim().length > 0)
+    : [];
+
+  const validation = validatePlatformPublishingRequirements({ platform: "tiktok", caption, mediaUrls, hashtags });
+  if (!validation.ok) {
+    return { success: false, errorCode: validation.errorCode, errorMessage: validation.errorMessage, retryable: false };
+  }
+
+  // Validation before credential resolution: demo-blocked workspaces still
+  // need a valid video attached to reach that check, matching the existing
+  // test contract (media_required takes priority over missing_token/demo
+  // detection for a request that's missing required input regardless).
+  const creds = await resolveChannelAccessToken({
+    organizationId: orgId,
+    provider: "tiktok",
+    explicitToken: token,
+    envFallback: ["TIKTOK_ACCESS_TOKEN"],
+    dbClient: options.dbClient,
+  });
+  if (!creds.ok) {
+    return { success: false, errorCode: creds.errorCode, errorMessage: creds.errorMessage, retryable: false };
+  }
+
+  const fetchFn = options.fetchImpl ?? fetch;
+  // TikTok caption/title limit is 2200 chars for the Content Posting API's
+  // post_info.title field, but we keep it short to stay well inside platform UI truncation.
+  const title = validation.formattedCaption.slice(0, 150);
+
+  let initRes: Response;
+  try {
+    initRes = await fetchFn("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${creds.accessToken}`,
+        "Content-Type": "application/json; charset=UTF-8",
+      },
+      body: JSON.stringify({
+        post_info: {
+          title,
+          // Apps that have not completed TikTok's Content Posting API audit are
+          // restricted to SELF_ONLY (private) posts by TikTok's own server-side
+          // enforcement — any other privacy_level is rejected with
+          // "unaudited_client_can_only_post_private". This is not our choice to
+          // relax; it lifts automatically once the app passes TikTok's audit.
+          privacy_level: "SELF_ONLY",
+          disable_duet: false,
+          disable_comment: false,
+          disable_stitch: false,
+        },
+        source_info: {
+          source: "PULL_FROM_URL",
+          video_url: validation.primaryMedia!.url,
+        },
+      }),
+      cache: "no-store",
+    });
+  } catch (err) {
+    return {
+      success: false,
+      errorCode: "transient_api_error",
+      errorMessage: `TikTok API isteği başarısız: ${err instanceof Error ? err.message : String(err)}`,
+      retryable: true,
+    };
+  }
+
+  const initData = (await initRes.json().catch(() => ({}))) as {
+    data?: { publish_id?: string };
+    error?: { code?: string; message?: string; log_id?: string };
+  };
+
+  const tiktokErrorCode = initData.error?.code;
+  if (!initRes.ok || !initData.data?.publish_id || (tiktokErrorCode && tiktokErrorCode !== "ok")) {
+    const retryable = initRes.status === 429 || initRes.status >= 500;
+    return {
+      success: false,
+      errorCode: initRes.status === 401 || tiktokErrorCode === "access_token_invalid"
+        ? "invalid_token"
+        : retryable
+          ? "transient_api_error"
+          : "graph_api_error",
+      errorMessage: initData.error?.message || `TikTok video yayını başlatılamadı (${initRes.status}).`,
+      retryable,
+    };
+  }
+
+  // PULL_FROM_URL is an async job on TikTok's side: this publish_id confirms
+  // TikTok accepted the request and is fetching the video, not that it has
+  // finished publishing. Status can be checked via
+  // /v2/post/publish/status/fetch/ if end-to-end confirmation is needed later.
   return {
     success: true,
-    metaPostId: publishedId,
+    metaPostId: initData.data.publish_id,
   };
 }
 
@@ -1381,39 +1600,6 @@ export async function publishSocialPostToYouTube(
   token?: string,
   options: MetaPublishOptions = {},
 ): Promise<MetaPublishResult> {
-  const orgId = options.organizationId || post.organizationId || post.workspaceId;
-  if (orgId === DEMO_ORGANIZATION_ID) {
-    return {
-      success: false,
-      errorCode: "demo_blocked",
-      errorMessage: "Demo çalışma alanında YouTube yayını simülasyon korumasındadır.",
-      retryable: false,
-    };
-  }
-
-  const clientId = (process.env.YOUTUBE_CLIENT_ID || process.env.GOOGLE_CLIENT_ID || process.env.GOOGLE_ADS_CLIENT_ID)?.trim();
-  void clientId;
-  const accessToken = token?.trim() || process.env.YOUTUBE_ACCESS_TOKEN?.trim() || process.env.GOOGLE_ACCESS_TOKEN?.trim();
-
-  const mediaUrls = post.mediaUrls || post.media_urls || [];
-  if (mediaUrls.length === 0) {
-    return {
-      success: false,
-      errorCode: "media_required",
-      errorMessage: "YouTube yayını için video dosyası zorunludur.",
-      retryable: false,
-    };
-  }
-
-  if (!accessToken) {
-    return {
-      success: false,
-      errorCode: "missing_token",
-      errorMessage: "YouTube API bağlantısı veya erişim tokenı yapılandırılmamış.",
-      retryable: false,
-    };
-  }
-
   if (post.alreadyPublishedExternalId) {
     return {
       success: true,
@@ -1422,11 +1608,145 @@ export async function publishSocialPostToYouTube(
     };
   }
 
-  const publishedId = `yt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  return {
-    success: true,
-    metaPostId: publishedId,
+  const orgId = options.organizationId || post.organizationId || post.workspaceId;
+  const caption = String(post.caption ?? post.content ?? "").trim();
+  const rawMediaUrls = post.mediaUrls || post.media_urls || [];
+  const mediaUrls = rawMediaUrls.filter((u): u is string => typeof u === "string" && u.trim().length > 0);
+  const hashtags = Array.isArray(post.hashtags)
+    ? post.hashtags.filter((h): h is string => typeof h === "string" && h.trim().length > 0)
+    : [];
+
+  const validation = validatePlatformPublishingRequirements({ platform: "youtube", caption, mediaUrls, hashtags });
+  if (!validation.ok) {
+    return { success: false, errorCode: validation.errorCode, errorMessage: validation.errorMessage, retryable: false };
+  }
+
+  const creds = await resolveChannelAccessToken({
+    organizationId: orgId,
+    provider: "youtube",
+    explicitToken: token,
+    envFallback: ["YOUTUBE_ACCESS_TOKEN", "GOOGLE_ACCESS_TOKEN"],
+    dbClient: options.dbClient,
+  });
+  if (!creds.ok) {
+    return { success: false, errorCode: creds.errorCode, errorMessage: creds.errorMessage, retryable: false };
+  }
+
+  const fetchFn = options.fetchImpl ?? fetch;
+  const videoUrl = validation.primaryMedia!.url;
+
+  // The YouTube Data API's resumable upload requires the video bytes themselves
+  // (unlike TikTok's URL-pull model), so fetch the source media first.
+  let videoBytes: ArrayBuffer;
+  let contentType = "video/mp4";
+  try {
+    const mediaRes = await fetchFn(videoUrl, { cache: "no-store" });
+    if (!mediaRes.ok) {
+      return {
+        success: false,
+        errorCode: "unsupported_media",
+        errorMessage: `Video medyası indirilemedi (${mediaRes.status}).`,
+        retryable: true,
+      };
+    }
+    contentType = mediaRes.headers.get("content-type") || contentType;
+    videoBytes = await mediaRes.arrayBuffer();
+  } catch (err) {
+    return {
+      success: false,
+      errorCode: "transient_api_error",
+      errorMessage: `Video medyası indirilemedi: ${err instanceof Error ? err.message : String(err)}`,
+      retryable: true,
+    };
+  }
+
+  const title = (validation.formattedCaption.split("\n")[0] || "FlowSales AI").slice(0, 100);
+
+  let initRes: Response;
+  try {
+    initRes = await fetchFn(
+      "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${creds.accessToken}`,
+          "Content-Type": "application/json; charset=UTF-8",
+          "X-Upload-Content-Type": contentType,
+          "X-Upload-Content-Length": String(videoBytes.byteLength),
+        },
+        body: JSON.stringify({
+          snippet: { title, description: validation.formattedCaption },
+          // Defaults to "unlisted" rather than "public" as a deliberate safety
+          // choice for this first wiring of a brand-new publish path — adjust
+          // once verified end-to-end. Unlike TikTok's SELF_ONLY, this is not an
+          // API-enforced restriction.
+          status: { privacyStatus: "unlisted", selfDeclaredMadeForKids: false },
+        }),
+        cache: "no-store",
+      },
+    );
+  } catch (err) {
+    return {
+      success: false,
+      errorCode: "transient_api_error",
+      errorMessage: `YouTube yükleme oturumu başlatılamadı: ${err instanceof Error ? err.message : String(err)}`,
+      retryable: true,
+    };
+  }
+
+  if (!initRes.ok) {
+    const retryable = initRes.status === 429 || initRes.status >= 500;
+    return {
+      success: false,
+      errorCode: initRes.status === 401 ? "invalid_token" : retryable ? "transient_api_error" : "graph_api_error",
+      errorMessage: `YouTube yükleme oturumu başlatılamadı (${initRes.status}).`,
+      retryable,
+    };
+  }
+
+  const uploadUrl = initRes.headers.get("location");
+  if (!uploadUrl) {
+    return {
+      success: false,
+      errorCode: "graph_api_error",
+      errorMessage: "YouTube yükleme oturumu adresi alınamadı.",
+      retryable: true,
+    };
+  }
+
+  let uploadRes: Response;
+  try {
+    uploadRes = await fetchFn(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": contentType, "Content-Length": String(videoBytes.byteLength) },
+      body: videoBytes,
+      cache: "no-store",
+    });
+  } catch (err) {
+    return {
+      success: false,
+      errorCode: "transient_api_error",
+      errorMessage: `YouTube video yüklemesi başarısız: ${err instanceof Error ? err.message : String(err)}`,
+      retryable: true,
+    };
+  }
+
+  const uploadData = (await uploadRes.json().catch(() => ({}))) as {
+    id?: string;
+    error?: { message?: string };
   };
+
+  if (!uploadRes.ok || !uploadData.id) {
+    const retryable = uploadRes.status === 429 || uploadRes.status >= 500;
+    return {
+      success: false,
+      errorCode: uploadRes.status === 401 ? "invalid_token" : retryable ? "transient_api_error" : "graph_api_error",
+      errorMessage: uploadData.error?.message || `YouTube video yüklemesi başarısız (${uploadRes.status}).`,
+      retryable,
+    };
+  }
+
+  return { success: true, metaPostId: uploadData.id };
 }
 
 export async function publishSocialPost(

@@ -87,6 +87,7 @@ export class OmnichannelInboxRepository {
         status,
         unread_count,
         last_message_at,
+        last_message_snippet,
         assigned_user_id,
         created_at,
         updated_at,
@@ -142,24 +143,6 @@ export class OmnichannelInboxRepository {
       return [];
     }
 
-    const convIds = convs.map((c) => c.id);
-
-    // Fetch latest message for each conversation
-    const { data: latestMessages } = await supabase
-      .from("messages")
-      .select("conversation_id, body, sent_at, created_at")
-      .in("conversation_id", convIds)
-      .order("sent_at", { ascending: false });
-
-    const latestMsgMap = new Map<string, string>();
-    if (latestMessages) {
-      for (const m of latestMessages) {
-        if (!latestMsgMap.has(m.conversation_id)) {
-          latestMsgMap.set(m.conversation_id, m.body || "[Media Attachment]");
-        }
-      }
-    }
-
     // Fetch member names for assigned_user_id
     const assignedUserIds = Array.from(new Set(convs.map((c) => c.assigned_user_id).filter(Boolean))) as string[];
     const userNameMap = new Map<string, string>();
@@ -179,7 +162,7 @@ export class OmnichannelInboxRepository {
 
     let summaries: ConversationSummaryDTO[] = convs.map((c) => {
       const contact = Array.isArray(c.channel_contacts) ? c.channel_contacts[0] : c.channel_contacts;
-      const snippet = latestMsgMap.get(c.id) || null;
+      const snippet = c.last_message_snippet || null;
       const rawPhone = contact?.phone_number || c.external_id || "";
 
       return {

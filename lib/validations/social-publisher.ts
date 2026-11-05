@@ -60,10 +60,6 @@ export type SocialPostRecord = {
   updated_at: string;
 };
 
-export function validateSocialPostInput(input: unknown): SocialPostInput {
-  return socialPostInputSchema.parse(input);
-}
-
 export function buildMockSocialPost(input: Partial<SocialPostInput> & { workspaceId: string; content: string; platform: SocialPlatform }): SocialPostRecord {
   const now = new Date().toISOString();
   return {
@@ -84,30 +80,5 @@ export function buildMockSocialPost(input: Partial<SocialPostInput> & { workspac
     meta_post_id: null,
     created_at: now,
     updated_at: now,
-  };
-}
-
-export function publishSocialPostToMetaMock(post: SocialPostRecord, pageAccessToken?: string): {
-  success: boolean;
-  metaPostId?: string;
-  errorMessage?: string;
-} {
-  if (!pageAccessToken) {
-    return {
-      success: false,
-      errorMessage: "Meta Sayfa erişim tokenı tanımlı değil. Lütfen Meta entegrasyonunu tamamlayın.",
-    };
-  }
-
-  if (pageAccessToken === "invalid_token") {
-    return {
-      success: false,
-      errorMessage: "Meta Graph API token yetkisiz veya süresi dolmuş.",
-    };
-  }
-
-  return {
-    success: true,
-    metaPostId: `meta_post_${Date.now()}`,
   };
 }

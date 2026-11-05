@@ -264,7 +264,10 @@ export default async function SocialMediaPage() {
                         {canMutate ? (
                           <form action={async () => {
                             "use server";
-                            await deleteSocialPostAction(post.id);
+                            const result = await deleteSocialPostAction(post.id);
+                            if (!result.success) {
+                              throw new Error(result.error || "Gönderi silinemedi.");
+                            }
                           }}>
                             <button type="submit" title="Sil" className="text-slate-400 hover:text-rose-600 p-1">
                               <Trash2 className="h-4 w-4" />

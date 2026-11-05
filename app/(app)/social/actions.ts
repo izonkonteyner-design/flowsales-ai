@@ -121,14 +121,23 @@ export async function createSocialPostAction(formData: FormData): Promise<{ succ
   }
 
   if (status === "scheduled" && scheduledAt) {
+    const failedPlatforms: string[] = [];
     for (const platform of platforms) {
-      await admin.from("social_publishing_queue").insert({
+      const { error: queueError } = await admin.from("social_publishing_queue").insert({
         organization_id: ctx.organization.id,
         post_id: post.id,
         platform,
         status: "pending",
         scheduled_for: new Date(scheduledAt).toISOString(),
       });
+      if (queueError) failedPlatforms.push(platform);
+    }
+    if (failedPlatforms.length > 0) {
+      revalidatePath("/social");
+      return {
+        success: false,
+        error: `Gönderi kaydedildi ama şu platformlar yayın kuyruğuna eklenemedi: ${failedPlatforms.join(", ")}.`,
+      };
     }
   }
 
@@ -172,17 +181,24 @@ export async function generateCaptionSuggestionsAction(params: {
   }
 }
 
-export async function deleteSocialPostAction(postId: string): Promise<void> {
+export async function deleteSocialPostAction(postId: string): Promise<{ success: boolean; error?: string }> {
   const ctx = await loadWorkspaceContext();
-  if (!canManageSocialPosts(ctx)) return;
+  if (!canManageSocialPosts(ctx)) {
+    return { success: false, error: "Bu işlem için yazma yetkisi olan canlı bir çalışma alanı gereklidir." };
+  }
 
   const admin = createSupabaseAdminClient();
-  await admin.from("social_posts")
+  const { error } = await admin.from("social_posts")
     .delete()
     .eq("id", postId)
     .eq("organization_id", ctx.organization.id);
 
+  if (error) {
+    return { success: false, error: error.message || "Gönderi silinemedi." };
+  }
+
   revalidatePath("/social");
+  return { success: true };
 }
 
 export async function checkAdsDiagnosticsAction(platform: AdPlatform) {

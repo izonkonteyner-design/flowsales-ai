@@ -6,6 +6,7 @@ import { scorePhoneQualification } from "@/server/services/sales-session/phone-l
 import type { SalesQualification } from "@/server/services/sales-session/domain";
 import { evaluateSalesAction } from "@/server/services/sales-policy/action-policy";
 import type { VoiceCallContext, VoiceChannelAdapter } from "@/server/services/voice-channel/adapter";
+import { generateNaturalPhoneReply, NaturalReplyUnavailableError } from "@/server/services/voice-channel/natural-reply";
 
 export type VoiceToolName = "search_products" | "get_current_price" | "get_showroom" | "update_qualification" | "request_handoff";
 export const VOICE_TRUSTED_TOOLS: ReadonlyArray<VoiceToolName> = ["search_products","get_current_price","get_showroom","update_qualification","request_handoff"];
@@ -168,16 +169,40 @@ function parseQualification(text: string, existing: SalesQualification): Partial
   return patch;
 }
 
+async function getOrganizationName(organizationId: string): Promise<string> {
+  const admin = createSupabaseAdminClient();
+  const { data } = await admin.from("organizations").select("name").eq("id", organizationId).maybeSingle();
+  return (data?.name as string | undefined) ?? "firmamız";
+}
+
+async function phraseNaturally(fallback: string, facts: Omit<Parameters<typeof generateNaturalPhoneReply>[0], "history"> & { organizationId: string; callId: string }): Promise<string> {
+  try {
+    const repo = new VoiceSalesRepository();
+    const transcript = await repo.transcript(facts.callId, facts.organizationId);
+    const history = transcript.slice(-8).map((segment) => ({ speaker: segment.speaker as "customer" | "assistant", text: segment.text })).filter((item) => item.speaker === "customer" || item.speaker === "assistant");
+    return await generateNaturalPhoneReply({ ...facts, history });
+  } catch (error) {
+    if (!(error instanceof NaturalReplyUnavailableError)) console.error("natural_phone_reply_failed", error);
+    return fallback;
+  }
+}
+
 export async function orchestratePhoneTurn(input: { organizationId: string; callId: string; salesSessionId: string; transcript: string; qualification: SalesQualification }) {
   const lower = input.transcript.toLocaleLowerCase("tr-TR");
   const patch = parseQualification(input.transcript, input.qualification);
   const qualification = { ...input.qualification, ...patch } as SalesQualification;
   const repo = new VoiceSalesRepository();
   await repo.appendTranscript({ organizationId: input.organizationId, callId: input.callId, salesSessionId: input.salesSessionId, speaker: "customer", text: input.transcript });
+  const companyName = await getOrganizationName(input.organizationId);
 
   if (/showroom|mağaza|adres|nerede/.test(lower)) {
     const showroom = await getTrustedShowroom(input.organizationId, "İzmir").catch(() => null) ?? await getTrustedShowroom(input.organizationId).catch(() => null);
-    const reply = showroom ? `${showroom.name} adresimiz ${showroom.address}. ${showroom.visitingHours ? `Ziyaret saatlerimiz ${showroom.visitingHours}.` : ""}`.trim() : "Sistemde doğrulanmış aktif showroom adresi bulamıyorum. Satış danışmanına aktarabilirim.";
+    const fallback = showroom ? `${showroom.name} adresimiz ${showroom.address}. ${showroom.visitingHours ? `Ziyaret saatlerimiz ${showroom.visitingHours}.` : ""}`.trim() : "Sistemde doğrulanmış aktif showroom adresi bulamıyorum. Satış danışmanına aktarabilirim.";
+    const reply = await phraseNaturally(fallback, {
+      organizationId: input.organizationId, callId: input.callId, companyName, customerUtterance: input.transcript,
+      matchedProducts: [], showroom: showroom ? { name: showroom.name, address: showroom.address, workingHours: showroom.visitingHours ?? null } : null,
+      intent: "showroom", noVerifiedPrice: false,
+    });
     await repo.appendTranscript({ organizationId: input.organizationId, callId: input.callId, salesSessionId: input.salesSessionId, speaker: "assistant", text: reply });
     await repo.updateSession(input.salesSessionId, input.organizationId, { qualification });
     return { reply, qualification, tool: "get_showroom" as const, showroom };
@@ -188,20 +213,34 @@ export async function orchestratePhoneTurn(input: { organizationId: string; call
     const roomCount = qualification.roomCount ?? undefined;
     const matches = await recommendProductsV2({ organizationId: input.organizationId, areaM2: area, roomCount, query: area || roomCount ? undefined : input.transcript, budget: qualification.budget, limit: 3 });
     if (!matches.length || matches[0].price === null) {
-      const reply = "Bu isteğe uygun doğrulanmış güncel katalog fiyatı bulamıyorum. Size yanlış fiyat vermemek için satış danışmanına aktarabilirim.";
+      const fallback = "Bu isteğe uygun doğrulanmış güncel katalog fiyatı bulamıyorum. Size yanlış fiyat vermemek için satış danışmanına aktarabilirim.";
+      const reply = await phraseNaturally(fallback, {
+        organizationId: input.organizationId, callId: input.callId, companyName, customerUtterance: input.transcript,
+        matchedProducts: matches.map((m) => ({ name: m.product.name, areaM2: m.product.areaM2, price: null, currency: m.product.currency })),
+        showroom: null, intent: "pricing", noVerifiedPrice: true,
+      });
       await repo.appendTranscript({ organizationId: input.organizationId, callId: input.callId, salesSessionId: input.salesSessionId, speaker: "assistant", text: reply });
       return { reply, qualification, tool: "search_products" as const, products: matches };
     }
     const best = matches[0];
     const verified = await verifyPriceBeforeSpeech({ organizationId: input.organizationId, productId: best.product.id, amount: best.price!, currency: best.product.currency });
     qualification.productInterest = best.product.name;
-    const reply = `FlowSales'teki güncel katalog fiyatına göre ${best.product.name} ${verified.speech}.`;
+    const fallback = `Güncel katalog fiyatına göre ${best.product.name} KDV hariç ${verified.speech}. Bu taban fiyata bölgenize göre değişen nakliye bedeli ayrıca eklenir, net tutarı satış danışmanımız netleştirecek.`;
+    const reply = await phraseNaturally(fallback, {
+      organizationId: input.organizationId, callId: input.callId, companyName, customerUtterance: input.transcript,
+      matchedProducts: [{ name: best.product.name, areaM2: best.product.areaM2, price: verified.amount, currency: verified.currency }],
+      showroom: null, intent: "pricing", noVerifiedPrice: false,
+    });
     await repo.appendTranscript({ organizationId: input.organizationId, callId: input.callId, salesSessionId: input.salesSessionId, speaker: "assistant", text: reply });
     await repo.updateSession(input.salesSessionId, input.organizationId, { qualification, referenced_product_ids: [best.product.id] });
     return { reply, qualification, tool: "get_current_price" as const, product: best.product, trustedPrice: verified };
   }
 
-  const reply = qualification.purchaseCommitment ? "Anladım. İhtiyacınızı satış kaydınıza işliyorum. Uygun ürün ve sonraki adımı netleştirmek için birkaç kısa bilgi daha alabilirim." : "Size uygun ürünü belirlemek için metrekare, oda sayısı, bütçe, arsa lokasyonu ve satın alma zamanınızı öğrenebilirim.";
+  const fallback = qualification.purchaseCommitment ? "Anladım. İhtiyacınızı satış kaydınıza işliyorum. Uygun ürün ve sonraki adımı netleştirmek için birkaç kısa bilgi daha alabilirim." : "Size uygun ürünü belirlemek için metrekare, oda sayısı, bütçe, arsa lokasyonu ve satın alma zamanınızı öğrenebilirim.";
+  const reply = await phraseNaturally(fallback, {
+    organizationId: input.organizationId, callId: input.callId, companyName, customerUtterance: input.transcript,
+    matchedProducts: [], showroom: null, intent: "general", noVerifiedPrice: false,
+  });
   await repo.appendTranscript({ organizationId: input.organizationId, callId: input.callId, salesSessionId: input.salesSessionId, speaker: "assistant", text: reply });
   await repo.updateSession(input.salesSessionId, input.organizationId, { qualification });
   return { reply, qualification, tool: "update_qualification" as const };

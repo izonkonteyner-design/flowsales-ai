@@ -187,6 +187,47 @@ export async function sendEmail(params: { organizationId: string; connectionId: 
   await persistMessage(connection, { externalId, threadExternalId, from: connection.email_address.toLowerCase(), fromName: connection.display_name, to: [to], subject: params.subject, text: params.body, sentAt: new Date().toISOString(), isRead: true });
 }
 
+export async function sendEmailWithAttachment(params: { organizationId: string; connectionId: string; to: string; subject: string; body: string; attachment: { fileName: string; contentType: string; data: Buffer } }) {
+  const connection = await loadConnection(params.organizationId, params.connectionId);
+  const token = await getFreshAccessToken(connection);
+  const to = params.to.trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(to)) throw new Error("Geçerli bir alıcı e-posta adresi girin.");
+  if (!params.subject.trim() || !params.body.trim()) throw new Error("Konu ve mesaj zorunludur.");
+  let externalId = crypto.randomUUID();
+  let threadExternalId = externalId;
+
+  if (connection.provider === "gmail") {
+    const boundary = `flowsales_${crypto.randomBytes(12).toString("hex")}`;
+    const attachmentBase64 = params.attachment.data.toString("base64").replace(/.{76}/g, "$&\r\n");
+    const mime = [
+      `From: ${connection.display_name || "FlowSales"} <${connection.email_address}>`,
+      `To: ${to}`,
+      `Subject: =?UTF-8?B?${Buffer.from(params.subject).toString("base64")}?=`,
+      "MIME-Version: 1.0",
+      `Content-Type: multipart/mixed; boundary="${boundary}"`,
+      "",
+      `--${boundary}`,
+      "Content-Type: text/plain; charset=UTF-8",
+      "",
+      params.body,
+      "",
+      `--${boundary}`,
+      `Content-Type: ${params.attachment.contentType}; name="${params.attachment.fileName}"`,
+      `Content-Disposition: attachment; filename="${params.attachment.fileName}"`,
+      "Content-Transfer-Encoding: base64",
+      "",
+      attachmentBase64,
+      "",
+      `--${boundary}--`,
+    ].join("\r\n");
+    const sent = await checkedJson(await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ raw: Buffer.from(mime).toString("base64url") }) }));
+    externalId = sent.id; threadExternalId = sent.threadId || sent.id;
+  } else {
+    await checkedJson(await fetch("https://graph.microsoft.com/v1.0/me/sendMail", { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ message: { subject: params.subject, body: { contentType: "Text", content: params.body }, toRecipients: [{ emailAddress: { address: to } }], attachments: [{ "@odata.type": "#microsoft.graph.fileAttachment", name: params.attachment.fileName, contentType: params.attachment.contentType, contentBytes: params.attachment.data.toString("base64") }] }, saveToSentItems: true }) }).then(async (response) => response.status === 202 ? new Response("{}", { status: 200, headers: { "Content-Type": "application/json" } }) : response));
+  }
+  await persistMessage(connection, { externalId, threadExternalId, from: connection.email_address.toLowerCase(), fromName: connection.display_name, to: [to], subject: params.subject, text: params.body, sentAt: new Date().toISOString(), isRead: true });
+}
+
 export async function listEmailThreads(organizationId: string) {
   const db = createSupabaseAdminClient();
   const { data: threads } = await db.from("email_threads").select("id,subject,participant_email,participant_name,lead_id,contact_id,last_message_at,unread_count,email_connections(email_address,provider)").eq("organization_id", organizationId).order("last_message_at", { ascending: false }).limit(100);

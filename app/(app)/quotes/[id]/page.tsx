@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { QuoteDeleteDialog } from "@/components/quotes/quote-delete-dialog";
-import { duplicateQuoteAction, updateQuoteStatusAction } from "@/app/(app)/quotes/actions";
+import { duplicateQuoteAction, sendQuoteAction, updateQuoteStatusAction } from "@/app/(app)/quotes/actions";
 import { QUOTE_STATUSES } from "@/lib/constants";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Select } from "@/components/ui/select";
@@ -88,6 +88,18 @@ export default async function QuoteDetailPage({ params, searchParams }: QuoteDet
               >
                 <Copy className="h-4 w-4" />
                 Çoğalt
+              </button>
+            </form>
+            <form action={sendQuoteAction}>
+              <input type="hidden" name="quote_id" value={quote.id} />
+              <button
+                type="submit"
+                disabled={!canMutate}
+                title={canMutate ? "Teklifi müşterinin e-postasına PDF ekiyle gönder" : restriction}
+                className="inline-flex h-10 items-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-100"
+              >
+                <Send className="h-4 w-4" />
+                Teklifi Gönder
               </button>
             </form>
             {canMutate ? (

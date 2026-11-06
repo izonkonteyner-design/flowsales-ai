@@ -8,6 +8,7 @@ import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/s
 import { validateCustomerWindow } from "@/lib/utils/customer-window";
 import { DEMO_ORGANIZATION_ID } from "@/server/repositories/supabase/omnichannel-inbox";
 import { logger } from "@/lib/logger";
+import { determineSafeAutoReply } from "@/server/services/omnichannel-ai-reply";
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION?.trim() || "v26.0";
 const FACEBOOK_GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -211,7 +212,13 @@ export async function handleMetaMessagingWebhook(payload: MetaMessagingWebhookPa
       const admin = createSupabaseAdminClient();
       try {
         if (event.message) {
-          await persistInbound({ provider, connectionId: connection.id, organizationId: connection.organization_id, customerExternalId: senderId, accountExternalId: accountId, event });
+          const persisted = await persistInbound({ provider, connectionId: connection.id, organizationId: connection.organization_id, customerExternalId: senderId, accountExternalId: accountId, event });
+          if (!persisted.duplicate && !persisted.ignored && persisted.conversationId && event.message.text) {
+            const decision = await determineSafeAutoReply({ organizationId: connection.organization_id, customerMessage: event.message.text });
+            if (decision.safe) {
+              await sendMetaMessagingAutoReply({ organizationId: connection.organization_id, conversationId: persisted.conversationId, text: decision.reply }).catch((err) => logger.error("meta_messaging_ai_auto_reply_failed", err, { provider }));
+            }
+          }
         }
         if (stored.id) await admin.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString() }).eq("id", stored.id).eq("organization_id", connection.organization_id);
         processed += 1;
@@ -227,6 +234,66 @@ export async function handleMetaMessagingWebhook(payload: MetaMessagingWebhookPa
   }
   logger.info("meta_messaging_webhook.processed", { provider, entries: entries.length, processed, duplicates, unmatched });
   return Response.json({ received: true, provider, processed, duplicates, unmatched }, { status: 200 });
+}
+
+export type AiAutoReplyResult =
+  | { success: true; messageId: string }
+  | { success: false; reason: string };
+
+/**
+ * Sends an AI-generated reply with no human in the loop. Only called from handleMetaMessagingWebhook
+ * after server/services/omnichannel-ai-reply.ts has already confirmed the reply is grounded in
+ * verified catalog/showroom data. sender_user_id is left null and metadata.sent_by="ai_auto_reply"
+ * marks it as AI-sent, distinct from a human agent's reply.
+ */
+export async function sendMetaMessagingAutoReply(params: { organizationId: string; conversationId: string; text: string }): Promise<AiAutoReplyResult> {
+  if (params.organizationId === DEMO_ORGANIZATION_ID) return { success: false, reason: "demo_organization" };
+  const admin = createSupabaseAdminClient();
+
+  const { data: conversation } = await admin.from("conversations").select("id,organization_id,provider,external_id,connection_id").eq("id", params.conversationId).eq("organization_id", params.organizationId).maybeSingle();
+  if (!conversation || !["instagram", "facebook"].includes(conversation.provider)) return { success: false, reason: "not_found" };
+  const provider = conversation.provider as MetaMessagingProvider;
+
+  const { data: lastInbound } = await admin.from("messages").select("sent_at,created_at").eq("organization_id", params.organizationId).eq("conversation_id", params.conversationId).eq("direction", "inbound").order("sent_at", { ascending: false, nullsFirst: false }).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!validateCustomerWindow(lastInbound?.sent_at || lastInbound?.created_at).allowed) return { success: false, reason: "window_closed" };
+
+  try {
+    const rate = await checkRateLimit(`${params.organizationId}_ai_auto_reply_${provider}`, "meta_messaging_ai_auto_reply", 30, 60_000);
+    if (!rate.allowed) return { success: false, reason: "rate_limit_exceeded" };
+  } catch (error) {
+    if (error instanceof DistributedRateLimitUnavailableError) return { success: false, reason: "rate_limit_unavailable" };
+    throw error;
+  }
+
+  const { data: connection } = await admin.from("channel_connections").select("id,status,external_account_id").eq("id", conversation.connection_id).eq("organization_id", params.organizationId).eq("provider", provider).maybeSingle();
+  if (!connection || connection.status !== "connected" || !connection.external_account_id) return { success: false, reason: "connection_required" };
+  const { data: tokenRow } = await admin.from("integration_tokens").select("access_token_cipher").eq("connection_id", connection.id).eq("organization_id", params.organizationId).maybeSingle();
+  if (!tokenRow?.access_token_cipher) return { success: false, reason: "connection_required" };
+  const token = decryptToken(tokenRow.access_token_cipher);
+
+  const graphBase = provider === "instagram" ? INSTAGRAM_GRAPH_BASE : FACEBOOK_GRAPH_BASE;
+  const response = await fetch(`${graphBase}/${encodeURIComponent(connection.external_account_id)}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ recipient: { id: conversation.external_id }, message: { text: params.text }, ...(provider === "facebook" ? { messaging_type: "RESPONSE" } : {}) }),
+    cache: "no-store",
+  });
+  const result = (await response.json().catch(() => ({}))) as { message_id?: string };
+  if (!response.ok || !result.message_id) {
+    await audit({ organizationId: params.organizationId, provider, conversationId: params.conversationId, eventType: "message_failed", metadata: { httpStatus: response.status, autoReply: true } });
+    return { success: false, reason: "send_failed" };
+  }
+
+  const now = new Date().toISOString();
+  const { data: message, error } = await admin.from("messages").insert({
+    organization_id: params.organizationId, conversation_id: params.conversationId, provider, external_id: result.message_id,
+    direction: "outbound", message_type: "text", body: params.text, sender_user_id: null, status: "sent", sent_at: now,
+    metadata: { sent_by: "ai_auto_reply", account_external_id: connection.external_account_id },
+  }).select("id").single();
+  if (error || !message) return { success: false, reason: "persistence_failed" };
+  await admin.from("conversations").update({ last_message_at: now, last_message_snippet: params.text, updated_at: now }).eq("id", params.conversationId).eq("organization_id", params.organizationId);
+  await audit({ organizationId: params.organizationId, provider, conversationId: params.conversationId, messageId: message.id, eventType: "message_sent", metadata: { externalMessageId: result.message_id, autoReply: true } });
+  return { success: true, messageId: message.id };
 }
 
 export async function sendMetaMessagingReply(params: {

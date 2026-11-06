@@ -28,6 +28,66 @@ export interface OutboundReplyResult {
   };
 }
 
+export type AiAutoReplyResult =
+  | { success: true; messageId: string }
+  | { success: false; reason: string };
+
+/**
+ * Sends an AI-generated reply with no human in the loop. Only called from webhook handlers after
+ * server/services/omnichannel-ai-reply.ts has already confirmed the reply is grounded in verified
+ * catalog/showroom data (never a free-form AI message). sender_user_id is left null and the message
+ * is tagged metadata.sent_by="ai_auto_reply" so it is distinguishable from human-sent messages.
+ */
+export async function sendWhatsAppAiAutoReply(params: { organizationId: string; conversationId: string; text: string }): Promise<AiAutoReplyResult> {
+  if (params.organizationId === DEMO_ORGANIZATION_ID) return { success: false, reason: "demo_organization" };
+  const supabase = createSupabaseAdminClient();
+
+  const { data: conv } = await supabase.from("conversations").select("id,organization_id,connection_id,external_id").eq("id", params.conversationId).eq("organization_id", params.organizationId).maybeSingle();
+  if (!conv) return { success: false, reason: "conversation_not_found" };
+
+  try {
+    const rate = await checkRateLimit(params.organizationId, "whatsapp_ai_auto_reply", 30, 60000);
+    if (!rate.allowed) return { success: false, reason: "rate_limit_exceeded" };
+  } catch {
+    return { success: false, reason: "rate_limit_unavailable" };
+  }
+
+  const { data: conn } = await supabase.from("channel_connections").select("id,status,phone_number_id").eq("id", conv.connection_id).eq("organization_id", params.organizationId).eq("provider", "whatsapp").maybeSingle();
+  if (!conn || conn.status !== "connected" || !conn.phone_number_id) return { success: false, reason: "connection_required" };
+
+  const { data: lastInboundMsg } = await supabase.from("messages").select("sent_at,created_at").eq("conversation_id", params.conversationId).eq("organization_id", params.organizationId).eq("direction", "inbound").order("sent_at", { ascending: false }).limit(1).maybeSingle();
+  if (!validateCustomerWindow(lastInboundMsg?.sent_at || lastInboundMsg?.created_at).allowed) return { success: false, reason: "customer_window_closed" };
+
+  const { data: tokenRow } = await supabase.from("integration_tokens").select("access_token_cipher").eq("connection_id", conn.id).eq("organization_id", params.organizationId).eq("provider", "whatsapp").maybeSingle();
+  if (!tokenRow?.access_token_cipher) return { success: false, reason: "connection_required" };
+  let accessToken: string;
+  try {
+    accessToken = decryptToken(tokenRow.access_token_cipher);
+  } catch {
+    return { success: false, reason: "token_decrypt_failed" };
+  }
+
+  const graphVersion = process.env.META_GRAPH_API_VERSION || "v21.0";
+  const response = await fetch(`https://graph.facebook.com/${graphVersion}/${conn.phone_number_id}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: conv.external_id, type: "text", text: { body: params.text } }),
+  });
+  const result = await response.json().catch(() => ({} as { messages?: Array<{ id?: string }> }));
+  if (!response.ok || !result.messages?.[0]?.id) return { success: false, reason: "send_failed" };
+
+  const nowIso = new Date().toISOString();
+  const { data: message, error } = await supabase.from("messages").insert({
+    organization_id: params.organizationId, conversation_id: params.conversationId, provider: "whatsapp",
+    direction: "outbound", message_type: "text", body: params.text, sender_user_id: null, status: "sent",
+    external_id: result.messages[0].id, metadata: { sent_by: "ai_auto_reply" }, sent_at: nowIso,
+  }).select("id").single();
+  if (error || !message) return { success: false, reason: "persistence_failed" };
+
+  await supabase.from("conversations").update({ last_message_at: nowIso, last_message_snippet: params.text, updated_at: nowIso }).eq("id", params.conversationId);
+  return { success: true, messageId: message.id };
+}
+
 export class WhatsAppOutboundService {
   async sendOutboundReply(params: OutboundReplyParams): Promise<OutboundReplyResult> {
     const { organizationId, userId, userRole, conversationId, text, clientIdempotencyKey } = params;

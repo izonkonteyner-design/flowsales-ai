@@ -7,6 +7,8 @@ import { checkRateLimit, DistributedRateLimitUnavailableError } from "@/server/s
 import { logger } from "@/lib/logger";
 import { parseWhatsAppInbound, persistWhatsAppInbound } from "@/server/services/integrations/whatsapp-inbound";
 import { recordWhatsAppAuditEvent } from "@/server/services/whatsapp-audit";
+import { sendWhatsAppAiAutoReply } from "@/server/services/integrations/whatsapp-outbound";
+import { determineSafeAutoReply } from "@/server/services/omnichannel-ai-reply";
 
 const MAX_WEBHOOK_ATTEMPTS = 5;
 
@@ -202,6 +204,22 @@ export async function POST(request: NextRequest): Promise<Response> {
       await supabase.from("webhook_events").update({ status: "processed", processed_at: new Date().toISOString(), next_retry_at: null })
         .eq("id", eventId).eq("organization_id", activeConnection.organization_id);
       logger.info("meta_webhook.inbound_messages_persisted", { eventId, count: persisted.length, duplicates: persisted.filter((item) => item.duplicate).length });
+
+      for (let i = 0; i < persisted.length; i += 1) {
+        const result = persisted[i];
+        const body = inbound[i]?.body;
+        if (result.duplicate || !result.messageId || !body) continue;
+        try {
+          const { data: messageRow } = await supabase.from("messages").select("conversation_id").eq("id", result.messageId).eq("organization_id", activeConnection.organization_id).maybeSingle();
+          if (!messageRow?.conversation_id) continue;
+          const decision = await determineSafeAutoReply({ organizationId: activeConnection.organization_id, customerMessage: body });
+          if (decision.safe) {
+            await sendWhatsAppAiAutoReply({ organizationId: activeConnection.organization_id, conversationId: messageRow.conversation_id, text: decision.reply });
+          }
+        } catch (err) {
+          logger.error("whatsapp_ai_auto_reply_failed", err, { eventId });
+        }
+      }
     } catch (err) {
       const deadLetter = await markWebhookFailure({ eventId, organizationId: activeConnection.organization_id, attemptCount, errorMessage: "inbound_persistence_failed" });
       logger.error("meta_webhook.inbound_persistence_failed", err, { eventId, attemptCount, deadLetter });

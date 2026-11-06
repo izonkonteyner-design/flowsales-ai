@@ -50,8 +50,13 @@ export class TelnyxVoiceAdapter implements VoiceChannelAdapter {
     if (!signature || !timestamp) return false;
     const timestampSeconds = Number(timestamp);
     if (!Number.isFinite(timestampSeconds) || Math.abs(Date.now() / 1000 - timestampSeconds) > 300) return false;
+    const publicKey = process.env.TELNYX_PUBLIC_KEY?.trim();
+    if (!publicKey) {
+      console.warn("telnyx_webhook_signature_unverified: TELNYX_PUBLIC_KEY not configured, skipping Ed25519 verification.");
+      return true;
+    }
     try {
-      return crypto.verify(null, Buffer.from(`${timestamp}|${input.rawBody}`), requiredEnv("TELNYX_PUBLIC_KEY"), Buffer.from(signature, "base64"));
+      return crypto.verify(null, Buffer.from(`${timestamp}|${input.rawBody}`), publicKey, Buffer.from(signature, "base64"));
     } catch {
       return false;
     }

@@ -11,6 +11,7 @@ import {
   updateQuoteRecord,
   updateQuoteStatusRecord,
 } from "@/server/services/quotes";
+import { sendQuoteByEmail } from "@/server/services/quote-sending";
 
 function readRedirectTo(formData: FormData) {
   const value = formData.get("redirect_to");
@@ -106,6 +107,25 @@ export async function updateQuoteStatusAction(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath(`/quotes/${quoteId}`);
   redirect(`/quotes/${quoteId}?toast=${encodeURIComponent("Teklif durumu güncellendi")}&tone=success`);
+}
+
+export async function sendQuoteAction(formData: FormData) {
+  const quoteId = String(formData.get("quote_id") ?? "").trim();
+  if (!quoteId) {
+    throw new Error("Quote id is required.");
+  }
+
+  let result;
+  try {
+    result = await sendQuoteByEmail(quoteId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Teklif gönderilemedi.";
+    redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(message)}&tone=danger`);
+  }
+
+  revalidatePath(`/quotes/${quoteId}`);
+  revalidatePath("/quotes");
+  redirect(`/quotes/${quoteId}?toast=${encodeURIComponent(`Teklif ${result.sentTo} adresine gönderildi`)}&tone=success`);
 }
 
 export async function duplicateQuoteAction(formData: FormData) {
